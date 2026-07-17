@@ -1,0 +1,121 @@
+export interface TextStyle {
+  fontFamily: string; // 'Inter' | 'Space Grotesk' | 'Playfair Display' | 'JetBrains Mono' | 'Syne'
+  fontSize: number; // Pixels
+  color: string; // Hex color
+  fontWeight: 'normal' | 'bold' | '300' | '500' | '700' | '900';
+  lineHeight: number; // e.g. 1.2
+  align: 'left' | 'center' | 'right';
+  letterSpacing?: number; // Pixels
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  hasShadow?: boolean;
+  isCustomColor?: boolean;
+}
+
+export interface Region {
+  id: string;
+  name: string;
+  type: 'image' | 'text' | 'container';
+  x: number; // X position in canvas
+  y: number; // Y position in canvas
+  width: number;
+  height: number;
+  backgroundColor: string; // Hex color or transparent
+  opacity: number; // 0 to 1
+  borderColor: string; // Hex color
+  borderWidth: number; // Pixels
+  borderRadius: number; // Pixels
+  isDynamic: boolean;
+  zIndex?: number;
+  fitBackgroundToText?: boolean;
+  hasBackground?: boolean;
+  hasBorder?: boolean;
+  hidden?: boolean;
+  locked?: boolean;
+  // If type is text
+  textStyle?: TextStyle;
+  placeholderText?: string;
+  textRole?: 'title' | 'subtitle' | 'description' | 'normal';
+  // If type is image
+  placeholderImage?: string;
+  clipImage?: boolean;
+}
+
+export interface FixedElement {
+  id: string;
+  type: 'logo' | 'social' | 'shape' | 'text';
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  zIndex?: number;
+  hidden?: boolean;
+  locked?: boolean;
+  // Shape specific
+  shapeType?: 'rect' | 'circle' | 'line' | 'star';
+  color?: string; // Fill or stroke color
+  backgroundColor?: string; // Shape fill
+  borderColor?: string;
+  borderWidth?: number;
+  borderRadius?: number;
+  // Text/Logo specific
+  content?: string; // Text string, image URL, or handle name
+  textStyle?: TextStyle;
+  iconType?: 'instagram' | 'globe' | 'mail' | 'phone' | 'none';
+}
+
+export interface TemplatePage {
+  id: string; // '1' (Cover/Kapak) or '2' (Collage/Kolaj)
+  name: string;
+  regions: Region[];
+  fixedElements: FixedElement[];
+  pageRole?: 'cover' | '1-image' | '2-image' | '3-image' | 'custom';
+}
+
+export interface DesignTemplate {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  backgroundColor: string;
+  backgroundGradient?: {
+    type: 'linear' | 'radial';
+    colors: string[]; // hex array
+    angle?: number;
+  };
+  backgroundImageUrl?: string;
+  regions: Region[];
+  fixedElements: FixedElement[];
+  palette: {
+    primary: string;
+    accent: string;
+    text: string;
+    bg: string;
+    boldHighlight?: string;
+  };
+  pages?: TemplatePage[];
+  aiSystemPrompt?: string;
+}
+
+export interface GraphicData {
+  templateId: string;
+  dynamicTexts: Record<string, string>; // regionId -> text
+  dynamicImages: Record<string, {
+    url: string;
+    scale: number;
+    offsetX: number;
+    offsetY: number;
+    rotation: number;
+  }>; // regionId -> image options
+  paletteOverrides?: {
+    primary?: string;
+    accent?: string;
+    text?: string;
+    bg?: string;
+    boldHighlight?: string;
+  };
+  hiddenElements?: string[]; // list of fixedElement or region IDs to hide
+}
