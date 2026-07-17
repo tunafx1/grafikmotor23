@@ -1,0 +1,64 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isAuthorizedOwner(userId) {
+      return (request.auth != null && userId == request.auth.uid) || 
+             (request.auth == null && userId is string && userId.startsWith('guest_'));
+    }
+
+    // Template validation blueprint
+    function isValidTemplate(data) {
+      return data.keys().hasAll([
+        'id', 'name', 'width', 'height', 'backgroundColor', 
+        'primaryColor', 'accentColor', 'textColor', 'regions', 
+        'fixedElements', 'userId'
+      ]) &&
+      data.id is string && data.id.size() > 0 && data.id.size() <= 128 &&
+      data.name is string && data.name.size() > 0 && data.name.size() <= 256 &&
+      data.width is int && data.width >= 100 && data.width <= 4000 &&
+      data.height is int && data.height >= 100 && data.height <= 4000 &&
+      data.backgroundColor is string && data.backgroundColor.size() <= 64 &&
+      data.primaryColor is string && data.primaryColor.size() <= 64 &&
+      data.accentColor is string && data.accentColor.size() <= 64 &&
+      data.textColor is string && data.textColor.size() <= 64 &&
+      data.regions is list && data.regions.size() <= 50 &&
+      data.fixedElements is list && data.fixedElements.size() <= 50 &&
+      data.userId is string && isAuthorizedOwner(data.userId);
+    }
+
+    match /templates/{templateId} {
+      allow list: if (request.auth != null && resource.data.userId == request.auth.uid) || 
+                     (request.auth == null && resource.data.userId.startsWith('guest_'));
+                     
+      allow get: if (request.auth != null && resource.data.userId == request.auth.uid) || 
+                    (request.auth == null && resource.data.userId.startsWith('guest_'));
+                    
+      allow create: if isValidId(templateId) && isValidTemplate(request.resource.data);
+      
+      allow update: if isValidId(templateId) && 
+                       ((request.auth != null && resource.data.userId == request.auth.uid) || 
+                        (request.auth == null && resource.data.userId.startsWith('guest_') && resource.data.userId == request.resource.data.userId)) && 
+                       isValidTemplate(request.resource.data);
+                       
+      allow delete: if isValidId(templateId) && 
+                       ((request.auth != null && resource.data.userId == request.auth.uid) || 
+                        (request.auth == null && resource.data.userId.startsWith('guest_')));
+    }
+
+    match /graphic_projects/{userId} {
+      allow get: if isAuthorizedOwner(userId);
+      allow create, update: if isAuthorizedOwner(userId) && request.resource.data.userId == userId;
+      allow delete: if isAuthorizedOwner(userId);
+    }
+  }
+}

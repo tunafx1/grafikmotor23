@@ -1,0 +1,133 @@
+{
+  "entities": {
+    "Template": {
+      "title": "DesignTemplate",
+      "description": "User created design templates containing regions, fixed elements, and style metrics.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier of the template"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable name of the template"
+        },
+        "width": {
+          "type": "integer",
+          "description": "Canvas width in pixels"
+        },
+        "height": {
+          "type": "integer",
+          "description": "Canvas height in pixels"
+        },
+        "backgroundColor": {
+          "type": "string",
+          "description": "Hex color code or transparent"
+        },
+        "backgroundImageUrl": {
+          "type": "string",
+          "description": "URL of the uploaded background canvas image"
+        },
+        "primaryColor": {
+          "type": "string",
+          "description": "Primary highlight color"
+        },
+        "accentColor": {
+          "type": "string",
+          "description": "Accent secondary color"
+        },
+        "textColor": {
+          "type": "string",
+          "description": "Default text contrast color"
+        },
+        "regions": {
+          "type": "array",
+          "description": "Drawn dynamic regions"
+        },
+        "fixedElements": {
+          "type": "array",
+          "description": "Fixed branding or custom shape design elements"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner userId of the template"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "width",
+        "height",
+        "backgroundColor",
+        "primaryColor",
+        "accentColor",
+        "textColor",
+        "regions",
+        "fixedElements",
+        "userId",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "GraphicProject": {
+      "title": "GraphicProject",
+      "description": "User active workspace project state, including layout data, generated pages, and customized templates.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The user ID owner of the project"
+        },
+        "currentTemplateId": {
+          "type": "string",
+          "description": "The active design template ID"
+        },
+        "graphicData": {
+          "type": "object",
+          "description": "The customized visual elements, layout inputs, and canvas data"
+        },
+        "generatedPages": {
+          "type": "array",
+          "description": "List of dynamically generated visual template pages"
+        },
+        "templates": {
+          "type": "array",
+          "description": "All active templates including presets and customized templates"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp"
+        }
+      },
+      "required": [
+        "userId",
+        "currentTemplateId",
+        "graphicData",
+        "generatedPages",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/templates/{templateId}": {
+      "schema": "Template",
+      "description": "Stored templates owned by users"
+    },
+    "/graphic_projects/{userId}": {
+      "schema": "GraphicProject",
+      "description": "User active workspace project state containing customized templates and dynamic pages"
+    }
+  }
+}
