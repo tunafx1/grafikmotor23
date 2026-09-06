@@ -12,6 +12,9 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   updateProfile,
+  updatePassword,
+  linkWithCredential,
+  EmailAuthProvider,
   User
 } from 'firebase/auth';
 import { getAnalytics, Analytics } from 'firebase/analytics';
@@ -169,6 +172,33 @@ export async function sendResetPassword(email: string): Promise<void> {
 }
 
 /**
+ * Link a password to the current user (e.g. Google user setting a password)
+ * or update existing password.
+ */
+export async function setOrUpdateAccountPassword(newPassword: string): Promise<{ isLinked: boolean }> {
+  if (!isValidConfig) throw Object.assign(new Error('Firebase configuration missing'), { code: 'auth/configuration-not-found' });
+  const currentUser = auth.currentUser;
+  if (!currentUser) {
+    throw Object.assign(new Error('Aktif bir kullanıcı oturumu bulunamadı.'), { code: 'auth/no-current-user' });
+  }
+
+  const hasPasswordProvider = currentUser.providerData.some(p => p.providerId === 'password');
+
+  if (hasPasswordProvider) {
+    await updatePassword(currentUser, newPassword);
+    return { isLinked: false };
+  } else {
+    if (!currentUser.email) {
+      throw Object.assign(new Error('Kullanıcının e-posta adresi bulunamadı.'), { code: 'auth/invalid-email' });
+    }
+    const credential = EmailAuthProvider.credential(currentUser.email, newPassword);
+    await linkWithCredential(currentUser, credential);
+    await currentUser.reload();
+    return { isLinked: true };
+  }
+}
+
+/**
  * Human-readable Turkish error messages for Firebase Auth errors.
  */
 export function getAuthErrorMessage(error: any): string {
@@ -201,6 +231,10 @@ export function getAuthErrorMessage(error: any): string {
       return "Firebase konsolunda 'E-posta/Şifre' (Email/Password) ile kayıt seçeneği henüz etkinleştirilmemiş. Firebase Console > Authentication > Sign-in method sekmesinden 'Email/Password' sağlayıcısını etkinleştirmeniz gerekmektedir.";
     case 'auth/unverified-email':
       return 'E-posta adresiniz henüz doğrulanmamış. Lütfen gelen kutunuzdaki linke tıklayın.';
+    case 'auth/requires-recent-login':
+      return 'Güvenlik nedeniyle şifre belirlemeden önce lütfen oturumunuzu kapatıp tekrar giriş yapın.';
+    case 'auth/credential-already-in-use':
+      return 'Bu kimlik bilgisi başka bir hesap tarafından kullanılıyor.';
     default:
       return error.message || 'İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.';
   }

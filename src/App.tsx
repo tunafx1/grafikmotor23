@@ -4078,6 +4078,7 @@ export default function App() {
         templateName={currentTemplate.name}
         isDark={isDarkMode} onTheme={() => setIsDarkMode(v => !v)}
         userName={user && !user.isAnonymous ? user.displayName || 'Hesabım' : null}
+        user={user}
         cloudStatus={cloudStatus} isCloudSynced={isCloudSynced}
         onLogin={handleGoogleLogin} onLogout={handleLogout} isSigningIn={isGoogleSigningIn}
         onSave={() => saveDataToCloud()} onTools={() => setIsToolsModalOpen(true)}
@@ -4086,6 +4087,12 @@ export default function App() {
         onRename={(newName) => {
           if (!newName.trim()) return;
           setTemplates(prev => prev.map(t => t.id === currentTemplateId ? { ...t, name: newName.trim() } : t));
+        }}
+        onUserUpdated={async () => {
+          if (auth.currentUser) {
+            await auth.currentUser.reload();
+            setUser({ ...auth.currentUser });
+          }
         }}
       />
       {storageError && <div className="workspace-warning" role="alert">{storageError} Çalışmanızı indirin veya buluta kaydedin.</div>}
