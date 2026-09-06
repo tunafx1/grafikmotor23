@@ -3537,13 +3537,12 @@ textarea::placeholder {
   to { transform: rotate(360deg); }
 }
 
-/* ── Virtual Vector Cursor ── */
+/* ── Virtual Vector Cursor & Click Ripple ── */
 .saas-virtual-cursor {
   position: absolute;
   pointer-events: none;
-  z-index: 50;
-  transform: translate(-3px, -3px);
-  filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.25));
+  z-index: 60;
+  filter: drop-shadow(0 4px 10px rgba(15, 23, 42, 0.28));
   display: flex;
   align-items: flex-start;
   gap: 4px;
@@ -3556,156 +3555,267 @@ textarea::placeholder {
   font-weight: 800;
   padding: 2px 6px;
   border-radius: 4px;
-  box-shadow: 0 2px 6px rgba(255, 107, 26, 0.3);
-  margin-top: 12px;
+  box-shadow: 0 2px 6px rgba(255, 107, 26, 0.35);
+  margin-top: 10px;
+  letter-spacing: 0.02em;
 }
 
-/* Download Celebration Toast */
-.saas-success-toast {
+.saas-click-ripple {
   position: absolute;
-  top: 16px;
-  right: 16px;
-  z-index: 45;
-  background: #FFFFFF;
-  border: 1px solid #10B981;
-  border-radius: 12px;
-  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.2);
-  padding: 8px 14px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.saas-success-toast strong {
-  display: block;
-  font-size: 0.74rem;
-  color: #0F172A;
-  font-weight: 800;
-}
-.saas-success-toast span {
-  display: block;
-  font-size: 0.62rem;
-  color: #64748B;
+  top: 0;
+  left: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #FF6B1A;
+  transform: translate(-50%, -50%);
+  animation: saasRippleWave 0.35s cubic-bezier(0.1, 0.8, 0.3, 1) forwards;
+  pointer-events: none;
 }
 
-/* ── Bottom Scrubber Timeline Bar ── */
-.saas-timeline-bar {
-  background: #FFFFFF;
-  border-top: 1px solid #EDF2F7;
-  padding: 8px 16px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  position: relative;
+@keyframes saasRippleWave {
+  0% {
+    width: 6px;
+    height: 6px;
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.6);
+  }
+  100% {
+    width: 38px;
+    height: 38px;
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.5);
+  }
 }
 
-.saas-controls-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.saas-ctrl-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  border: 1px solid #E2E8F0;
-  background: #FAFBFD;
-  color: #475569;
+/* ── Clustered Photos Follow Mouse on Drag (All 5 Gathered) ── */
+.saas-cursor-drag-cluster {
+  position: absolute;
+  pointer-events: none;
+  z-index: 55;
+  transform: translate(-36px, -46px);
   display: flex;
   align-items: center;
   justify-content: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
 }
 
-.saas-ctrl-btn:hover {
-  background: #F1F5F9;
-  color: #0F172A;
-  border-color: #CBD5E1;
-}
-
-.saas-time-display {
-  font-size: 0.68rem;
-  font-weight: 700;
-  color: #94A3B8;
-  font-variant-numeric: tabular-nums;
-  margin-left: 2px;
-}
-
-.saas-scene-chips {
-  display: flex;
-  gap: 4px;
-  overflow-x: auto;
-}
-
-.saas-scene-chip {
-  border: 1px solid #E2E8F0;
+.saas-cluster-photo-item {
+  position: absolute;
+  width: 48px;
+  height: 48px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid #FF6B1A;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
   background: #FFFFFF;
-  color: #64748B;
-  border-radius: 8px;
-  padding: 3px 8px;
-  font-size: 0.68rem;
-  font-weight: 700;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: all 0.2s ease;
-  white-space: nowrap;
+  transition: transform 0.15s ease;
 }
 
-.saas-scene-chip.active {
-  background: #FF6B1A;
+.saas-cluster-photo-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.saas-cluster-count-badge {
+  position: absolute;
+  bottom: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0F172A;
   color: #FFFFFF;
-  border-color: #FF6B1A;
-  box-shadow: 0 2px 8px rgba(255, 107, 26, 0.3);
+  font-size: 0.58rem;
+  font-weight: 800;
+  padding: 3px 7px;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 107, 26, 0.5);
 }
 
-.saas-scene-chip:hover:not(.active) {
-  border-color: #CBD5E1;
+.saas-photo-thumb.drag-source {
+  opacity: 0.45;
+  transform: scale(0.95);
+  filter: grayscale(0.2);
+}
+
+.saas-tray-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.saas-tray-count {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #FF6B1A;
+  background: rgba(255, 107, 26, 0.1);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* ── High-Fidelity Export Graphic Modal ── */
+.saas-export-modal {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 48;
+  width: calc(100% - 48px);
+  max-width: 360px;
+  background: #FFFFFF;
+  border: 1.5px solid rgba(255, 107, 26, 0.35);
+  border-radius: 20px;
+  padding: 18px 20px;
+  box-shadow: 
+    0 24px 60px -8px rgba(15, 23, 42, 0.18),
+    0 0 0 4px rgba(255, 107, 26, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.saas-export-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.saas-export-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #FFF7ED;
+  border: 1px solid rgba(255, 107, 26, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(255, 107, 26, 0.12);
+}
+
+.saas-export-title {
+  font-size: 0.84rem;
+  font-weight: 800;
   color: #0F172A;
+  margin: 0 0 2px;
 }
 
-.saas-controls-right {
+.saas-export-sub {
+  font-size: 0.68rem;
+  color: #64748B;
+  margin: 0;
+}
+
+.saas-export-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.saas-export-bar-track {
+  flex: 1;
+  height: 6px;
+  background: #F1F5F9;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.saas-export-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #FF6B1A, #FFA26B);
+  border-radius: 999px;
+  transition: width 0.15s ease-out;
+}
+
+.saas-export-bar-pct {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #FF6B1A;
+  min-width: 36px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.saas-export-chips {
+  display: flex;
+  gap: 6px;
+}
+
+.saas-export-chip {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #475569;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  padding: 3px 8px;
+  border-radius: 6px;
+}
+
+/* ── Clean Embedded Footer (No Scrubbers or Play Controls) ── */
+.saas-embedded-footer {
+  height: 44px;
+  background: #FAFBFD;
+  border-top: 1px solid #EDF2F7;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.saas-footer-status {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
-.saas-try-live-btn {
+.saas-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #FF6B1A;
+  box-shadow: 0 0 8px #FF6B1A;
+  animation: saasDotPulse 1.8s infinite;
+}
+
+@keyframes saasDotPulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.3); opacity: 0.7; }
+}
+
+.saas-status-text {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #1E293B;
+}
+
+.saas-status-sub {
+  font-size: 0.68rem;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+.saas-footer-action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   background: #0F172A;
   color: #FFFFFF;
   border: none;
   border-radius: 8px;
-  padding: 5px 10px;
-  font-size: 0.68rem;
+  padding: 5px 12px;
+  font-size: 0.7rem;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.saas-try-live-btn:hover {
+.saas-footer-action-btn:hover {
   background: #FF6B1A;
-}
-
-/* Scrubber Progress Fill */
-.saas-timeline-progress-track {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: rgba(226, 232, 240, 0.8);
-}
-
-.saas-timeline-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #FF6B1A, #FFA26B);
-  transition: width 0.05s linear;
+  transform: translateY(-1px);
 }
 
 /* Responsive adjustments for mobile */
@@ -3713,7 +3823,7 @@ textarea::placeholder {
   .saas-demo-wrapper {
     max-width: 100%;
   }
-  .saas-scene-chips .chip-name {
+  .saas-status-sub {
     display: none;
   }
   .saas-ratio-pill .pill-sub {
@@ -3727,4 +3837,5 @@ textarea::placeholder {
     height: 140px;
   }
 }
+
 
