@@ -586,6 +586,16 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll();
 
+  const [bentoHeadlineIdx, setBentoHeadlineIdx] = useState(0);
+  const bentoHeadlines = [
+    'Geleceğin Grafik Motoru',
+    'Sosyal Medyanı 10 Kat Hızlandır',
+    'AI Destekli Satış Kampanyası',
+    'Dikkat Çeken Instagram Kancaları',
+    'Haftalık İçerik Planı Tek Tıkla',
+  ];
+  const [bentoFormat, setBentoFormat] = useState<'1:1' | '9:16'>('1:1');
+
   const mouseX = useMotionValue(-1000);
   const mouseY = useMotionValue(-1000);
   const smoothX = useSpring(mouseX, { damping: 32, stiffness: 120 });
@@ -883,7 +893,7 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
         </motion.div>
 
         <div className="lp-bento-grid">
-          {/* Feature 1 */}
+          {/* Feature 1: Interactive AI Sentezi */}
           <motion.div
             className="lp-bento-card"
             initial={{ opacity: 0, y: 30 }}
@@ -902,14 +912,38 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
                 başlık ve etiketleri anında üretsin.
               </p>
             </div>
-            <div className="lp-bento-visual">
-              <span style={{ fontSize: '0.75rem', color: '#E9570F', fontWeight: 700 }}>
-                ✦ Otomatik Başlık: "Geleceğin Grafik Motoru"
-              </span>
+            <div className="lp-bento-visual lp-bento-visual-interactive">
+              <div className="lp-bento-ai-chip">
+                <span className="lp-bento-ai-dot" />
+                <span>Gemini 3.6 Flash</span>
+              </div>
+              <div className="lp-bento-quote-box">
+                <div className="lp-bento-quote-label">Canlı Üretilen Başlık</div>
+                <motion.div
+                  key={bentoHeadlineIdx}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.25 }}
+                  className="lp-bento-headline-text"
+                >
+                  "{bentoHeadlines[bentoHeadlineIdx]}"
+                </motion.div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setBentoHeadlineIdx((prev) => (prev + 1) % bentoHeadlines.length)}
+                className="lp-bento-cycle-btn"
+                title="Yeni bir yapay zekâ başlığı türet"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+                </svg>
+                <span>Yeni Başlık Türet</span>
+              </button>
             </div>
           </motion.div>
 
-          {/* Feature 2 */}
+          {/* Feature 2: Interactive Format & Ultra-HD */}
           <motion.div
             className="lp-bento-card"
             initial={{ opacity: 0, y: 30 }}
@@ -928,14 +962,49 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
                 baskı ve ekran kalitesi.
               </p>
             </div>
-            <div className="lp-bento-visual">
-              <span style={{ fontSize: '0.75rem', color: '#0F172A', fontWeight: 700 }}>
-                1080 × 1080 (1:1) ve 1080 × 1920 (9:16) Çıktı
-              </span>
+            <div className="lp-bento-visual lp-bento-visual-interactive">
+              <div className="lp-bento-format-toggle-bar">
+                <button
+                  type="button"
+                  className={`lp-bento-format-btn ${bentoFormat === '1:1' ? 'active' : ''}`}
+                  onClick={() => setBentoFormat('1:1')}
+                >
+                  1:1 Post
+                </button>
+                <button
+                  type="button"
+                  className={`lp-bento-format-btn ${bentoFormat === '9:16' ? 'active' : ''}`}
+                  onClick={() => setBentoFormat('9:16')}
+                >
+                  9:16 Story / Reels
+                </button>
+              </div>
+              <div className="lp-bento-canvas-preview-wrap">
+                <div
+                  className="lp-bento-aspect-canvas"
+                  style={{
+                    width: bentoFormat === '1:1' ? '58px' : '40px',
+                    height: '58px',
+                    borderRadius: '7px',
+                    transition: 'width 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                  }}
+                >
+                  <span className="lp-bento-canvas-dim">
+                    {bentoFormat === '1:1' ? '1:1' : '9:16'}
+                  </span>
+                </div>
+                <div className="lp-bento-format-meta">
+                  <div className="lp-bento-format-tag">
+                    <span className="lp-bento-format-dot" />
+                    <span>{bentoFormat === '1:1' ? '1080 × 1080 px' : '1080 × 1920 px'}</span>
+                  </div>
+                  <div className="lp-bento-format-spec">300 DPI · Kayıpsız PNG & WebP</div>
+                </div>
+              </div>
             </div>
           </motion.div>
 
-          {/* Feature 3 */}
+          {/* Feature 3: Interactive Batch Queue */}
           <motion.div
             className="lp-bento-card"
             initial={{ opacity: 0, y: 30 }}
@@ -954,10 +1023,26 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
                 reklamsız indirin.
               </p>
             </div>
-            <div className="lp-bento-visual">
-              <span style={{ fontSize: '0.75rem', color: '#0F172A', fontWeight: 700 }}>
-                Dakikada 50+ Gönderi · Reklamsız MP3/MP4
-              </span>
+            <div className="lp-bento-visual lp-bento-visual-interactive">
+              <div className="lp-bento-batch-header">
+                <span className="lp-bento-batch-title">Toplu Kuyruk (3 Dosya)</span>
+                <span className="lp-bento-batch-pct">%84</span>
+              </div>
+              <div className="lp-bento-batch-bar-track">
+                <div className="lp-bento-batch-bar-fill" style={{ width: '84%' }} />
+              </div>
+              <div className="lp-bento-batch-items">
+                <div className="lp-bento-batch-item completed">
+                  <span className="lp-bento-batch-check">✓</span>
+                  <span className="lp-bento-batch-name">kampanya_post_01.png</span>
+                  <span className="lp-bento-batch-badge">Hazır</span>
+                </div>
+                <div className="lp-bento-batch-item processing">
+                  <span className="lp-bento-batch-spinner" />
+                  <span className="lp-bento-batch-name">reels_kapak_02.png</span>
+                  <span className="lp-bento-batch-badge live">Render...</span>
+                </div>
+              </div>
             </div>
           </motion.div>
         </div>
