@@ -6,7 +6,7 @@ interface LandingPageProps {
   onLogin: () => void;
 }
 
-/* ─── AI Synaptic Neural Network & Particle Background Canvas ─── */
+/* ─── AI Synaptic Neural Canvas (Clean Warm Amber & Orange on Light) ─── */
 interface Sparkle {
   x: number;
   y: number;
@@ -37,15 +37,6 @@ interface SynapticPulse {
   speed: number;
 }
 
-interface FloatingDataBit {
-  x: number;
-  y: number;
-  text: string;
-  alpha: number;
-  vx: number;
-  vy: number;
-}
-
 function AINeuralCanvas() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -59,7 +50,6 @@ function AINeuralCanvas() {
     let width = (canvas.width = window.innerWidth);
     let height = (canvas.height = window.innerHeight);
 
-    // Mouse coordinates with silky spring dampening
     const targetMouse = { x: -2000, y: -2000 };
     const currentMouse = { x: -2000, y: -2000 };
 
@@ -78,22 +68,20 @@ function AINeuralCanvas() {
     window.addEventListener('resize', handleResize);
     window.addEventListener('mousemove', handleMouseMove);
 
-    // Official Brand Kit Colors: Motor Orange (#FF6B1A), Amber (#FFA26B), and Soft Glow
     const nodeColors = [
-      'rgba(255, 107, 26, 0.95)',   // Motor Orange
-      'rgba(255, 162, 107, 0.85)',  // Soft Amber
-      'rgba(255, 241, 232, 0.75)',  // Soft Orange White
-      'rgba(233, 87, 15, 0.85)',    // Vivid Deep Orange
+      'rgba(255, 107, 26, 0.85)',
+      'rgba(255, 162, 107, 0.75)',
+      'rgba(233, 87, 15, 0.75)',
+      'rgba(255, 133, 51, 0.8)',
     ];
 
     let nodes: NeuralNode[] = [];
     let sparkles: Sparkle[] = [];
     let pulses: SynapticPulse[] = [];
-    let dataBits: FloatingDataBit[] = [];
 
     const initNodes = () => {
       const isMobile = width < 768;
-      const count = isMobile ? 38 : 72;
+      const count = isMobile ? 32 : 60;
       nodes = [];
       for (let i = 0; i < count; i++) {
         nodes.push({
@@ -108,42 +96,25 @@ function AINeuralCanvas() {
         });
       }
 
-      // ✦ AI 4-Point Sparkle Diamonds
-      const sparkleCount = isMobile ? 8 : 18;
+      const sparkleCount = isMobile ? 6 : 14;
       sparkles = [];
       for (let i = 0; i < sparkleCount; i++) {
         sparkles.push({
           x: Math.random() * width,
           y: Math.random() * height,
-          size: Math.random() * 7 + 6,
+          size: Math.random() * 6 + 5,
           rotation: Math.random() * Math.PI * 2,
           rotSpeed: (Math.random() - 0.5) * 0.006,
-          baseAlpha: Math.random() * 0.45 + 0.25,
+          baseAlpha: Math.random() * 0.4 + 0.2,
           phase: Math.random() * Math.PI * 2,
           vx: (Math.random() - 0.5) * 0.2,
           vy: (Math.random() - 0.5) * 0.2,
-        });
-      }
-
-      // Floating AI Data Bits
-      const bitTexts = ['AI', '01', '4K', 'GPU', 'SYN', 'FX', '10X', '✦'];
-      const bitCount = isMobile ? 6 : 14;
-      dataBits = [];
-      for (let i = 0; i < bitCount; i++) {
-        dataBits.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          text: bitTexts[Math.floor(Math.random() * bitTexts.length)],
-          alpha: Math.random() * 0.16 + 0.06,
-          vx: (Math.random() - 0.5) * 0.15,
-          vy: (Math.random() - 0.5) * 0.15,
         });
       }
     };
 
     initNodes();
 
-    // Helper: Draw 4-point AI sparkle star
     const drawSparkle = (
       c: CanvasRenderingContext2D,
       x: number,
@@ -155,9 +126,9 @@ function AINeuralCanvas() {
       c.save();
       c.translate(x, y);
       c.rotate(rotation);
-      c.fillStyle = `rgba(255, 162, 107, ${alpha})`;
-      c.shadowColor = 'rgba(255, 107, 26, 0.7)';
-      c.shadowBlur = 10;
+      c.fillStyle = `rgba(255, 107, 26, ${alpha})`;
+      c.shadowColor = 'rgba(255, 107, 26, 0.4)';
+      c.shadowBlur = 6;
 
       c.beginPath();
       const inner = size * 0.22;
@@ -176,20 +147,17 @@ function AINeuralCanvas() {
       c.restore();
     };
 
-    const maxLinkDist = 145;
+    const maxLinkDist = 135;
     let frameCount = 0;
 
     const render = () => {
       frameCount++;
-
-      // Silky Lerp mouse tracking
       currentMouse.x += (targetMouse.x - currentMouse.x) * 0.05;
       currentMouse.y += (targetMouse.y - currentMouse.y) * 0.05;
 
       ctx.clearRect(0, 0, width, height);
 
-      // Periodically trigger synaptic energy pulses
-      if (frameCount % 40 === 0 && nodes.length > 2 && pulses.length < 15) {
+      if (frameCount % 45 === 0 && nodes.length > 2 && pulses.length < 12) {
         const from = Math.floor(Math.random() * nodes.length);
         for (let j = 0; j < nodes.length; j++) {
           if (from === j) continue;
@@ -200,14 +168,14 @@ function AINeuralCanvas() {
               fromNode: from,
               toNode: j,
               progress: 0,
-              speed: 0.02 + Math.random() * 0.025,
+              speed: 0.02 + Math.random() * 0.02,
             });
             break;
           }
         }
       }
 
-      // 1. Draw Synaptic Lines
+      // Synaptic lines
       for (let i = 0; i < nodes.length; i++) {
         const a = nodes[i];
         for (let j = i + 1; j < nodes.length; j++) {
@@ -217,9 +185,7 @@ function AINeuralCanvas() {
           const dist = Math.sqrt(dx * dx + dy * dy);
 
           if (dist < maxLinkDist) {
-            const lineAlpha = (1 - dist / maxLinkDist) * 0.22;
-
-            // Mouse proximity boost
+            const lineAlpha = (1 - dist / maxLinkDist) * 0.16;
             const midX = (a.x + b.x) * 0.5;
             const midY = (a.y + b.y) * 0.5;
             const mdx = midX - currentMouse.x;
@@ -227,12 +193,12 @@ function AINeuralCanvas() {
             const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
 
             let boostAlpha = 0;
-            if (mdist < 160) {
-              boostAlpha = (1 - mdist / 160) * 0.45;
+            if (mdist < 150) {
+              boostAlpha = (1 - mdist / 150) * 0.35;
             }
 
             ctx.strokeStyle = `rgba(255, 107, 26, ${lineAlpha + boostAlpha})`;
-            ctx.lineWidth = boostAlpha > 0 ? 1.35 : 0.75;
+            ctx.lineWidth = boostAlpha > 0 ? 1.2 : 0.65;
             ctx.beginPath();
             ctx.moveTo(a.x, a.y);
             ctx.lineTo(b.x, b.y);
@@ -241,7 +207,7 @@ function AINeuralCanvas() {
         }
       }
 
-      // 2. Draw & Advance Synaptic Energy Pulses
+      // Synaptic pulses
       for (let p = pulses.length - 1; p >= 0; p--) {
         const pulse = pulses[p];
         pulse.progress += pulse.speed;
@@ -259,64 +225,55 @@ function AINeuralCanvas() {
         const py = a.y + (b.y - a.y) * pulse.progress;
 
         ctx.save();
-        ctx.fillStyle = '#FFFFFF';
-        ctx.shadowColor = '#FF6B1A';
-        ctx.shadowBlur = 12;
+        ctx.fillStyle = '#FF6B1A';
+        ctx.shadowColor = 'rgba(255, 107, 26, 0.8)';
+        ctx.shadowBlur = 8;
         ctx.beginPath();
-        ctx.arc(px, py, 2.4, 0, Math.PI * 2);
+        ctx.arc(px, py, 2.2, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
 
-      // 3. Draw & Update Neural Nodes
+      // Neural nodes
       for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
-
-        // Breathing pulse
         node.phase += 0.025;
         const pulse = Math.sin(node.phase) * 0.35 + 0.9;
         const currentRadius = node.baseRadius * pulse;
 
-        // Mouse interaction: cushioned deflection
         const mdx = node.x - currentMouse.x;
         const mdy = node.y - currentMouse.y;
         const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
-        const mouseRadius = 170;
+        const mouseRadius = 150;
 
         if (mdist < mouseRadius && mdist > 0) {
-          const pushFactor = (1 - mdist / mouseRadius) * 0.65;
+          const pushFactor = (1 - mdist / mouseRadius) * 0.55;
           node.x += (mdx / mdist) * pushFactor;
           node.y += (mdy / mdist) * pushFactor;
         }
 
-        // Slow organic drift
         node.x += node.vx;
         node.y += node.vy;
 
-        // Wrap around bounds softly
         if (node.x < -10) node.x = width + 10;
         if (node.x > width + 10) node.x = -10;
         if (node.y < -10) node.y = height + 10;
         if (node.y > height + 10) node.y = -10;
 
-        // Render node with warm glowing aura
         ctx.save();
         ctx.fillStyle = node.color;
-        ctx.shadowColor = 'rgba(255, 107, 26, 0.85)';
-        ctx.shadowBlur = mdist < mouseRadius ? 14 : 7;
         ctx.beginPath();
         ctx.arc(node.x, node.y, currentRadius, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
       }
 
-      // 4. Draw & Update AI Sparkles
+      // AI Sparkles
       for (let i = 0; i < sparkles.length; i++) {
         const s = sparkles[i];
         s.rotation += s.rotSpeed;
         s.phase += 0.02;
         const alpha = s.baseAlpha + Math.sin(s.phase) * 0.2;
-
         s.x += s.vx;
         s.y += s.vy;
 
@@ -326,22 +283,6 @@ function AINeuralCanvas() {
         if (s.y > height + 20) s.y = -20;
 
         drawSparkle(ctx, s.x, s.y, s.size, s.rotation, Math.max(0.08, alpha));
-      }
-
-      // 5. Draw Floating Data Bits
-      ctx.font = '10px "JetBrains Mono", monospace';
-      ctx.textAlign = 'center';
-      for (let i = 0; i < dataBits.length; i++) {
-        const b = dataBits[i];
-        b.x += b.vx;
-        b.y += b.vy;
-        if (b.x < -20) b.x = width + 20;
-        if (b.x > width + 20) b.x = -20;
-        if (b.y < -20) b.y = height + 20;
-        if (b.y > height + 20) b.y = -20;
-
-        ctx.fillStyle = `rgba(255, 162, 107, ${b.alpha})`;
-        ctx.fillText(b.text, b.x, b.y);
       }
 
       animId = requestAnimationFrame(render);
@@ -359,6 +300,257 @@ function AINeuralCanvas() {
   return <canvas ref={canvasRef} className="lp-ai-canvas" />;
 }
 
+/* ─── Hero Animated Motion Graphic: Step-by-Step Simulated Design Studio ─── */
+const samplePhoto = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&auto=format&fit=crop&q=80';
+
+function HeroMotionGraphic({ onEnter }: { onEnter: () => void }) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [isPhotoDropped, setIsPhotoDropped] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+
+  // Automated 3-step loop: 1. Drag&Drop -> 2. AI Synthesis -> 3. Swoop & 4K Download
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+
+    if (step === 1) {
+      setIsPhotoDropped(false);
+      // Photo snaps into place 1.2s into step 1
+      const dropTimer = setTimeout(() => {
+        setIsPhotoDropped(true);
+      }, 1200);
+
+      timer = setTimeout(() => {
+        setStep(2);
+      }, 2800);
+
+      return () => {
+        clearTimeout(dropTimer);
+        clearTimeout(timer);
+      };
+    } else if (step === 2) {
+      setIsPhotoDropped(true);
+      timer = setTimeout(() => {
+        setStep(3);
+      }, 3000);
+      return () => clearTimeout(timer);
+    } else if (step === 3) {
+      setIsPhotoDropped(true);
+      setDownloadProgress(0);
+
+      // Animate download progress from 0% to 100%
+      const progInterval = setInterval(() => {
+        setDownloadProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(progInterval);
+            return 100;
+          }
+          return prev + 25;
+        });
+      }, 140);
+
+      timer = setTimeout(() => {
+        setStep(1);
+      }, 3800);
+
+      return () => {
+        clearInterval(progInterval);
+        clearTimeout(timer);
+      };
+    }
+  }, [step]);
+
+  return (
+    <div className="lp-hero-visual">
+      {/* Ambient orbit ring & floating badges */}
+      <div className="lp-orbit-ring" />
+      <div className="lp-float-emoji lp-float-1">✦</div>
+      <div className="lp-float-emoji lp-float-2">📸</div>
+      <div className="lp-float-emoji lp-float-3">⚡</div>
+
+      <motion.div
+        className="lp-motion-card"
+        whileHover={{ y: -3 }}
+        transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+      >
+        {/* Interactive Step Navigator Pills */}
+        <div className="lp-motion-stepper">
+          <button
+            className={`lp-motion-step-pill ${step === 1 ? 'active' : 'inactive'}`}
+            onClick={() => setStep(1)}
+          >
+            <span>1.</span> Görseli Bırak
+          </button>
+          <button
+            className={`lp-motion-step-pill ${step === 2 ? 'active' : 'inactive'}`}
+            onClick={() => setStep(2)}
+          >
+            <span>2.</span> AI Sihri
+          </button>
+          <button
+            className={`lp-motion-step-pill ${step === 3 ? 'active' : 'inactive'}`}
+            onClick={() => setStep(3)}
+          >
+            <span>3.</span> 4K İndir
+          </button>
+        </div>
+
+        {/* Motion Studio Stage */}
+        <div className="lp-motion-stage">
+          {/* Active Status Badge in Step 3 */}
+          <AnimatePresence>
+            {step === 3 && (
+              <motion.div
+                className="lp-motion-status-banner"
+                initial={{ opacity: 0, scale: 0.8, y: -8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 0.3 }}
+              >
+                <span>✓</span> Tasarım Yayına Hazır
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Social Media 1:1 Post Frame (Swoops in Step 3) */}
+          <div className={`lp-motion-template ${step === 3 ? 'swoop' : ''}`}>
+            {/* Step 1: Empty Drop Zone Placeholder */}
+            {!isPhotoDropped && (
+              <div className="lp-motion-empty-zone">
+                <div className="lp-motion-empty-icon">📁</div>
+                <div>
+                  <p className="lp-motion-empty-text">Görseli Buraya Bırakın</p>
+                  <p className="lp-motion-empty-sub">Otomatik Boyutlandırma & Ortalama</p>
+                </div>
+              </div>
+            )}
+
+            {/* Photo Layer (Shown when dropped or in steps 2 & 3) */}
+            {isPhotoDropped && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.94 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ type: 'spring', stiffness: 350, damping: 22 }}
+                style={{ position: 'absolute', inset: 0 }}
+              >
+                <img src={samplePhoto} alt="Örnek Tasarım Görseli" className="lp-motion-image-layer" />
+                <div className="lp-motion-image-overlay" />
+              </motion.div>
+            )}
+
+            {/* Step 2: AI Scanning Laser Line */}
+            {step === 2 && (
+              <motion.div
+                className="lp-motion-laser"
+                initial={{ top: '0%' }}
+                animate={{ top: ['0%', '100%', '0%'] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+              />
+            )}
+
+            {/* Step 2 & 3: AI Generated Post Typography & Layout */}
+            {isPhotoDropped && (
+              <motion.div
+                className="lp-motion-post-content"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.4 }}
+              >
+                <div className="lp-motion-top-tag">
+                  <span>✦</span>
+                  <span>{step === 2 ? 'AI Metin Yazıyor...' : 'Yaz Kampanyası 2026'}</span>
+                </div>
+
+                <div className="lp-motion-bottom-box">
+                  <motion.h4
+                    className="lp-motion-post-title"
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.2, duration: 0.4 }}
+                  >
+                    Yeni Sezon Koleksiyonu
+                  </motion.h4>
+                  <motion.p
+                    className="lp-motion-post-sub"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.35, duration: 0.4 }}
+                  >
+                    Seçili parçalarda sepette net %50 indirim fırsatını kaçırmayın.
+                  </motion.p>
+                  <motion.div
+                    className="lp-motion-post-cta"
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: 0.5, duration: 0.3 }}
+                  >
+                    Hemen Keşfet →
+                  </motion.div>
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          {/* Step 1: Animated Mouse Cursor Carrying Photo Thumbnail */}
+          <AnimatePresence>
+            {step === 1 && !isPhotoDropped && (
+              <motion.div
+                className="lp-motion-cursor-holder"
+                initial={{ x: 140, y: 110, opacity: 0 }}
+                animate={{ x: 0, y: 0, opacity: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <svg
+                  width="32"
+                  height="32"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  style={{ filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.35))' }}
+                >
+                  <path
+                    d="M5.5 3.21V20.8c0 .45.54.67.85.35l4.86-4.86a.5.5 0 0 1 .35-.15h6.87c.45 0 .67-.54.35-.85L5.85 2.86a.5.5 0 0 0-.35.35Z"
+                    fill="#0F172A"
+                    stroke="#FFFFFF"
+                    strokeWidth="1.6"
+                  />
+                </svg>
+                <img src={samplePhoto} alt="Sürüklenen Görsel" className="lp-motion-drag-thumb" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Step 3: 4K Download Button & Interactive Progress Bar */}
+          <AnimatePresence>
+            {step === 3 && (
+              <motion.div
+                style={{ width: '100%', maxWidth: 310 }}
+                initial={{ opacity: 0, y: 15 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 10 }}
+                transition={{ duration: 0.35 }}
+              >
+                <button className="lp-motion-download-btn" onClick={onEnter}>
+                  <span>✦ 4K Ultra-HD İndir</span>
+                  <span style={{ fontSize: '0.78rem', opacity: 0.9 }}>
+                    {downloadProgress >= 100 ? '✓ Tamamlandı' : `%${downloadProgress}`}
+                  </span>
+                </button>
+                <div className="lp-motion-progress-track">
+                  <div
+                    className="lp-motion-progress-fill"
+                    style={{ width: `${downloadProgress}%` }}
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+    </div>
+  );
+}
+
 /* ─── Animated Counter ─── */
 function AnimatedCounter({ value, suffix = '' }: { value: string; suffix?: string }) {
   return (
@@ -373,225 +565,18 @@ function AnimatedCounter({ value, suffix = '' }: { value: string; suffix?: strin
   );
 }
 
-/* ─── Canlı İnteraktif AI Stüdyo Gösterimi ─── */
-const demoPresets = [
-  {
-    id: 'lansman',
-    tab: '⚡ AI Lansman Duyurusu',
-    tag: 'Yeni Nesil Lansman',
-    title: 'Geleceğin Yapay Zekâ Tasarım Stüdyosu',
-    sub: 'Saniyeler içinde otomatik başlık, açıklama ve 4K sosyal medya şablonu.',
-    btnText: '✦ Ön Sipariş Ver',
-    confidence: '99.8%',
-    renderTime: '0.34s',
-    tokens: '312 token',
-    prompt: 'Premium SaaS için fütüristik ürün lansmanı metni ve görsel yerleşimi'
-  },
-  {
-    id: 'indirim',
-    tab: '🔥 Viral İndirim & E-Ticaret',
-    tag: 'Sınırlı Süre Fırsatı',
-    title: 'Büyük Sezon Sonu İndirimi: Sepette %50 Net',
-    sub: 'Tüm koleksiyonlarda geçerli kupon kodunuz: MOTOR2026. Stoklarla sınırlıdır.',
-    btnText: '🛒 Fırsatı Yakala',
-    confidence: '99.4%',
-    renderTime: '0.28s',
-    tokens: '245 token',
-    prompt: 'Instagram Story için aciliyet hissi uyandıran e-ticaret indirim tasarımı'
-  },
-  {
-    id: 'etkinlik',
-    tab: '🎯 Özel Etkinlik & Zirve',
-    tag: 'Canlı Masterclass',
-    title: 'Yapay Zekâ ile Dijital Pazarlama Zirvesi',
-    sub: 'Sektörün öncü kreatif direktörleriyle interaktif canlı soru-cevap oturumu.',
-    btnText: '🎟️ Ücretsiz Kaydol',
-    confidence: '99.9%',
-    renderTime: '0.41s',
-    tokens: '290 token',
-    prompt: 'LinkedIn ve Instagram için kurumsal etkinlik duyurusu ve konuşmacı görseli'
-  },
-  {
-    id: 'podcast',
-    tab: '🎧 Podcast & Medya Çıktısı',
-    tag: 'Yeni Bölüm Yayında',
-    title: 'Bölüm 42: Tasarımda Otomasyon Devrimi',
-    sub: 'Reklamsız ses ayıklama, dinamik dalga formu ve tek tıkla video klip oluşturma.',
-    btnText: '▶️ Şimdi Dinle',
-    confidence: '99.6%',
-    renderTime: '0.31s',
-    tokens: '268 token',
-    prompt: 'Spotify ve YouTube için dikkat çekici podcast kapağı ve alıntı şablonu'
-  }
-];
-
-function LiveAIStudioShowcase({ onEnter }: { onEnter: () => void }) {
-  const [activeTab, setActiveTab] = useState(demoPresets[0].id);
-  const [isGenerating, setIsGenerating] = useState(false);
-
-  const current = demoPresets.find((p) => p.id === activeTab) || demoPresets[0];
-
-  const handleSwitchTab = (id: string) => {
-    if (id === activeTab) return;
-    setIsGenerating(true);
-    setActiveTab(id);
-    setTimeout(() => setIsGenerating(false), 380);
-  };
-
-  const handleRegenerate = () => {
-    setIsGenerating(true);
-    setTimeout(() => setIsGenerating(false), 450);
-  };
-
-  return (
-    <section className="lp-demo-section">
-      <motion.div
-        className="lp-sec-header"
-        initial={{ opacity: 0, y: 35 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true, margin: '-60px' }}
-        transition={{ duration: 0.8 }}
-      >
-        <span className="lp-sec-label">Canlı Demo</span>
-        <h2 className="lp-sec-title">
-          Yapay Zekânın Hızını{' '}
-          <span className="lp-shimmer-text">Doğrudan Deneyimleyin.</span>
-        </h2>
-        <p className="lp-sec-desc">
-          Aşağıdaki senaryolara tıklayın; yapay zekânın başlık, etiket ve yerleşimleri
-          nasıl milisaniyeler içinde kusursuz bir tasarıma dönüştürdüğünü görün.
-        </p>
-      </motion.div>
-
-      <motion.div
-        className="lp-demo-window"
-        initial={{ opacity: 0, y: 40 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-      >
-        {/* Window Topbar */}
-        <div className="lp-demo-topbar">
-          <div className="lp-demo-dots">
-            <span /><span /><span />
-          </div>
-          <div className="lp-demo-status-pill">
-            <span className="lp-demo-status-dot" />
-            <span>✦ Neural Sentezleyici Aktif · GPU Destekli</span>
-          </div>
-        </div>
-
-        {/* Interactive Scenario Tabs */}
-        <div className="lp-demo-tabs">
-          {demoPresets.map((preset) => (
-            <button
-              key={preset.id}
-              className={`lp-demo-tab ${activeTab === preset.id ? 'active' : ''}`}
-              onClick={() => handleSwitchTab(preset.id)}
-            >
-              {preset.tab}
-            </button>
-          ))}
-        </div>
-
-        {/* Demo Content Grid */}
-        <div className="lp-demo-content-grid">
-          {/* Left: Input & Engine Controls */}
-          <div className="lp-demo-left">
-            <div>
-              <span className="lp-sec-label" style={{ marginBottom: '10px' }}>Girdi & İstek</span>
-              <h3 style={{ fontSize: '1.4rem', fontWeight: 700, margin: '8px 0 10px', color: '#FFFFFF' }}>
-                Kısa bir fikir girin, şablon tamamlansın.
-              </h3>
-              <p className="lp-demo-sub">
-                Tasarımcınız olmadan da kurumsal kimliğinizi koruyan, yüksek dönüşüm odaklı
-                içerikler üretin.
-              </p>
-            </div>
-
-            <div className="lp-ai-prompt-input">
-              <span>✦</span>
-              <span>"{current.prompt}"</span>
-            </div>
-
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <button className="lp-demo-btn" onClick={handleRegenerate}>
-                <span>⚡</span> AI ile Yeniden Oluştur
-              </button>
-              <button className="lp-btn-glass" onClick={onEnter}>
-                Portala Git →
-              </button>
-            </div>
-
-            <div className="lp-demo-meta-row" style={{ borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '16px' }}>
-              <span className="lp-demo-meta-pill">✦ Güven Skoru: <strong>{current.confidence}</strong></span>
-              <span className="lp-demo-meta-pill">⚡ Tepki: <strong>{current.renderTime}</strong></span>
-              <span className="lp-demo-meta-pill">📦 İşlenen: <strong>{current.tokens}</strong></span>
-            </div>
-          </div>
-
-          {/* Right: Real-time Render Canvas Card */}
-          <div className="lp-demo-preview-card">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab + (isGenerating ? '-gen' : '')}
-                initial={{ opacity: 0, scale: 0.96 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ duration: 0.3 }}
-                className="lp-demo-preview-canvas"
-              >
-                <div className="lp-demo-scanline" />
-                <span className="lp-demo-preview-tag">{current.tag}</span>
-                <h4 className="lp-demo-preview-h">{current.title}</h4>
-                <p className="lp-demo-preview-p">{current.sub}</p>
-                <div style={{ marginTop: '16px' }}>
-                  <span
-                    style={{
-                      background: '#FF6B1A',
-                      color: '#FFF',
-                      padding: '8px 18px',
-                      borderRadius: '8px',
-                      fontWeight: 700,
-                      fontSize: '0.8rem',
-                      display: 'inline-block',
-                      boxShadow: '0 4px 14px rgba(255, 107, 26, 0.4)',
-                    }}
-                  >
-                    {current.btnText}
-                  </span>
-                </div>
-              </motion.div>
-            </AnimatePresence>
-
-            <div className="lp-demo-meta-row">
-              <span>Otomatik 4K Render Çözünürlüğü</span>
-              <span style={{ color: '#FF6B1A', fontWeight: 700 }}>1080 × 1080 (1:1)</span>
-            </div>
-          </div>
-        </div>
-      </motion.div>
-    </section>
-  );
-}
-
 export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
   const [hasMoved, setHasMoved] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll();
 
-  // Smooth mouse spring coordinates for the ambient cursor aura
   const mouseX = useMotionValue(-1000);
   const mouseY = useMotionValue(-1000);
   const smoothX = useSpring(mouseX, { damping: 32, stiffness: 120 });
   const smoothY = useSpring(mouseY, { damping: 32, stiffness: 120 });
 
-  // Parallax transforms for scroll
-  const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -120]);
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.25], [1, 0]);
-  const mockupRotate = useTransform(scrollYProgress, [0, 0.2], [0, 8]);
-  const mockupScale = useTransform(scrollYProgress, [0, 0.15], [1, 0.92]);
-  const bgGradientPos = useTransform(scrollYProgress, [0, 1], [0, 100]);
+  const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -60]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0.2]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!hasMoved) setHasMoved(true);
@@ -602,24 +587,18 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
   const howItWorks = [
     {
       step: '01',
-      title: 'Şablonu Bir Kez Oluşturun',
-      desc: 'Markanıza uygun tasarım şablonunu belirleyin. Bir kere hazırlayın; aynı şablonu yüzlerce farklı gönderi için tekrar tekrar kullanın.',
-      icon: '🎯',
-      color: '#FF6B1A',
+      title: 'Görseli Bırak',
+      desc: 'Fotoğraflarınızı tek tek veya toplu olarak sürükleyin. Otomatik hizalama ve şablon konumlandırma anında çalışır.',
     },
     {
       step: '02',
-      title: 'Fotoğrafları Yükleyin, AI Yazsın',
-      desc: 'Görsellerinizi toplu yükleyin ve kısa bir fikir iletin. Yapay zekâ başlık, açıklama ve tipografiyi anında eksiksiz doldursun.',
-      icon: '⚡',
-      color: '#FFA26B',
+      title: 'AI Sihrini İzle',
+      desc: 'Konunuza özel etkileyici başlık, açıklama ve etiketler yapay zekâ tarafından milisaniyeler içinde üretilir.',
     },
     {
       step: '03',
-      title: 'Ultra HD 4K Çıktınızı Alın',
-      desc: 'Saniyeler içinde tek tek veya tüm galeriyi tek tıkla yüksek çözünürlükte indirin, doğrudan sosyal medyanızda paylaşın.',
-      icon: '🚀',
-      color: '#E9570F',
+      title: '4K Çıktını Al',
+      desc: 'Kristal netliğinde 4K Ultra-HD çözünürlükte tek tıkla indirin, doğrudan sosyal medyanızda paylaşın.',
     },
   ];
 
@@ -636,11 +615,8 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
       className="lp-root"
       onMouseMove={handleMouseMove}
     >
-      {/* Animated brand gradient background */}
-      <motion.div
-        className="lp-bg-gradient"
-        style={{ backgroundPositionY: bgGradientPos }}
-      />
+      {/* Animated brand ambient background */}
+      <div className="lp-bg-gradient" />
 
       {/* Silky cushioned mouse aura */}
       <motion.div
@@ -652,10 +628,10 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
         }}
       />
 
-      {/* AI Neural Network & Synapse Background Canvas */}
+      {/* AI Synaptic Canvas */}
       <AINeuralCanvas />
 
-      {/* Ambient glowing blobs */}
+      {/* Soft warm drifting blobs */}
       <div className="lp-mesh-container">
         <div className="lp-mesh lp-mesh-1" />
         <div className="lp-mesh lp-mesh-2" />
@@ -663,23 +639,20 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
         <div className="lp-mesh lp-mesh-4" />
       </div>
 
-      {/* Noise overlay */}
-      <div className="ds-noise" />
-
-      {/* Grid lines overlay */}
+      {/* Subtle grid pattern */}
       <div className="lp-grid-overlay" />
 
       {/* ═══════════ HEADER ═══════════ */}
       <motion.header
         className="lp-header"
-        initial={{ opacity: 0, y: -30 }}
+        initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
       >
         <div className="lp-header-brand">
           <motion.div
             className="lp-logo"
-            whileHover={{ scale: 1.08, rotate: 2 }}
+            whileHover={{ scale: 1.06 }}
             transition={{ type: 'spring', stiffness: 400 }}
           >
             <img src="/grafik_motoru_icon_512.png" alt="Grafik Motoru Monogram" />
@@ -707,9 +680,9 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
         <div className="lp-hero-text">
           <motion.div
             className="lp-pill"
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.7, delay: 0.2 }}
+            initial={{ opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.1 }}
           >
             <span className="lp-pill-dot" />
             ✦ Yapay Zekâ Destekli Sosyal Medya Motoru
@@ -717,125 +690,74 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
 
           <motion.h1
             className="lp-hero-h1"
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.9, delay: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
           >
             Sosyal medyanı <span className="lp-shimmer-text">hızlandır.</span>
           </motion.h1>
 
           <motion.div
             className="lp-hero-subhead"
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.45 }}
+            transition={{ duration: 0.6, delay: 0.3 }}
           >
             Şablonu bir kez oluştur, gerisini AI halletsin.
           </motion.div>
 
           <motion.p
             className="lp-hero-sub"
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
+            transition={{ duration: 0.6, delay: 0.4 }}
           >
-            Her paylaşımda metinleri teker teker elle değiştirmeye son verin.
-            Şablonunuzu bir kez hazırlayın, fotoğraflarınızı toplu yükleyin,
-            kısa bir açıklama girin — yapay zekâ gerisini halleder. Reklamsız medya
-            indirmeden toplu çıktıya, profesyonel içerik üreticilerinin ihtiyacı
-            olan her şey tek bir platformda.
+            Her gönderide metinleri tek tek elle değiştirmeye son verin.
+            Fotoğraflarınızı yükleyin, kısa bir açıklama girin; yapay zekâ
+            tasarımı ve içeriği saniyeler içinde tamamlasın.
           </motion.p>
 
           <motion.div
             className="lp-hero-btns"
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.75 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
           >
             <motion.button
               className="lp-btn-accent lp-btn-xl"
               onClick={onEnter}
-              whileHover={{ scale: 1.05, boxShadow: '0 12px 40px rgba(255, 107, 26, 0.55)' }}
+              whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
             >
-              <span>✦</span> Hemen Başla — Ücretsiz
+              ✦ Hemen Başla — Ücretsiz
             </motion.button>
             <motion.a
               href="#nasil-calisir"
               className="lp-btn-glass lp-btn-xl"
-              whileHover={{ scale: 1.03 }}
+              whileHover={{ scale: 1.02 }}
             >
               Nasıl Çalışır? ↓
             </motion.a>
           </motion.div>
 
-          {/* Social proof mini */}
+          {/* Social Proof */}
           <motion.div
             className="lp-social-proof"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 1.0, duration: 0.8 }}
+            transition={{ delay: 0.7, duration: 0.6 }}
           >
             <div className="lp-avatars">
               <div className="lp-avatar" style={{ background: '#FF6B1A' }}>G</div>
               <div className="lp-avatar" style={{ background: '#FFA26B' }}>M</div>
               <div className="lp-avatar" style={{ background: '#E9570F' }}>T</div>
             </div>
-            <span>Sosyal medya yöneticileri ve kreatif ajanslar için tasarlandı</span>
+            <span>Sosyal medya yöneticileri ve kreatif ekipler için geliştirildi</span>
           </motion.div>
         </div>
 
-        {/* Hero Mockup with Floating AI Chips */}
-        <motion.div
-          className="lp-hero-visual"
-          style={{ rotateY: mockupRotate, scale: mockupScale }}
-        >
-          {/* Floating 3D AI Badges */}
-          <div className="lp-ai-float-chip lp-chip-1">
-            <span style={{ color: '#FF6B1A' }}>✦</span>
-            <span>GPT-4o & Claude AI Motoru: Aktif</span>
-          </div>
-          <div className="lp-ai-float-chip lp-chip-2">
-            <span>💎</span>
-            <span>4K Ultra-HD · Sıfır Kayıp</span>
-          </div>
-
-          <div className="lp-orbit-ring" />
-          <div className="lp-float-emoji lp-float-1">✨</div>
-          <div className="lp-float-emoji lp-float-2">📸</div>
-          <div className="lp-float-emoji lp-float-3">⚡</div>
-
-          <motion.div
-            className="lp-mockup"
-            whileHover={{ rotateX: 4, rotateY: -4 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-          >
-            <div className="lp-mockup-shimmer" />
-            <div className="lp-mockup-dots-grid" />
-            <div className="lp-mockup-content">
-              <div className="lp-mockup-toolbar">
-                <div className="lp-mockup-badge">
-                  <span>✦</span> AI Şablon Motoru
-                </div>
-                <div className="lp-mockup-dots">
-                  <span /><span /><span />
-                </div>
-              </div>
-              <div className="lp-mockup-canvas">
-                <div className="lp-mockup-scan" />
-                <div className="lp-mockup-img-placeholder">
-                  <div className="lp-mockup-icon-wrap">
-                    <img src="/grafik_motoru_icon_512.png" alt="Grafik Motoru Monogram" />
-                  </div>
-                  <span className="lp-mockup-caption">Otomatik Tasarım & Yerleşim</span>
-                </div>
-              </div>
-              <div className="lp-mockup-bar lp-bar-1" />
-              <div className="lp-mockup-bar lp-bar-2" />
-              <div className="lp-mockup-bar lp-bar-3" />
-            </div>
-          </motion.div>
-        </motion.div>
+        {/* Dynamic Hero Motion Graphic */}
+        <HeroMotionGraphic onEnter={onEnter} />
       </motion.section>
 
       {/* ═══════════ MARQUEE STRIP ═══════════ */}
@@ -848,8 +770,8 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
                 'AI Metin & Başlık Sentezi',
                 'Otomatik Şablon Düzeni',
                 'Toplu Fotoğraf İşleme',
-                'Reklamsız MP3 / MP4 İndirici',
-                '4K Ultra HD Çıktı',
+                'Reklamsız Medya İndirici',
+                '4K Ultra-HD Çıktı',
                 '%87 Zaman Tasarrufu',
                 'Grafik Motoru v2.4',
               ].map((text, i) => (
@@ -869,10 +791,10 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
           <motion.div
             key={i}
             className="lp-stat"
-            initial={{ opacity: 0, y: 35, scale: 0.95 }}
-            whileInView={{ opacity: 1, y: 0, scale: 1 }}
+            initial={{ opacity: 0, y: 25 }}
+            whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: '-40px' }}
-            transition={{ duration: 0.6, delay: i * 0.1, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.5, delay: i * 0.1 }}
           >
             <div className="lp-stat-val">
               <AnimatedCounter value={stat.value} />
@@ -882,206 +804,138 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
         ))}
       </section>
 
-      {/* ═══════════ CANLI INTERAKTIF AI STUDYOSU ═══════════ */}
-      <LiveAIStudioShowcase onEnter={onEnter} />
+      {/* ═══════════ HOW IT WORKS (3 Clean Steps) ═══════════ */}
+      <section className="lp-how" id="nasil-calisir">
+        <motion.div
+          className="lp-sec-header"
+          initial={{ opacity: 0, y: 25 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-50px' }}
+          transition={{ duration: 0.6 }}
+        >
+          <span className="lp-sec-label">Nasıl Çalışır?</span>
+          <h2 className="lp-sec-title">
+            Üç basit adımda <span className="lp-shimmer-text">tasarımı tamamlayın.</span>
+          </h2>
+          <p className="lp-sec-desc">
+            Karmaşık grafik programlarıyla saatler harcamak yerine işinizi kolaylaştırın.
+          </p>
+        </motion.div>
 
-      {/* ═══════════ LUXURY BENTO GRID FEATURES ═══════════ */}
+        <div className="lp-how-grid">
+          {howItWorks.map((item, i) => (
+            <motion.div
+              key={i}
+              className="lp-how-card"
+              initial={{ opacity: 0, y: 30 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: i * 0.12 }}
+            >
+              <div className="lp-how-num-badge">{item.step}</div>
+              <h3 className="lp-how-h3">{item.title}</h3>
+              <p className="lp-how-p">{item.desc}</p>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* ═══════════ BENTO GRID (3 High-Impact Cards) ═══════════ */}
       <section className="lp-features">
         <motion.div
           className="lp-sec-header"
-          initial={{ opacity: 0, y: 35 }}
+          initial={{ opacity: 0, y: 25 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-60px' }}
-          transition={{ duration: 0.8 }}
+          viewport={{ once: true, margin: '-50px' }}
+          transition={{ duration: 0.6 }}
         >
-          <span className="lp-sec-label">Yapay Zekâ Mimarisi</span>
+          <span className="lp-sec-label">Özellikler</span>
           <h2 className="lp-sec-title">
-            Sosyal medya yöneticinizin{' '}
-            <span className="lp-shimmer-text">tüm ihtiyaçları</span> tek stüdyoda.
+            İhtiyacınız olan her şey <span className="lp-shimmer-text">tek stüdyoda.</span>
           </h2>
           <p className="lp-sec-desc">
-            Manuel tasarım döngüsünü tamamen ortadan kaldırın. Şablondan AI metne,
-            toplu renderdan medya ayıklamaya kadar entegre güç.
+            Kurumsal kimliğinizi korurken üretkenliğinizi katlayın.
           </p>
         </motion.div>
 
         <div className="lp-bento-grid">
-          {/* Card 1: Large Bento (Span 2) - AI Text & Copy Assistant */}
-          <motion.article
-            className="lp-bento-card lp-bento-large"
-            initial={{ opacity: 0, y: 40 }}
+          {/* Feature 1 */}
+          <motion.div
+            className="lp-bento-card"
+            initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.7 }}
+            transition={{ duration: 0.6 }}
           >
-            <div className="lp-bento-top">
+            <div>
               <div className="lp-bento-header-row">
-                <span className="lp-bento-tag">✦ Yapay Zekâ Sentezi</span>
-                <div className="lp-bento-icon" style={{ background: 'linear-gradient(135deg, #FF6B1A 0%, #E9570F 100%)' }}>
-                  🤖
-                </div>
+                <span className="lp-bento-tag">✦ AI Sentezi</span>
+                <div className="lp-bento-icon">🤖</div>
               </div>
-              <h3 className="lp-bento-title">Akıllı Metin & Başlık Sentezleyici</h3>
+              <h3 className="lp-bento-title">Akıllı Metin & Başlık Sentezi</h3>
               <p className="lp-bento-desc">
-                Tek bir cümlelik taslak girin; GPT-4o ve Claude destekli AI motorumuz kurumsal
-                tonunuza en uygun başlık, alt başlık, etiket ve eylem çağrısı (CTA) metinlerini anında üretsin.
+                Tek bir cümlelik taslak girin; AI modelimiz kurumsal tonunuza en uygun
+                başlık ve etiketleri anında üretsin.
               </p>
             </div>
-
             <div className="lp-bento-visual">
-              <div className="lp-ai-prompt-box">
-                <div className="lp-ai-prompt-input">
-                  <span>✦ İstem:</span>
-                  <span>"Fütüristik tasarım stüdyosu için dikkat çekici lansman başlığı"</span>
-                </div>
-                <div className="lp-ai-output-cards">
-                  <div className="lp-ai-output-pill">
-                    <span className="lp-ai-output-label">Vurgulu Başlık</span>
-                    <span className="lp-ai-output-val">Geleceğin Grafik Motoru</span>
-                  </div>
-                  <div className="lp-ai-output-pill">
-                    <span className="lp-ai-output-label">AI Güven</span>
-                    <span className="lp-ai-output-val" style={{ color: '#FF6B1A' }}>%99.8 Doğruluk</span>
-                  </div>
-                </div>
-              </div>
+              <span style={{ fontSize: '0.75rem', color: '#E9570F', fontWeight: 700 }}>
+                ✦ Otomatik Başlık: "Geleceğin Grafik Motoru"
+              </span>
             </div>
-            <div className="lp-bento-shine" />
-          </motion.article>
+          </motion.div>
 
-          {/* Card 2: Smart Template Engine */}
-          <motion.article
+          {/* Feature 2 */}
+          <motion.div
             className="lp-bento-card"
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.7, delay: 0.1 }}
+            transition={{ duration: 0.6, delay: 0.1 }}
           >
-            <div className="lp-bento-top">
-              <div className="lp-bento-header-row">
-                <span className="lp-bento-tag">Otomasyon</span>
-                <div className="lp-bento-icon" style={{ background: 'linear-gradient(135deg, #FFA26B 0%, #FF6B1A 100%)' }}>
-                  🎨
-                </div>
-              </div>
-              <h3 className="lp-bento-title">Akıllı Şablon Motoru</h3>
-              <p className="lp-bento-desc">
-                Şablonunuzu bir kez kurgulayın; marka renkleri, fontlar ve logolar kilitli kalsın.
-                Her içerikte sıfırdan düzenlemeye son verin.
-              </p>
-            </div>
-
-            <div className="lp-bento-visual">
-              <div className="lp-stack-layers">
-                <div className="lp-stack-layer lp-stack-layer-1">Instagram Post (1:1)</div>
-                <div className="lp-stack-layer lp-stack-layer-2">Story / Reels (9:16)</div>
-                <div className="lp-stack-layer lp-stack-layer-3">
-                  <span>✦ Dinamik Katman</span>
-                  <span>Kilitli</span>
-                </div>
-              </div>
-            </div>
-            <div className="lp-bento-shine" />
-          </motion.article>
-
-          {/* Card 3: Batch Production */}
-          <motion.article
-            className="lp-bento-card"
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, delay: 0.2 }}
-          >
-            <div className="lp-bento-top">
-              <div className="lp-bento-header-row">
-                <span className="lp-bento-tag">Toplu İşlem</span>
-                <div className="lp-bento-icon" style={{ background: 'linear-gradient(135deg, #E9570F 0%, #FF8533 100%)' }}>
-                  📦
-                </div>
-              </div>
-              <h3 className="lp-bento-title">Toplu İçerik Otomasyonu</h3>
-              <p className="lp-bento-desc">
-                Fotoğraflarınızı toplu olarak sürükleyin; sistem tüm görselleri şablon koordinatlarına
-                otomatik yerleştirip sıraya alsın.
-              </p>
-            </div>
-
-            <div className="lp-bento-visual" style={{ textAlign: 'center' }}>
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '8px' }}>
-                <span style={{ background: 'rgba(255,107,26,0.15)', color: '#FF6B1A', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 700 }}>
-                  50+ Görsel / Dk
-                </span>
-                <span style={{ background: 'rgba(255,255,255,0.06)', color: '#FFF', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 600 }}>
-                  Sıfır Kayıp
-                </span>
-              </div>
-              <span style={{ fontSize: '0.75rem', color: 'var(--lp-muted)' }}>ZIP veya tek tek doğrudan indirme</span>
-            </div>
-            <div className="lp-bento-shine" />
-          </motion.article>
-
-          {/* Card 4: 4K GPU Render */}
-          <motion.article
-            className="lp-bento-card"
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.7, delay: 0.3 }}
-          >
-            <div className="lp-bento-top">
+            <div>
               <div className="lp-bento-header-row">
                 <span className="lp-bento-tag">Ultra-HD</span>
-                <div className="lp-bento-icon" style={{ background: 'linear-gradient(135deg, #FF6B1A 0%, #FFA26B 100%)' }}>
-                  💎
-                </div>
+                <div className="lp-bento-icon">💎</div>
               </div>
               <h3 className="lp-bento-title">Sıfır Kayıplı 4K Render</h3>
               <p className="lp-bento-desc">
-                Piksellerde bulanıklığa yer yok. Vektörel hassasiyette, kristal netliğinde tipografi
-                ve yüksek dinamik aralıklı (HDR) renk yönetimi.
+                Bulanıklığa yer yok. Kristal netliğinde tipografi ve yüksek dinamik aralıklı renklerle
+                baskı ve ekran kalitesi.
               </p>
             </div>
-
-            <div className="lp-bento-visual" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.8rem', color: '#FFF', fontWeight: 700 }}>Çıktı Kalitesi:</span>
-              <span style={{ background: '#FF6B1A', color: '#FFF', padding: '3px 12px', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 800 }}>
-                4K Ultra-HD
+            <div className="lp-bento-visual">
+              <span style={{ fontSize: '0.75rem', color: '#0F172A', fontWeight: 700 }}>
+                1080 × 1080 (1:1) ve 1080 × 1920 (9:16) Çıktı
               </span>
             </div>
-            <div className="lp-bento-shine" />
-          </motion.article>
+          </motion.div>
 
-          {/* Card 5: Media Downloader */}
-          <motion.article
+          {/* Feature 3 */}
+          <motion.div
             className="lp-bento-card"
-            initial={{ opacity: 0, y: 40 }}
+            initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.7, delay: 0.4 }}
+            transition={{ duration: 0.6, delay: 0.2 }}
           >
-            <div className="lp-bento-top">
+            <div>
               <div className="lp-bento-header-row">
-                <span className="lp-bento-tag">Reklamsız</span>
-                <div className="lp-bento-icon" style={{ background: 'linear-gradient(135deg, #FF8533 0%, #E9570F 100%)' }}>
-                  🎵
-                </div>
+                <span className="lp-bento-tag">Otomasyon</span>
+                <div className="lp-bento-icon">📦</div>
               </div>
-              <h3 className="lp-bento-title">MP3 & MP4 İndirici</h3>
+              <h3 className="lp-bento-title">Toplu Üretim & Reklamsız Medya</h3>
               <p className="lp-bento-desc">
-                Sosyal medya içerikleriniz için müzik ve video indirmek hiç bu kadar güvenli olmamıştı.
-                Reklamsız, doğrudan YouTube bağlantısıyla ayıklayın.
+                Tüm galeriyi tek seferde şablona giydirin, arka plan müziklerini güvenli ve
+                reklamsız indirin.
               </p>
             </div>
-
             <div className="lp-bento-visual">
-              <div className="lp-waveform-strip">
-                {[...Array(16)].map((_, idx) => (
-                  <div key={idx} className="lp-wave-bar" style={{ animationDelay: `${idx * 0.08}s` }} />
-                ))}
-              </div>
+              <span style={{ fontSize: '0.75rem', color: '#0F172A', fontWeight: 700 }}>
+                Dakikada 50+ Gönderi · Reklamsız MP3/MP4
+              </span>
             </div>
-            <div className="lp-bento-shine" />
-          </motion.article>
+          </motion.div>
         </div>
       </section>
 
@@ -1089,19 +943,17 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
       <section className="lp-comparison">
         <motion.div
           className="lp-sec-header"
-          initial={{ opacity: 0, y: 35 }}
+          initial={{ opacity: 0, y: 25 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-60px' }}
-          transition={{ duration: 0.8 }}
+          viewport={{ once: true, margin: '-50px' }}
+          transition={{ duration: 0.6 }}
         >
           <span className="lp-sec-label">Karşılaştırma</span>
           <h2 className="lp-sec-title">
-            Eski yöntemlerin zaman kaybını{' '}
-            <span className="lp-shimmer-text">geride bırakın.</span>
+            Eski yöntemlerin zaman kaybını <span className="lp-shimmer-text">geride bırakın.</span>
           </h2>
           <p className="lp-sec-desc">
-            Saatler süren manuel hizalama ve kopyala-yapıştır rutinleri yerine
-            Grafik Motoru'nun akıllı otomasyonuna geçin.
+            Saatler süren kopyala-yapıştır rutinleri yerine akıllı otomasyona geçin.
           </p>
         </motion.div>
 
@@ -1109,29 +961,25 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
           {/* Old Way */}
           <motion.div
             className="lp-comp-card lp-comp-old"
-            initial={{ opacity: 0, x: -30 }}
+            initial={{ opacity: 0, x: -20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: 0.6 }}
           >
             <span className="lp-comp-badge lp-comp-badge-old">✕ Geleneksel Yol</span>
-            <h3 className="lp-comp-title">Yavaş ve Yorucu Süreç</h3>
+            <h3 className="lp-comp-title">Yavaş ve Yorucu</h3>
             <ul className="lp-comp-list">
               <li className="lp-comp-item lp-comp-item-old">
                 <span className="lp-comp-icon lp-comp-icon-old">✕</span>
-                <span>Her yeni gönderi için saatlerce Photoshop açıp katmanları tek tek aramak</span>
+                <span>Her paylaşım için Photoshop açıp katmanları tek tek aramak</span>
               </li>
               <li className="lp-comp-item lp-comp-item-old">
                 <span className="lp-comp-icon lp-comp-icon-old">✕</span>
-                <span>Metinleri ve başlıkları farklı pencerelerden tek tek kopyalayıp hizalamak</span>
+                <span>Metinleri farklı pencerelerden kopyalayıp elle hizalamak</span>
               </li>
               <li className="lp-comp-item lp-comp-item-old">
                 <span className="lp-comp-icon lp-comp-icon-old">✕</span>
-                <span>Görsel boyutları kaydığında tipografi hiyerarşisini sıfırdan düzenlemek</span>
-              </li>
-              <li className="lp-comp-item lp-comp-item-old">
-                <span className="lp-comp-icon lp-comp-icon-old">✕</span>
-                <span>Şüpheli ve reklam dolu sitelerde arka plan müziği veya video aramak</span>
+                <span>Reklam dolu sitelerde arka plan müziği veya video aramak</span>
               </li>
             </ul>
           </motion.div>
@@ -1139,116 +987,51 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
           {/* New Way - Grafik Motoru */}
           <motion.div
             className="lp-comp-card lp-comp-new"
-            initial={{ opacity: 0, x: 30 }}
+            initial={{ opacity: 0, x: 20 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.8 }}
+            transition={{ duration: 0.6 }}
           >
             <span className="lp-comp-badge lp-comp-badge-new">✦ Grafik Motoru ile</span>
-            <h3 className="lp-comp-title">10 Kat Daha Hızlı Akış</h3>
+            <h3 className="lp-comp-title">10 Kat Daha Hızlı</h3>
             <ul className="lp-comp-list">
               <li className="lp-comp-item lp-comp-item-new">
                 <span className="lp-comp-icon lp-comp-icon-new">✓</span>
-                <span>Şablonunuzu bir kez oluşturun; sınırsız gönderi için anında kullanın</span>
+                <span>Şablonu bir kez kurgulayın; sınırsız gönderi için kullanın</span>
               </li>
               <li className="lp-comp-item lp-comp-item-new">
                 <span className="lp-comp-icon lp-comp-icon-new">✓</span>
-                <span>Yapay zekâ konunuza göre başlık, alt başlık ve etiketleri anında doldursun</span>
+                <span>Yapay zekâ başlık ve açıklamaları anında doldursun</span>
               </li>
               <li className="lp-comp-item lp-comp-item-new">
                 <span className="lp-comp-icon lp-comp-icon-new">✓</span>
-                <span>Fotoğraflarınızı toplu yükleyin; sistem pikselleri otomatik olarak ortalasın</span>
-              </li>
-              <li className="lp-comp-item lp-comp-item-new">
-                <span className="lp-comp-icon lp-comp-icon-new">✓</span>
-                <span>Dahili MP3 & MP4 indiriciyle güvenli, reklamsız medya indirme kolaylığı</span>
+                <span>Dahili MP3 & MP4 indiriciyle tek tıkla güvenli medya alımı</span>
               </li>
             </ul>
           </motion.div>
         </div>
       </section>
 
-      {/* ═══════════ HOW IT WORKS ═══════════ */}
-      <section className="lp-how" id="nasil-calisir">
-        <motion.div
-          className="lp-sec-header"
-          initial={{ opacity: 0, y: 35 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-60px' }}
-          transition={{ duration: 0.8 }}
-        >
-          <span className="lp-sec-label">Nasıl Çalışır?</span>
-          <h2 className="lp-sec-title">
-            Üç adımda{' '}
-            <span className="lp-shimmer-text">işinizi kolaylaştırın.</span>
-          </h2>
-          <p className="lp-sec-desc">
-            Manuel düzenleme devri bitti. Şablonu hazırla, fotoğrafları yükle,
-            çıktını al.
-          </p>
-        </motion.div>
-
-        <div className="lp-how-timeline">
-          <div className="lp-how-line" />
-          {howItWorks.map((item, i) => (
-            <motion.div
-              key={i}
-              className="lp-how-step"
-              initial={{ opacity: 0, x: i % 2 === 0 ? -40 : 40 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true, margin: '-60px' }}
-              transition={{ duration: 0.8, delay: i * 0.15, ease: [0.22, 1, 0.36, 1] }}
-            >
-              <div className="lp-how-num" style={{ background: item.color }}>{item.step}</div>
-              <div className="lp-how-body">
-                <div className="lp-how-emoji">{item.icon}</div>
-                <h3 className="lp-how-h3">{item.title}</h3>
-                <p className="lp-how-p">{item.desc}</p>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
       {/* ═══════════ CTA ═══════════ */}
       <motion.section
         className="lp-cta"
-        initial={{ opacity: 0, scale: 0.94 }}
+        initial={{ opacity: 0, scale: 0.96 }}
         whileInView={{ opacity: 1, scale: 1 }}
-        viewport={{ once: true, margin: '-60px' }}
-        transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+        viewport={{ once: true, margin: '-50px' }}
+        transition={{ duration: 0.6 }}
       >
         <div className="lp-cta-glow-1" />
         <div className="lp-cta-glow-2" />
-        <motion.h2
-          className="lp-cta-h2"
-          initial={{ opacity: 0, y: 25 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7, delay: 0.15 }}
-        >
-          Sosyal medyanı hızlandırmaya hazır mısın?
-        </motion.h2>
-        <motion.p
-          className="lp-cta-p"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7, delay: 0.3 }}
-        >
-          Manuel düzenleme devri bitti. Şablonunuzu bir kez oluşturun,
-          fotoğraflarınızı toplu yükleyin, AI gerisini halletsin.
-          Ücretsiz başlayın.
-        </motion.p>
+        <h2 className="lp-cta-h2">Sosyal medyanı hızlandırmaya hazır mısın?</h2>
+        <p className="lp-cta-p">
+          Şablonunuzu bir kez oluşturun, fotoğraflarınızı yükleyin,
+          AI gerisini halletsin. Hemen ücretsiz deneyin.
+        </p>
         <motion.button
           className="lp-btn-accent lp-btn-xl lp-cta-btn"
           onClick={onEnter}
-          whileHover={{ scale: 1.06, boxShadow: '0 16px 48px rgba(255, 107, 26, 0.55)' }}
+          whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.97 }}
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.7, delay: 0.45 }}
         >
           ✦ Hemen Başla — Ücretsiz
         </motion.button>
@@ -1263,9 +1046,9 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
           <span className="lp-footer-name">Grafik Motoru — Sosyal medyanı hızlandır.</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <span style={{ fontSize: '0.75rem', color: '#10B981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{ fontSize: '0.75rem', color: '#10B981', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10B981', display: 'inline-block' }} />
-            Tüm Sistemler Operasyonel · v2.4
+            Tüm Sistemler Aktif · v2.4
           </span>
           <p className="lp-footer-by">
             by <strong>Tunafx</strong>
