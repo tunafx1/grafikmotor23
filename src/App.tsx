@@ -1164,8 +1164,8 @@ export default function App() {
 
   const [showGrid, setShowGrid] = useState<boolean>(false);
   const [showSafeMargins, setShowSafeMargins] = useState<boolean>(false);
-  const [exportFormat, setExportFormat] = useState<'png' | 'jpeg'>('png');
-  const [exportScale, setExportScale] = useState<number>(1.5); // 1.5x, 2x for DPI
+  const [exportFormat, setExportFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
+  const [exportScale, setExportScale] = useState<number>(1.5); // 1.5x, 2x, 4x for Ultra-HD
   const [exportFiles, setExportFiles] = useState<{url:string; name:string; type:string}[]>([]);
   const exportUrls = useRef<string[]>([]);
   useEffect(() => () => exportUrls.current.forEach(url => URL.revokeObjectURL(url)), []);
@@ -4082,6 +4082,10 @@ export default function App() {
         onSave={() => saveDataToCloud()} onTools={() => setIsToolsModalOpen(true)}
         onExport={() => { setMobileView('export'); setExportPanelOpen(v => window.matchMedia('(max-width: 1023px)').matches ? true : !v); }}
         exportPanelOpen={exportPanelOpen}
+        onRename={(newName) => {
+          if (!newName.trim()) return;
+          setTemplates(prev => prev.map(t => t.id === currentTemplateId ? { ...t, name: newName.trim() } : t));
+        }}
       />
       {storageError && <div className="workspace-warning" role="alert">{storageError} Çalışmanızı indirin veya buluta kaydedin.</div>}
       {/* CLOUD QUOTA EXCEEDED WARNING BANNER */}
@@ -6989,50 +6993,64 @@ export default function App() {
             <div className="space-y-4">
               <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wide block px-1">Çıktı Ayarları</span>
               
-              {/* Output format selectors */}
-              <div className="grid grid-cols-2 gap-2">
+              {/* Output format selectors (PNG, JPEG, WebP) */}
+              <div className="grid grid-cols-3 gap-1.5">
                 <button
                   onClick={() => setExportFormat('png')}
-                  className={`py-2 rounded-[12px] text-xs font-medium border transition-all cursor-pointer ${
+                  className={`py-2 rounded-[12px] text-[11px] font-medium border transition-all cursor-pointer ${
                     exportFormat === 'png'
-                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 text-[#FF6B1A] dark:text-[#FF6B1A]'
-                      : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80'
+                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] text-[#FF6B1A] font-bold'
+                      : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F]'
                   }`}
                 >
                   PNG (Kayıpsız)
                 </button>
                 <button
                   onClick={() => setExportFormat('jpeg')}
-                  className={`py-2 rounded-[12px] text-xs font-medium border transition-all cursor-pointer ${
+                  className={`py-2 rounded-[12px] text-[11px] font-medium border transition-all cursor-pointer ${
                     exportFormat === 'jpeg'
-                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 text-[#FF6B1A] dark:text-[#FF6B1A]'
-                      : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80'
+                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] text-[#FF6B1A] font-bold'
+                      : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F]'
                   }`}
                 >
                   JPEG (Optimize)
                 </button>
+                <button
+                  onClick={() => setExportFormat('webp')}
+                  className={`py-2 rounded-[12px] text-[11px] font-medium border transition-all cursor-pointer ${
+                    exportFormat === 'webp'
+                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] text-[#FF6B1A] font-bold'
+                      : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F]'
+                  }`}
+                >
+                  WebP (Ultra)
+                </button>
               </div>
 
-              {/* Scale DPI multipliers */}
+              {/* Scale DPI multipliers (1x, 1.5x, 2x, 4x Ultra-HD) */}
               <div className="space-y-2">
                 <div className="flex justify-between text-[10px] text-[rgba(255,255,255,0.72)] px-1">
-                  <span>Çözünürlük Ölçeği</span>
+                  <span>Çözünürlük & Tahmini Boyut</span>
                   <span className="font-mono text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]">
-                    {Math.round(currentTemplate.width * exportScale)} × {Math.round(currentTemplate.height * exportScale)} px
+                    {Math.round(currentTemplate.width * exportScale)} × {Math.round(currentTemplate.height * exportScale)} px · ~{Math.max(
+                      0.2,
+                      Number(((currentTemplate.width * currentTemplate.height * exportScale * exportScale * (exportFormat === 'png' ? 3.2 : exportFormat === 'webp' ? 0.9 : 1.5)) / (1024 * 1024)).toFixed(1))
+                    )} MB
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-4 gap-1">
                   {[
-                    { label: 'Web (1x)', val: 1.0 },
-                    { label: 'Yüksek (1.5x)', val: 1.5 },
-                    { label: 'En iyi (2x)', val: 2.0 }
+                    { label: '1x Web', val: 1.0 },
+                    { label: '1.5x HD', val: 1.5 },
+                    { label: '2x Retina', val: 2.0 },
+                    { label: '4x Ultra-HD', val: 4.0 },
                   ].map(sc => (
                     <button
                       key={sc.val}
                       onClick={() => setExportScale(sc.val)}
-                      className={`py-1.5 rounded-[10px] text-[10px] border transition-all cursor-pointer ${
+                      className={`py-1.5 rounded-[10px] text-[9.5px] border transition-all cursor-pointer ${
                         exportScale === sc.val
-                          ? 'bg-[#252528] border-[rgba(255,255,255,0.08)] dark:bg-[#FF6B1A] dark:border-[#FF6B1A] text-[rgba(255,255,255,0.95)] font-medium'
+                          ? 'bg-[#252528] border-[rgba(255,255,255,0.08)] dark:bg-[#FF6B1A] dark:border-[#FF6B1A] text-[rgba(255,255,255,0.95)] font-bold'
                           : 'bg-[#1D1D1F] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80'
                       }`}
                     >

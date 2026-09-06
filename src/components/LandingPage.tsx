@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useMotionValue, useSpring, AnimatePresence } from 'motion/react';
+import { ImagePlus, Sparkles, Layers, Zap } from 'lucide-react';
 
 interface LandingPageProps {
   onEnter: () => void;
@@ -375,12 +376,6 @@ function HeroMotionGraphic({ onEnter }: { onEnter: () => void }) {
 
   return (
     <div className="lp-hero-visual">
-      {/* Ambient orbit ring & floating badges */}
-      <div className="lp-orbit-ring" />
-      <div className="lp-float-emoji lp-float-1">✦</div>
-      <div className="lp-float-emoji lp-float-2">📸</div>
-      <div className="lp-float-emoji lp-float-3">⚡</div>
-
       <motion.div
         className="lp-motion-card"
         whileHover={{ y: -3 }}
@@ -442,7 +437,9 @@ function HeroMotionGraphic({ onEnter }: { onEnter: () => void }) {
             {/* Step 1: Empty Drop Zone Placeholder */}
             {!isPhotoDropped && (
               <div className="lp-motion-empty-zone">
-                <div className="lp-motion-empty-icon">📁</div>
+                <div className="lp-motion-empty-icon">
+                  <ImagePlus size={26} className="text-[#FF6B1A]" />
+                </div>
                 <div>
                   <p className="lp-motion-empty-text">Görseli Buraya Bırakın</p>
                   <p className="lp-motion-empty-sub">Otomatik Boyutlandırma & Ortalama</p>
@@ -794,31 +791,6 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
         <HeroMotionGraphic onEnter={onEnter} />
       </motion.section>
 
-      {/* ═══════════ MARQUEE STRIP ═══════════ */}
-      <div className="lp-marquee-wrap">
-        <div className="lp-marquee">
-          {[...Array(2)].map((_, setIdx) => (
-            <div key={setIdx} className="lp-marquee-set">
-              {[
-                'Sosyal Medyanı Hızlandır',
-                'AI Metin & Başlık Sentezi',
-                'Otomatik Şablon Düzeni',
-                'Toplu Fotoğraf İşleme',
-                'Reklamsız Medya İndirici',
-                '4K Ultra-HD Çıktı',
-                '%87 Zaman Tasarrufu',
-                'Grafik Motoru v2.4',
-              ].map((text, i) => (
-                <span key={i} className="lp-marquee-item">
-                  <span className="lp-marquee-dot" />
-                  {text}
-                </span>
-              ))}
-            </div>
-          ))}
-        </div>
-      </div>
-
       {/* ═══════════ STATS ═══════════ */}
       <section className="lp-stats">
         {stats.map((stat, i) => (
@@ -904,7 +876,9 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
             <div>
               <div className="lp-bento-header-row">
                 <span className="lp-bento-tag">✦ AI Sentezi</span>
-                <div className="lp-bento-icon">🤖</div>
+                <div className="lp-bento-icon">
+                  <Sparkles size={20} className="text-[#FF6B1A]" />
+                </div>
               </div>
               <h3 className="lp-bento-title">Akıllı Metin & Başlık Sentezi</h3>
               <p className="lp-bento-desc">
@@ -954,7 +928,9 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
             <div>
               <div className="lp-bento-header-row">
                 <span className="lp-bento-tag">Ultra-HD</span>
-                <div className="lp-bento-icon">💎</div>
+                <div className="lp-bento-icon">
+                  <Layers size={20} className="text-[#FF6B1A]" />
+                </div>
               </div>
               <h3 className="lp-bento-title">Sıfır Kayıplı 4K Render</h3>
               <p className="lp-bento-desc">
@@ -1015,7 +991,9 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
             <div>
               <div className="lp-bento-header-row">
                 <span className="lp-bento-tag">Otomasyon</span>
-                <div className="lp-bento-icon">📦</div>
+                <div className="lp-bento-icon">
+                  <Zap size={20} className="text-[#FF6B1A]" />
+                </div>
               </div>
               <h3 className="lp-bento-title">Toplu Üretim & Reklamsız Medya</h3>
               <p className="lp-bento-desc">

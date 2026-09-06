@@ -1,13 +1,40 @@
-import { ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, LogOut, Loader2, HardDrive } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, LogOut, Loader2, HardDrive, Pencil } from 'lucide-react';
 
 type Props = {
   templateName: string; isDark: boolean; onTheme: () => void;
   isSigningIn?: boolean; userName: string | null; cloudStatus: string; isCloudSynced: boolean;
   onLogin: () => void; onLogout: () => void; onSave: () => void;
   onTools: () => void; onExport: () => void; exportPanelOpen: boolean;
+  onRename?: (newName: string) => void;
 };
 
 export function WorkspaceHeader(p: Props) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempName, setTempName] = useState(p.templateName);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setTempName(p.templateName);
+  }, [p.templateName]);
+
+  useEffect(() => {
+    if (isEditing) {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, [isEditing]);
+
+  const handleCommit = () => {
+    setIsEditing(false);
+    const trimmed = tempName.trim();
+    if (trimmed && trimmed !== p.templateName && p.onRename) {
+      p.onRename(trimmed);
+    } else {
+      setTempName(p.templateName);
+    }
+  };
+
   return (
     <header id="app-header" className="workspace-header">
       <div className="workspace-brand">
@@ -20,7 +47,34 @@ export function WorkspaceHeader(p: Props) {
       <div className="workspace-breadcrumb">
         <span className="workspace-breadcrumb-root">Çalışmalarım</span>
         <ChevronRight size={13} className="opacity-40" />
-        <strong title={p.templateName}>{p.templateName}</strong>
+        {isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            className="workspace-title-inline-input"
+            value={tempName}
+            onChange={e => setTempName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') handleCommit();
+              if (e.key === 'Escape') {
+                setTempName(p.templateName);
+                setIsEditing(false);
+              }
+            }}
+            onBlur={handleCommit}
+            maxLength={60}
+          />
+        ) : (
+          <button
+            type="button"
+            className="workspace-title-btn"
+            onClick={() => p.onRename && setIsEditing(true)}
+            title={p.onRename ? 'Tasarım adını düzenlemek için tıklayın' : p.templateName}
+          >
+            <strong title={p.templateName}>{p.templateName}</strong>
+            {p.onRename && <Pencil size={11} className="workspace-title-pencil" />}
+          </button>
+        )}
       </div>
 
       <div className="workspace-header-actions">

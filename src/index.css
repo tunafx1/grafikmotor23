@@ -774,28 +774,6 @@ textarea::placeholder {
   display: flex; justify-content: center; position: relative;
   width: 100%;
 }
-.lp-orbit-ring {
-  position: absolute; width: 112%; height: 112%;
-  top: -6%; left: -6%;
-  border: 1px dashed rgba(255, 107, 26, 0.22);
-  border-radius: 50%;
-  pointer-events: none;
-  animation: lp-orbit-spin 40s linear infinite;
-}
-@keyframes lp-orbit-spin { to { transform: rotate(360deg); } }
-
-.lp-float-emoji {
-  position: absolute; z-index: 20; font-size: 30px;
-  filter: drop-shadow(0 6px 12px rgba(15, 23, 42, 0.12));
-  pointer-events: none;
-}
-.lp-float-1 { top: -14px; right: 8px; animation: lp-float-y 6s ease-in-out infinite; }
-.lp-float-2 { bottom: 8%; left: -16px; animation: lp-float-y 8s ease-in-out infinite 2s; }
-.lp-float-3 { top: 46%; right: -20px; animation: lp-float-y 7s ease-in-out infinite 4s; }
-@keyframes lp-float-y {
-  0%, 100% { transform: translateY(0) rotate(0deg); }
-  50% { transform: translateY(-14px) rotate(6deg); }
-}
 
 /* ─── Hero Motion Card (Crisp White SaaS Studio) ─── */
 .lp-motion-card {
@@ -989,28 +967,6 @@ textarea::placeholder {
   height: 100%; background: #FFFFFF; border-radius: 999px;
   transition: width 0.3s ease;
 }
-
-/* ═══════ MARQUEE (Clean Crisp Light) ═══════ */
-.lp-marquee-wrap {
-  overflow: hidden; position: relative; z-index: 10;
-  border-top: 1px solid #E2E8F0;
-  border-bottom: 1px solid #E2E8F0;
-  padding: 16px 0; margin-bottom: 64px;
-  background: #FFFFFF;
-}
-.lp-marquee { display: flex; width: max-content; animation: lp-scroll 32s linear infinite; }
-.lp-marquee-set { display: flex; gap: 0; flex-shrink: 0; }
-.lp-marquee-item {
-  display: inline-flex; align-items: center; gap: 12px;
-  padding: 0 32px; font-size: 0.875rem; font-weight: 700;
-  color: #475569; white-space: nowrap; text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-.lp-marquee-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--gm-orange); box-shadow: 0 0 8px rgba(255, 107, 26, 0.6);
-}
-@keyframes lp-scroll { to { transform: translateX(-50%); } }
 
 /* ═══════ STATS (Clean light cards) ═══════ */
 .lp-stats {
@@ -1508,7 +1464,6 @@ textarea::placeholder {
   .lp-cta { margin: 20px 16px 60px; padding: 40px 20px; }
   .lp-footer { padding: 20px 16px; flex-direction: column; gap: 10px; }
   .lp-nav-link { display: none; }
-  .lp-marquee-wrap { padding: 12px 0; }
 }
 
 

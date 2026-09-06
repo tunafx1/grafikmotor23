@@ -53,6 +53,11 @@
 .workspace-breadcrumb { display: flex; align-items: center; gap: 8px; color: var(--ws-muted); font-size: 12px; min-width: 0; flex: 1; }
 .workspace-breadcrumb-root { color: var(--ws-muted); font-weight: 500; }
 .workspace-breadcrumb strong { color: var(--ws-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; letter-spacing: -0.2px; }
+.workspace-title-btn { display: inline-flex; align-items: center; gap: 6px; background: transparent; border: none; padding: 4px 8px; border-radius: 6px; cursor: pointer; transition: all 0.15s ease; max-width: 260px; }
+.workspace-title-btn:hover { background: var(--ws-hover); }
+.workspace-title-pencil { opacity: 0; color: var(--ws-accent); transition: opacity 0.15s ease; flex-shrink: 0; }
+.workspace-title-btn:hover .workspace-title-pencil { opacity: 1; }
+.workspace-title-inline-input { background: var(--ws-field); color: var(--ws-text); border: 1px solid var(--ws-accent); box-shadow: 0 0 0 2px rgba(255, 107, 26, 0.2); border-radius: 6px; padding: 3px 8px; font-size: 12px; font-weight: 700; outline: none; width: 220px; }
 .workspace-header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .workspace-save-status { display: flex; align-items: center; margin-right: 4px; }
 .ws-status-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--ws-muted); padding: 5px 11px; background: var(--ws-field); border-radius: 9999px; border: 1px solid var(--ws-border); }

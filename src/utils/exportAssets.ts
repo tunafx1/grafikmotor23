@@ -19,7 +19,7 @@ export function safeFileName(name: string) {
   return name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim().replace(/\s+/g, '_').slice(0, 100) || 'tasarim';
 }
 export async function createExportAsset(template: DesignTemplate, page: ExportPage, options: {
-  format: 'png' | 'jpeg'; scale: number; highlightColor: string;
+  format: 'png' | 'jpeg' | 'webp'; scale: number; highlightColor: string;
   paletteOverrides?: GraphicData['paletteOverrides']; onProgress?: (percent: number) => void;
 }) {
   const layout = resolveExportTemplate(template, page);
@@ -39,6 +39,9 @@ export async function createExportAsset(template: DesignTemplate, page: ExportPa
   }
   const canvas = document.createElement('canvas');
   await renderTemplateToCanvas(canvas, layout, page.dynamicTexts || {}, images, {...options, isExport:true, hiddenElements:hidden, showGrid:false, showSafeMargins:false});
-  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Görsel dosyası oluşturulamadı.')), `image/${options.format}`, options.format === 'jpeg' ? .95 : undefined));
-  return {blob, extension:options.format === 'jpeg' ? 'jpg' : 'png'};
+  const mimeType = options.format === 'jpeg' ? 'image/jpeg' : options.format === 'webp' ? 'image/webp' : 'image/png';
+  const quality = options.format === 'png' ? undefined : 0.95;
+  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Görsel dosyası oluşturulamadı.')), mimeType, quality));
+  const extension = options.format === 'jpeg' ? 'jpg' : options.format === 'webp' ? 'webp' : 'png';
+  return {blob, extension};
 }
