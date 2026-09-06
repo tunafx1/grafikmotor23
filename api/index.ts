@@ -3,6 +3,7 @@ import path from 'path';
 import { extractVideoId as extractYouTubeVideoId, streamMedia } from '../downloader-service/media-stream.js';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import { buildTextPrompt, createTextGenerationHandler } from './text-generation';
 
 // Automatically load .env.local first, then .env in local/node environment
 if (!process.env.VERCEL) {
@@ -11,7 +12,7 @@ if (!process.env.VERCEL) {
 }
 
 // Models and credentials are supplied by the host environment.
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
 const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || DEFAULT_MODEL;
 let aiClient: GoogleGenAI | null = null;
 
@@ -75,14 +76,14 @@ async function generateContentWithRetry(client: GoogleGenAI, params: any, attemp
 }
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Normalize endpoint prefixes while preserving query parameters (video streams need them).
 app.use((req, _res, next) => {
-  const endpoint = req.path.match(/(?:^|\/)(generate-content|analyze-collage|yt-info|yt-download|yt-stream)\/?$/i)?.[1];
+  const endpoint = req.path.match(/(?:^|\/)(generate-text|generate-content|analyze-collage|yt-info|yt-download|yt-stream)\/?$/i)?.[1];
   if (endpoint) {
     const queryIndex = req.url.indexOf('?');
     req.url = `/api/${endpoint.toLowerCase()}${queryIndex >= 0 ? req.url.slice(queryIndex) : ''}`;
@@ -90,7 +91,26 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Predefined fallbacks in case API Key is missing or service fails
+app.post(['/api/generate-text', '/generate-text'], createTextGenerationHandler({
+  hasKey: () => Boolean(getGeminiClient()),
+  generate: async input => {
+    const contents: any[] = [{text: buildTextPrompt(input)}];
+    if (input.image) {
+      const [header, data] = input.image.split(',');
+      contents.unshift({inlineData:{mimeType:header.slice(5, header.indexOf(';')), data}});
+    }
+    const response = await getGeminiClient()!.models.generateContent({
+      model:DEFAULT_MODEL, contents,
+      config:{httpOptions:{timeout:45000}, responseMimeType:'application/json', responseSchema:{
+        type:Type.OBJECT, properties:{texts:{type:Type.ARRAY, items:{type:Type.OBJECT,
+          properties:{id:{type:Type.STRING},text:{type:Type.STRING}},required:['id','text']}}}, required:['texts'],
+      }},
+    });
+    return JSON.parse(response.text || '{}');
+  },
+}));
+
+// Legacy endpoints retained for existing clients. The editor uses generate-text.
 const fallbackResponses: Record<string, any> = {
   fashion: {
     title: "**Yeni Sezon** Zamansız Dokunuşlar",
@@ -550,35 +570,5 @@ app.post(['/api/yt-download', '/yt-download'], async (req, res) => {
   }
 });
 
-// Serve static files in production or hook up Vite dev server in development
-async function setupViteOrStatic() {
-  if (process.env.VERCEL) {
-    // On Vercel, static files are served by Vercel CDN, and routes are handled serverlessly.
-    return;
-  }
-
-  if (process.env.NODE_ENV !== 'production') {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
-  }
-
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Graphic Automation Engine Server listening at http://0.0.0.0:${PORT}`);
-  });
-}
-
-setupViteOrStatic().catch(err => {
-  console.error('Error during server startup setup:', err);
-});
-
 export default app;
+

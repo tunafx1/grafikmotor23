@@ -8,3 +8,6 @@ coverage/
 .env*
 bin/
 !.env.example
+
+# Local handoff archives
+github-export/

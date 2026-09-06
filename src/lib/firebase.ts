@@ -82,7 +82,7 @@ export async function ensureUserSignIn(): Promise<{ uid: string; isAnonymous?: b
 
 
 export async function loginWithGoogle(): Promise<any> {
-  if (!isValidConfig) return null;
+  if (!isValidConfig) throw Object.assign(new Error('Firebase configuration missing'), {code:'auth/configuration-not-found'});
   const provider = new GoogleAuthProvider();
   provider.setCustomParameters({ prompt: 'select_account' });
   try {

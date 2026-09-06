@@ -1,18 +1,18 @@
-# YouTube yt-dlp Doğrudan İndirme Mikroservisi
+# Medya indirme servisi
 
-Bu mikroservis, YouTube videolarını doğrudan **Full HD MP4** ve **320kbps MP3** formatında tarayıcıya dosya olarak (`Content-Disposition: attachment`) aktaran bağımsız bir servistir.
+YouTube bağlantılarını yt-dlp ile okur, ffmpeg ile MP3 veya MP4 çıktısına dönüştürür. MP3 için 320 kbps kodlama kullanılır; kaynak sesin kalitesi yükseltilmez. MP4 çözünürlüğü kaynak akışa bağlıdır.
 
-## 🚀 Ücretsiz 1-Tıkla Dağıtım (Railway / Render / VPS)
+## Yerel kullanım
 
-### Railway'e Dağıtım:
-1. [Railway.app](https://railway.app)'a gidin.
-2. **New Project** -> **Deploy from GitHub repo** seçin ve bu repo içerisindeki `downloader-service` klasörünü gösterin.
-3. Otomatik olarak oluşturulan servis URL'sini (örn: `https://your-service.up.railway.app`) ana uygulamanızın `.env` veya Vercel Environment Variables kısmına `DOWNLOADER_SERVICE_URL` olarak ekleyin.
+Node.js, Python ortamında `yt_dlp` ve `ffmpeg` gereklidir. `YT_DLP_PATH` ve `FFMPEG_PATH` ile özel çalıştırılabilir dosya yolları belirtilebilir.
 
-### Yerel Çalıştırma:
-```bash
-cd downloader-service
+```sh
 npm install
 node server.js
 ```
-Servis `http://localhost:4000` portunda çalışacaktır.
+
+Varsayılan port 4000; `PORT` ile değiştirilebilir. `GET /health` servis durumunu döndürür. `GET /download?url=YOUTUBE_URL&format=mp3` veya `format=mp4` dosya akışı döndürür. `url` URL kodlamasından geçirilmelidir.
+
+Dockerfile bağımlılıkları kurar. Ana uygulamada `DOWNLOADER_SERVICE_URL` değerine servisin kök adresini yazın.
+
+Bu servis kimlik doğrulama ve hız sınırlaması içermiyor. Herkese açık bir adrese yayımlamadan önce erişim kontrolü ve kaynak sınırları eklenmelidir. Bu çalışma sırasında servis yayımlanmadı; gerçek YouTube indirmesi yapılmadı.

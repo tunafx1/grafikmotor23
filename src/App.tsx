@@ -1,3 +1,6 @@
+import { describeGoogleLoginError } from './lib/authErrors';
+import { getAiTextFields, requestAiText } from './utils/aiText';
+import { MediaDownloaderDialog } from './components/MediaDownloaderDialog';
 import { createExportAsset, safeFileName } from './utils/exportAssets';
 import { storeVideo, getVideoUrl, replaceVideoUrls } from './lib/mediaStore';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -16,6 +19,7 @@ import {
   Download,
   RotateCcw,
   Sparkles,
+  WandSparkles,
   Image as ImageIcon,
   Globe,
   Mail,
@@ -1166,13 +1170,21 @@ export default function App() {
   const [dragActive, setDragActive] = useState<Record<string, boolean>>({});
 
   // AI Content Assistant
-  const [aiNiche, setAiNiche] = useState<string>('Moda');
-  const [aiStyle, setAiStyle] = useState<string>('fashion');
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
   const [aiSuccessMessage, setAiSuccessMessage] = useState<string | null>(null);
   const [aiCollageBrief, setAiCollageBrief] = useState<string>('');
-  const [isAiAnalyzing, setIsAiAnalyzing] = useState<boolean>(false);
-  const [aiProgress, setAiProgress] = useState<number>(0);
+  const [aiTextTarget, setAiTextTarget] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiNoticeLocation, setAiNoticeLocation] = useState<'all' | 'fields'>('fields');
+  const aiRequestRef = useRef<AbortController | null>(null);
+  useEffect(() => {
+    aiRequestRef.current?.abort();
+    aiRequestRef.current = null;
+    setAiTextTarget(null);
+    setAiError(null);
+    setAiSuccessMessage(null);
+    return () => { aiRequestRef.current?.abort(); };
+  }, [currentTemplateId, activePageData.id, activeTab, currentTemplate.aiSystemPrompt]);
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
   const [exportStatusText, setExportStatusText] = useState<string | null>(null);
 
@@ -1297,7 +1309,11 @@ export default function App() {
       }
       if (!saved) { setIsCloudSynced(false); setCloudStatus('idle'); return; }
       const legacyTemplates = Array.isArray(saved.templates) && saved.templates.length ? [] : await getCloudTemplates();
-      if (historyRef.current !== beforeLoad || auth.currentUser?.uid !== uid) return;
+      if (historyRef.current !== beforeLoad || auth.currentUser?.uid !== uid) {
+        setIsCloudSynced(false);
+        setCloudStatus('idle');
+        return;
+      }
       const nextTemplates = Array.isArray(saved.templates) && saved.templates.length
         ? saved.templates : [...TEMPLATE_PRESETS, ...legacyTemplates];
       const nextId = nextTemplates.some(t => t.id === saved.currentTemplateId) ? saved.currentTemplateId : nextTemplates[0].id;
@@ -1408,7 +1424,12 @@ export default function App() {
   // Automatic background synchronization has been removed in favor of manual saves.
   // Data is only persisted to the cloud when the user explicitly clicks "Buluta Kaydet".
 
+  const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
+  const googleLoginPending = useRef(false);
   const handleGoogleLogin = async () => {
+    if (googleLoginPending.current) return;
+    googleLoginPending.current = true;
+    setIsGoogleSigningIn(true);
     setCloudStatus('syncing');
     isLoadedRef.current = false;
     try {
@@ -1420,9 +1441,12 @@ export default function App() {
       }
     } catch (err) {
       console.error('Google Login error:', err);
-      setCloudStatus('error');
-      alert('Google ile Giriş yaparken bir sorun oluştu. Tarayıcınız popup pencerelerini engelliyor olabilir, lütfen platformu yeni sekmede açarak tekrar deneyin.');
+      const notice = describeGoogleLoginError(err, window.location.hostname);
+      setCloudStatus(notice ? 'error' : 'idle');
+      if (notice) setConfirmDialog({isOpen:true, type:'info', ...notice, onConfirm:() => setConfirmDialog(null)});
     } finally {
+      googleLoginPending.current = false;
+      setIsGoogleSigningIn(false);
       isLoadedRef.current = true;
       setIsAppLoaded(true);
     }
@@ -1670,341 +1694,26 @@ export default function App() {
   };
 
   const compressDataUrl = (dataUrl: string, maxWidth = 300, maxHeight = 300, quality = 0.5): Promise<string> => {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const img = new Image();
+      const cleanup = () => { clearTimeout(timer); img.onload = null; img.onerror = null; };
+      const timer = setTimeout(() => { cleanup(); img.src = ''; reject(new Error('Görsel hazırlanamadı.')); }, 5000);
       img.onload = () => {
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxWidth || height > maxHeight) {
-          const ratio = width / height;
-          if (ratio > 1) {
-            width = maxWidth;
-            height = Math.round(maxWidth / ratio);
-          } else {
-            height = maxHeight;
-            width = Math.round(maxHeight * ratio);
-          }
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.drawImage(img, 0, 0, width, height);
+        try {
+          const ratio = Math.min(1, maxWidth / img.width, maxHeight / img.height);
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(img.width * ratio));
+          canvas.height = Math.max(1, Math.round(img.height * ratio));
+          const context = canvas.getContext('2d');
+          if (!context) throw new Error('Görsel hazırlanamadı.');
+          context.drawImage(img, 0, 0, canvas.width, canvas.height);
           resolve(canvas.toDataURL('image/jpeg', quality));
-        } else {
-          resolve(dataUrl);
-        }
+        } catch (error) { reject(error); }
+        finally { cleanup(); }
       };
-      img.onerror = () => {
-        resolve(dataUrl);
-      };
+      img.onerror = () => { cleanup(); reject(new Error('Görsel açılamadı.')); };
       img.src = dataUrl;
     });
-  };
-
-  const getClientSideFallback = (nicheText: string, styleType: string) => {
-    const niche = nicheText ? nicheText.trim() : 'Girişim';
-    const style = styleType ? styleType.toLowerCase() : 'minimalist';
-
-    const defaultFallbacks: Record<string, { title: string; subtitle: string; description: string; primaryColor: string; accentColor: string; textColor: string; bgColor: string }> = {
-      fashion: {
-        title: `**${niche}** Zamanın Ötesinde`,
-        subtitle: `*Yeni Sezon* Kreasyonları`,
-        description: `Sürdürülebilir üretim süreçleri ve *özel kumaş dokularıyla* tasarlanan, tarzınızı yansıtan parçalar şimdi yayında.`,
-        primaryColor: "#FF453A",
-        accentColor: "#FF9F0A",
-        textColor: "rgba(255,255,255,0.95)",
-        bgColor: "#252528"
-      },
-      tech: {
-        title: `Yapay Zeka ve **${niche}** Entegrasyonu`,
-        subtitle: `*Yenilikçi* Dijital Çözümler`,
-        description: `Maksimum hız, yüksek verimlilik ve *modern yazılım standartlarıyla* iş akışlarınızı geleceğe entegre edin.`,
-        primaryColor: "#6C5CE7",
-        accentColor: "#6C5CE7",
-        textColor: "rgba(255,255,255,0.95)",
-        bgColor: "#1D1D1F"
-      },
-      food: {
-        title: `Tazelikten Gelen **${niche}** Lezzeti`,
-        subtitle: `*Gurme* Gastronomi Keyfi`,
-        description: `Yerel üreticilerden doğrudan temin edilen taze malzemeler ve *şefimizin özel dokunuşuyla* eşsiz bir deneyim.`,
-        primaryColor: "#34C759",
-        accentColor: "#FF453A",
-        textColor: "rgba(255,255,255,0.95)",
-        bgColor: "#252528"
-      },
-      education: {
-        title: `**${niche}** ile Geleceğinizi Kurun`,
-        subtitle: `*Gelişmiş* Eğitim Metotları`,
-        description: `Uzman eğitmen kadrosu, modern konu başlıkları ve *birebir mentorluk desteğiyle* kariyerinizde yeni bir dönem.`,
-        primaryColor: "#6C5CE7",
-        accentColor: "#34C759",
-        textColor: "#1D1D1F",
-        bgColor: "#1D1D1F"
-      },
-      minimalist: {
-        title: `Az Çoktur: **${niche}** Dünyası`,
-        subtitle: `*Yalın ve Dengeli* Çizgiler`,
-        description: `Gereksiz detaylardan arınmış, *tamamen işlevselliğe odaklanmış* estetik ve modern bir felsefe.`,
-        primaryColor: "#1D1D1F",
-        accentColor: "rgba(255,255,255,0.72)",
-        textColor: "#252528",
-        bgColor: "#252528"
-      }
-    };
-
-    return defaultFallbacks[style] || defaultFallbacks.minimalist;
-  };
-
-  const runAiCollageAnalysis = async (uploadedImages: string[], briefTextOverride?: string) => {
-    setIsAiAnalyzing(true);
-    setAiSuccessMessage(null);
-    setAiProgress(5);
-
-    const targetBrief = briefTextOverride !== undefined ? briefTextOverride : aiCollageBrief;
-
-    const progressInterval = setInterval(() => {
-      setAiProgress((prev) => {
-        if (prev >= 99) return 99;
-        let nextVal = prev;
-        if (prev >= 95) nextVal = prev + 0.1;
-        else if (prev >= 80) nextVal = prev + 0.8;
-        else if (prev >= 50) nextVal = prev + 2;
-        else nextVal = prev + 5;
-        return nextVal >= 99 ? 99 : nextVal;
-      });
-    }, 150);
-
-    try {
-      // Compress up to 3 images for rich multimodal analysis
-      const compressedImages: string[] = [];
-      if (uploadedImages && uploadedImages.length > 0) {
-        for (const imgUrl of uploadedImages.slice(0, 3)) {
-          if (imgUrl) {
-            try {
-              const comp = await compressDataUrl(imgUrl, 360, 360, 0.6);
-              compressedImages.push(comp);
-            } catch (compErr) {
-              console.warn('Image compression warning:', compErr);
-            }
-          }
-        }
-      }
-
-      const response = await fetch('/api/analyze-collage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          images: compressedImages,
-          systemPrompt: currentTemplate.aiSystemPrompt || '',
-          userPrompt: targetBrief,
-          templateName: currentTemplate.name || ''
-        })
-      });
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        console.warn('Response was not valid JSON, using smart local engine fallback.', parseError);
-        data = { success: false };
-      }
-
-      clearInterval(progressInterval);
-      setAiProgress(100);
-
-      // Trigger smart local fallback on API failure or key problem
-      if (!data || !data.success || !data.title) {
-        let detectedStyle = aiStyle;
-        const briefLower = (targetBrief || '').toLowerCase();
-        if (briefLower.includes('moda') || briefLower.includes('giyim') || briefLower.includes('elbise') || briefLower.includes('tasarım') || briefLower.includes('stil') || briefLower.includes('fashion')) {
-          detectedStyle = 'fashion';
-        } else if (briefLower.includes('yazılım') || briefLower.includes('teknoloji') || briefLower.includes('tech') || briefLower.includes('kod') || briefLower.includes('ai') || briefLower.includes('yapay zeka')) {
-          detectedStyle = 'tech';
-        } else if (briefLower.includes('yemek') || briefLower.includes('gıda') || briefLower.includes('restoran') || briefLower.includes('cafe') || briefLower.includes('lezzet') || briefLower.includes('food')) {
-          detectedStyle = 'food';
-        } else if (briefLower.includes('eğitim') || briefLower.includes('kurs') || briefLower.includes('okul') || briefLower.includes('ders') || briefLower.includes('akademi') || briefLower.includes('education')) {
-          detectedStyle = 'education';
-        }
-
-        const fallbackData = getClientSideFallback(targetBrief || 'Kampanya', detectedStyle);
-        data = {
-          success: true,
-          isFallback: true,
-          reason: data?.reason || 'network_or_api_error',
-          error: data?.error || 'Sunucu yanıt veremedi, yerel şablon uygulandı.',
-          title: fallbackData.title,
-          subtitle: fallbackData.subtitle,
-          description: fallbackData.description,
-          primaryColor: fallbackData.primaryColor,
-          accentColor: fallbackData.accentColor,
-          textColor: fallbackData.textColor,
-          bgColor: fallbackData.bgColor
-        };
-      }
-
-      if (data?.isFallback) {
-        const fallbackNote = data.reason === 'missing_api_key'
-          ? 'GEMINI_API_KEY eksik. Yerel hazır şablon kullanılıyor.'
-          : data.reason === 'quota_exceeded'
-          ? 'Gemini API kotası aşıldı. Yerel hazır şablon kullanılıyor.'
-          : data.reason === 'invalid_api_key'
-          ? 'Gemini API anahtarı geçersiz. Yerel hazır şablon kullanılıyor.'
-          : `AI servisi yanıt vermedi (${data.reason || 'hata'}). Yerel hazır şablon kullanılıyor.`;
-        console.warn(`[AI Engine Notice] ${fallbackNote}`, data.error || '');
-      }
-
-      if (data.success) {
-        // Apply the title, subtitle, and description appropriately to all generated pages
-        setGeneratedPages(prev => {
-          if (prev.length === 0) return prev;
-          return prev.map((page) => {
-            const pageDef = currentTemplate.pages?.find(p => p.id === page.templatePageId) || currentTemplate;
-            const mappedPageTexts = getMappedTextsForPage(pageDef.regions, {
-              title: data.title || '',
-              subtitle: data.subtitle || '',
-              description: data.description || ''
-            });
-            return {
-              ...page,
-              dynamicTexts: {
-                ...page.dynamicTexts,
-                ...mappedPageTexts
-              }
-            };
-          });
-        });
-
-        // Also update graphicData with mapped title, subtitle, and description for fallback sync
-        setGraphicData(prev => {
-          const current = prev[currentTemplateId] || {
-            templateId: currentTemplateId,
-            dynamicTexts: {},
-            dynamicImages: {},
-            hiddenElements: []
-          };
-          const mappedTemplateTexts = getMappedTextsForPage(currentTemplate.regions, {
-            title: data.title || '',
-            subtitle: data.subtitle || '',
-            description: data.description || ''
-          });
-          return {
-            ...prev,
-            [currentTemplateId]: {
-              ...current,
-              dynamicTexts: {
-                ...current.dynamicTexts,
-                ...mappedTemplateTexts
-              }
-            }
-          };
-        });
-
-        // Apply color overrides
-        if (data.primaryColor) applyPaletteOverride('primary', data.primaryColor);
-        if (data.accentColor) applyPaletteOverride('accent', data.accentColor);
-        if (data.textColor) applyPaletteOverride('text', data.textColor);
-        if (data.bgColor) applyPaletteOverride('bg', data.bgColor);
-
-        if (data.isFallback) {
-          const bannerMsg = data.reason === 'missing_api_key'
-            ? 'Yapay zekâ bağlantısı kurulmamış. Örnek içerik uygulandı; metinleri düzenleyebilirsiniz.'
-            : data.reason === 'quota_exceeded'
-            ? '⚠️ Gemini API kotası dolduğu için hazır tasarım şablonu uygulandı.'
-            : data.reason === 'invalid_api_key'
-            ? '⚠️ Gemini API anahtarı geçersiz olduğu için hazır tasarım şablonu uygulandı.'
-            : 'Hazır kreatif şablon uygulandı.';
-          setAiSuccessMessage(bannerMsg);
-        } else {
-          setAiSuccessMessage('✨ Yapay Zeka görseli başarıyla analiz etti, başlık ve renkleri üretti!');
-        }
-        setTimeout(() => setAiSuccessMessage(null), 6000);
-      } else {
-        alert('Görsel analiz edilirken bir hata oluştu.');
-      }
-    } catch (e) {
-      console.warn('Network error during analyze-collage, using local smart fallback engine.', e);
-      
-      clearInterval(progressInterval);
-      setAiProgress(100);
-
-      // Trigger local fallback directly on catch so there is absolutely no blocking alert!
-      let detectedStyle = aiStyle;
-      const briefLower = (targetBrief || '').toLowerCase();
-      if (briefLower.includes('moda') || briefLower.includes('giyim') || briefLower.includes('elbise') || briefLower.includes('tasarım') || briefLower.includes('stil') || briefLower.includes('fashion')) {
-        detectedStyle = 'fashion';
-      } else if (briefLower.includes('yazılım') || briefLower.includes('teknoloji') || briefLower.includes('tech') || briefLower.includes('kod') || briefLower.includes('ai') || briefLower.includes('yapay zeka')) {
-        detectedStyle = 'tech';
-      } else if (briefLower.includes('yemek') || briefLower.includes('gıda') || briefLower.includes('restoran') || briefLower.includes('cafe') || briefLower.includes('lezzet') || briefLower.includes('food')) {
-        detectedStyle = 'food';
-      } else if (briefLower.includes('eğitim') || briefLower.includes('kurs') || briefLower.includes('okul') || briefLower.includes('ders') || briefLower.includes('akademi') || briefLower.includes('education')) {
-        detectedStyle = 'education';
-      }
-
-      const fallbackData = getClientSideFallback(targetBrief || 'Kampanya', detectedStyle);
-      
-      // Map texts and update pages
-      setGeneratedPages(prev => {
-        if (prev.length === 0) return prev;
-        return prev.map((page) => {
-          const pageDef = currentTemplate.pages?.find(p => p.id === page.templatePageId) || currentTemplate;
-          const mappedPageTexts = getMappedTextsForPage(pageDef.regions, {
-            title: fallbackData.title || '',
-            subtitle: fallbackData.subtitle || '',
-            description: fallbackData.description || ''
-          });
-          return {
-            ...page,
-            dynamicTexts: {
-              ...page.dynamicTexts,
-              ...mappedPageTexts
-            }
-          };
-        });
-      });
-
-      setGraphicData(prev => {
-        const current = prev[currentTemplateId] || {
-          templateId: currentTemplateId,
-          dynamicTexts: {},
-          dynamicImages: {},
-          hiddenElements: []
-        };
-        const mappedTemplateTexts = getMappedTextsForPage(currentTemplate.regions, {
-          title: fallbackData.title || '',
-          subtitle: fallbackData.subtitle || '',
-          description: fallbackData.description || ''
-        });
-        return {
-          ...prev,
-          [currentTemplateId]: {
-            ...current,
-            dynamicTexts: {
-              ...current.dynamicTexts,
-              ...mappedTemplateTexts
-            }
-          }
-        };
-      });
-
-      // Apply color overrides
-      if (fallbackData.primaryColor) applyPaletteOverride('primary', fallbackData.primaryColor);
-      if (fallbackData.accentColor) applyPaletteOverride('accent', fallbackData.accentColor);
-      if (fallbackData.textColor) applyPaletteOverride('text', fallbackData.textColor);
-      if (fallbackData.bgColor) applyPaletteOverride('bg', fallbackData.bgColor);
-
-      setAiSuccessMessage('Yerel kreatif motor ile şablon başlıkları ve renk paleti başarıyla güncellendi!');
-      setTimeout(() => setAiSuccessMessage(null), 5000);
-    } finally {
-      clearInterval(progressInterval);
-      setTimeout(() => setAiProgress(0), 1000);
-      setIsAiAnalyzing(false);
-    }
   };
 
   const compressImage = (file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.85): Promise<string> => {
@@ -4193,171 +3902,54 @@ export default function App() {
     reader.readAsDataURL(file);
   };
 
-  // --- SECURE SERVER SIDE GEMINI API TRIGGER ---
-  const triggerAiGenerator = async () => {
-    setIsAiLoading(true);
+  // Generate only requested text fields on the captured page; never change the palette.
+  const triggerAiGenerator = async (regionId?: string) => {
+    if (aiRequestRef.current || isAiLoading) return;
+    const context = getAiTextFields(editingTemplate.regions, activePageData.dynamicTexts);
+    const fields = regionId ? context.filter(f => f.id === regionId) : context;
+    if (!fields.length) { setAiError('Bu sayfada üretilecek dinamik metin alanı yok.'); return; }
+    const controller = new AbortController();
+    aiRequestRef.current = controller;
+    setAiTextTarget(regionId || 'all');
+    setAiNoticeLocation(regionId ? 'fields' : 'all');
+    setAiError(null);
     setAiSuccessMessage(null);
+    const templateId = currentTemplateId;
+    const pageId = generatedPages[activeGeneratedPageIndex]?.id;
+    const timeout = setTimeout(() => controller.abort(new Error('timeout')), 60000);
     try {
-      // Find any active image on current template to enable visual intelligence
-      let activeImageBase64: string | null = null;
-      const dynamicImgs = activeGraphicData?.dynamicImages || {};
-      for (const regId of Object.keys(dynamicImgs)) {
-        const item = dynamicImgs[regId];
-        if (item && item.url && item.url.startsWith('data:image')) {
-          try {
-            activeImageBase64 = await compressDataUrl(item.url, 360, 360, 0.6);
-            break;
-          } catch (e) {}
-        }
+      let image: string | undefined;
+      const uploaded = Object.values(activePageData.dynamicImages || {}).find((item: any) => item?.url?.startsWith('data:image')) as any;
+      if (uploaded) {
+        try { image = await compressDataUrl(uploaded.url, 360, 360, 0.6); } catch { /* Text context remains sufficient. */ }
       }
-      if (!activeImageBase64) {
-        const imgRegion = editingTemplate.regions.find(r => r.type === 'image' && r.placeholderImage?.startsWith('data:image'));
-        if (imgRegion && imgRegion.placeholderImage) {
-          try {
-            activeImageBase64 = await compressDataUrl(imgRegion.placeholderImage, 360, 360, 0.6);
-          } catch (e) {}
-        }
-      }
-
-      const response = await fetch('/api/generate-content', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          niche: aiNiche,
-          styleType: aiStyle,
-          systemPrompt: currentTemplate.aiSystemPrompt || editingTemplate.aiSystemPrompt || '',
-          templateName: editingTemplate.name || currentTemplate.name || '',
-          targetBrief: aiCollageBrief || '',
-          image: activeImageBase64
-        })
-      });
-
-      let data;
-      try {
-        data = await response.json();
-      } catch (parseError) {
-        console.warn('Response was not valid JSON, using local smart engine fallback.', parseError);
-        data = { success: false };
-      }
-
-      // If response failed or returned an error, run smart client-side fallback
-      if (!data || !data.success || !data.title) {
-        const fallbackData = getClientSideFallback(aiNiche || 'Girişim', aiStyle);
-        data = {
-          success: true,
-          isFallback: true,
-          reason: data?.reason || 'network_or_api_error',
-          error: data?.error || 'Sunucu yanıt veremedi, yerel şablon uygulandı.',
-          title: fallbackData.title,
-          subtitle: fallbackData.subtitle || '',
-          description: fallbackData.description,
-          primaryColor: fallbackData.primaryColor,
-          accentColor: fallbackData.accentColor,
-          textColor: fallbackData.textColor,
-          bgColor: fallbackData.bgColor
-        };
-      }
-
-      if (data?.isFallback) {
-        const fallbackNote = data.reason === 'missing_api_key'
-          ? 'GEMINI_API_KEY eksik. Yerel hazır şablon kullanılıyor.'
-          : data.reason === 'quota_exceeded'
-          ? 'Gemini API kotası aşıldı. Yerel hazır şablon kullanılıyor.'
-          : data.reason === 'invalid_api_key'
-          ? 'Gemini API anahtarı geçersiz. Yerel hazır şablon kullanılıyor.'
-          : `AI servisi yanıt vermedi (${data.reason || 'hata'}). Yerel hazır şablon kullanılıyor.`;
-        console.warn(`[AI Engine Notice] ${fallbackNote}`, data.error || '');
-      }
-
-      if (data.success) {
-        // Map title, subtitle, and description across all text regions in the template
-        const mappedTexts = getMappedTextsForPage(editingTemplate.regions, {
-          title: data.title || '',
-          subtitle: data.subtitle || '',
-          description: data.description || ''
-        });
-
-        // Update all mapped regions on the active template
-        Object.entries(mappedTexts).forEach(([regionId, textValue]) => {
-          updateActiveText(regionId, textValue);
-        });
-
-        // Also update graphicData so values persist across page navigation and cloud saves
-        setGraphicData(prev => {
-          const current = prev[currentTemplateId] || {
-            templateId: currentTemplateId,
-            dynamicTexts: {},
-            dynamicImages: {},
-            hiddenElements: []
-          };
-          return {
-            ...prev,
-            [currentTemplateId]: {
-              ...current,
-              dynamicTexts: {
-                ...current.dynamicTexts,
-                ...mappedTexts
-              }
-            }
-          };
-        });
-
-        // Apply color overrides
-        if (data.primaryColor) applyPaletteOverride('primary', data.primaryColor);
-        if (data.accentColor) applyPaletteOverride('accent', data.accentColor);
-        if (data.textColor) applyPaletteOverride('text', data.textColor);
-        if (data.bgColor) applyPaletteOverride('bg', data.bgColor);
-
-        if (data.isFallback) {
-          const bannerMsg = data.reason === 'missing_api_key'
-            ? 'Yapay zekâ bağlantısı kurulmamış. Örnek içerik uygulandı; metinleri düzenleyebilirsiniz.'
-            : data.reason === 'quota_exceeded'
-            ? '⚠️ Gemini API kotası dolduğu için hazır tasarım şablonu uygulandı.'
-            : data.reason === 'invalid_api_key'
-            ? '⚠️ Gemini API anahtarı geçersiz olduğu için hazır tasarım şablonu uygulandı.'
-            : 'Hazır kreatif şablon uygulandı.';
-          setAiSuccessMessage(bannerMsg);
-        } else {
-          setAiSuccessMessage('✨ Yapay Zeka şablon kurumsal diline tam uyumlu içerik ve renkleri üretti!');
-        }
-
-        setTimeout(() => setAiSuccessMessage(null), 6000);
+      if (controller.signal.aborted) throw controller.signal.reason;
+      const texts = await requestAiText({
+        systemPrompt:currentTemplate.aiSystemPrompt || '', templateName:currentTemplate.name,
+        brief:aiCollageBrief, fields, context, ...(image ? {image} : {}),
+      }, controller.signal);
+      if (controller.signal.aborted || aiRequestRef.current !== controller) return;
+      if (pageId) {
+        setGeneratedPages(pages => pages.map(page => page.id === pageId
+          ? {...page, dynamicTexts:{...page.dynamicTexts, ...texts}} : page), templateId);
       } else {
-        alert('Yapay zeka ile içerik üretilirken hata oluştu.');
+        setGraphicData(prev => ({...prev, [templateId]:{
+          ...(prev[templateId] || activeGraphicData),
+          dynamicTexts:{...(prev[templateId]?.dynamicTexts || activeGraphicData.dynamicTexts), ...texts},
+        }}));
       }
-    } catch (e) {
-      console.warn('Network error in triggerAiGenerator, using local fallback.', e);
-      
-      const fallbackData = getClientSideFallback(aiNiche || 'Girişim', aiStyle);
-      
-      // Find title region and desc region
-      const titleRegion = editingTemplate.regions.find(r => r.type === 'text' && (r.id.includes('title') || r.textRole === 'title'));
-      const descRegion = editingTemplate.regions.find(r => r.type === 'text' && (r.id.includes('desc') || r.textRole === 'description'));
-
-      if (titleRegion) {
-        updateActiveText(titleRegion.id, fallbackData.title);
-      } else {
-        const firstTxt = editingTemplate.regions.find(r => r.type === 'text');
-        if (firstTxt) updateActiveText(firstTxt.id, fallbackData.title);
+      setAiSuccessMessage(regionId ? `${fields[0].name} şablon promptuna göre oluşturuldu.` : 'Bu sayfanın metinleri şablon promptuna göre oluşturuldu.');
+    } catch (error) {
+      if (aiRequestRef.current === controller) {
+        setAiError(controller.signal.aborted ? 'AI isteği zaman aşımına uğradı. Tekrar deneyin; metinleriniz korundu.' :
+          error instanceof Error ? error.message : 'AI bağlantısı kurulamadı. Tekrar deneyin.');
       }
-
-      if (descRegion) {
-        updateActiveText(descRegion.id, fallbackData.description);
-      } else {
-        const secondTxt = editingTemplate.regions.filter(r => r.type === 'text')[1];
-        if (secondTxt) updateActiveText(secondTxt.id, fallbackData.description);
-      }
-
-      // Apply color overrides
-      applyPaletteOverride('primary', fallbackData.primaryColor);
-      applyPaletteOverride('accent', fallbackData.accentColor);
-      applyPaletteOverride('text', fallbackData.textColor);
-      applyPaletteOverride('bg', fallbackData.bgColor);
-
-      setAiSuccessMessage('Bulut sunucusu meşgul olduğundan yerel kreatif motor ile şablon başlıkları ve renk paleti başarıyla güncellendi!');
-      setTimeout(() => setAiSuccessMessage(null), 5000);
     } finally {
-      setIsAiLoading(false);
+      clearTimeout(timeout);
+      if (aiRequestRef.current === controller) {
+        aiRequestRef.current = null;
+        setAiTextTarget(null);
+      }
     }
   };
 
@@ -4460,7 +4052,7 @@ export default function App() {
         isDark={isDarkMode} onTheme={() => setIsDarkMode(v => !v)}
         userName={user && !user.isAnonymous ? user.displayName || 'Hesabım' : null}
         cloudStatus={cloudStatus} isCloudSynced={isCloudSynced}
-        onLogin={handleGoogleLogin} onLogout={handleLogout}
+        onLogin={handleGoogleLogin} onLogout={handleLogout} isSigningIn={isGoogleSigningIn}
         onSave={() => saveDataToCloud()} onTools={() => setIsToolsModalOpen(true)}
         onExport={() => { setMobileView('export'); setExportPanelOpen(v => window.matchMedia('(max-width: 1023px)').matches ? true : !v); }}
         exportPanelOpen={exportPanelOpen}
@@ -6320,6 +5912,7 @@ export default function App() {
 
                     <div className="space-y-1">
                       <textarea
+                        aria-label="AI için ek not"
                         value={aiCollageBrief}
                         onChange={(e) => setAiCollageBrief(e.target.value)}
                         placeholder="Örn: 'Butiğim için yaz koleksiyonu, keten elbiseler', 'fiyat odaklı ve sıcak bir dil kullan' vb."
@@ -6329,58 +5922,17 @@ export default function App() {
                     </div>
 
                     <div className="flex justify-end pt-1">
-                      {generatedPages.length > 0 ? (
-                        <button
-                          type="button"
-                          disabled={isAiAnalyzing}
-                          onClick={() => {
-                            const urls: string[] = [];
-                            generatedPages.forEach(p => {
-                              Object.values(p.dynamicImages).forEach((img: any) => {
-                                if (img && img.url) urls.push(img.url);
-                              });
-                            });
-                            const uniqueUrls = Array.from(new Set(urls));
-                            runAiCollageAnalysis(uniqueUrls);
-                          }}
-                          className="px-4 py-2 bg-[#1D1D1F] dark:bg-[#6C5CE7] hover:bg-[#252528] dark:hover:bg-[#6C5CE7] disabled:bg-[#303033] dark:disabled:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] rounded-[10px] text-[12px] font-medium transition-all flex items-center space-x-1.5 cursor-pointer"
-                        >
-                          {isAiAnalyzing ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>Analiz Ediliyor...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-3 h-3 text-[#FF9F0A]" />
-                              <span>Sayfaları Güncelle</span>
-                            </>
-                          )}
-                        </button>
-                      ) : (
-                        <button
-                          type="button"
-                          disabled={isAiLoading}
-                          onClick={triggerAiGenerator}
-                          className="px-4 py-2 bg-[#1D1D1F] dark:bg-[#6C5CE7] hover:bg-[#252528] dark:hover:bg-[#6C5CE7] disabled:bg-[#303033] dark:disabled:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] rounded-[10px] text-[12px] font-medium transition-all flex items-center space-x-1.5 cursor-pointer"
-                        >
-                          {isAiLoading ? (
-                            <>
-                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>Üretiliyor...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-3 h-3 text-[#FF9F0A]" />
-                              <span>Başlık & Açıklama Üret</span>
-                            </>
-                          )}
-                        </button>
-                      )}
+                      <button type="button" className="workspace-button workspace-primary"
+                        disabled={aiTextTarget !== null || isAiLoading} onClick={() => triggerAiGenerator()}>
+                        {aiTextTarget === 'all' ? <Loader2 size={14} className="animate-spin"/> : <WandSparkles size={14}/>}
+                        {aiTextTarget === 'all' ? 'Üretiliyor…' : 'Bu sayfanın metinlerini üret'}
+                      </button>
                     </div>
                   </div>
 
                   </details>
+                  {aiNoticeLocation === 'all' && aiError && <div className="workspace-ai-notice is-error" role="alert"><AlertCircle size={16}/><span>{aiError}</span></div>}
+                  {aiNoticeLocation === 'all' && aiSuccessMessage && <div className="workspace-ai-notice" role="status"><CheckCircle2 size={16}/><span>{aiSuccessMessage}</span></div>}
 
                   <div 
                     onDragEnter={(e) => handleDrag(e, 'multi-collage')}
@@ -6462,33 +6014,6 @@ export default function App() {
                     );
                   })()}
 
-                    {isAiAnalyzing && (
-                      <div className="space-y-2 p-4 bg-[#252528]/50 dark:bg-[#252528]/20 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 rounded-[16px] animate-fade-in mt-4">
-                        <div className="flex justify-between items-center text-[11px] font-medium text-[#6C5CE7] dark:text-[#6C5CE7]">
-                          <div className="flex items-center space-x-2">
-                            <Loader2 className="w-4 h-4 text-[#6C5CE7] dark:text-[#6C5CE7] animate-spin" />
-                            <span>Yapay Zeka Görselleri Analiz Ediyor...</span>
-                          </div>
-                          <span className="font-mono text-[#6C5CE7] dark:text-[#6C5CE7] bg-[#252528]/50 dark:bg-[#252528]/50 px-2 py-0.5 rounded-full">
-                            %{Math.round(aiProgress)}
-                          </span>
-                        </div>
-                        <div className="w-full bg-[#252528]/50 h-1.5 rounded-full overflow-hidden shadow-inner">
-                          <div 
-                            className="bg-[#252528]0 h-full rounded-full transition-all duration-300 ease-out"
-                            style={{ width: `${aiProgress}%` }}
-                          />
-                        </div>
-                        <p className="text-[10px] text-[rgba(255,255,255,0.72)] font-medium text-center">
-                          {aiProgress < 40 
-                            ? 'Görseller optimize ediliyor...' 
-                            : aiProgress < 75 
-                            ? 'İçerik ve renk paleti çözümlüyor...' 
-                            : 'Kampanya metinleri oluşturuluyor...'}
-                        </p>
-                      </div>
-                    )}
-
                     {generatedPages.length > 0 && (
                       <div className="space-y-3 pt-3 border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] animate-fade-in mt-4">
                         <div className="flex items-center justify-between">
@@ -6532,6 +6057,9 @@ export default function App() {
                 {/* Dinamik Alanların Düzenlenmesi (Aşama 2 Form) */}
                 <div className="space-y-4 mt-6">
                   <h4 className="text-[11px] font-medium text-[rgba(255,255,255,0.72)] tracking-wide uppercase">Metinler</h4>
+                  <p className="workspace-field-hint">Alan yanındaki sihirbaz yalnızca o metni, şablon promptuna göre üretir.</p>
+                  {aiNoticeLocation === 'fields' && aiError && <div className="workspace-ai-notice is-error" role="alert"><AlertCircle size={16}/><span>{aiError}</span></div>}
+                  {aiNoticeLocation === 'fields' && aiSuccessMessage && <div className="workspace-ai-notice" role="status"><CheckCircle2 size={16}/><span>{aiSuccessMessage}</span></div>}
 
                   {activeTemplatePage.regions.filter(r => r.isDynamic !== false).length === 0 && (
                     <div className="p-4 rounded-[16px] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)]/60 bg-[#1D1D1F] dark:bg-[#252528]/50 text-center text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] text-xs font-medium">
@@ -6540,8 +6068,8 @@ export default function App() {
                   )}
 
                   {/* 1. TEXT REGIONS */}
-                  {activeTemplatePage.regions
-                    .filter(r => r.isDynamic !== false && r.type === 'text')
+                  {editingTemplate.regions
+                    .filter(r => r.isDynamic !== false && r.type === 'text' && !r.hidden)
                     .map(r => {
                       const textVal = activePageData.dynamicTexts[r.id] !== undefined
                         ? activePageData.dynamicTexts[r.id]
@@ -6554,10 +6082,16 @@ export default function App() {
                               <Type className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
                               <span>{r.name}</span>
                             </span>
-                            
+                            <button type="button" className="workspace-field-magic"
+                              aria-label={`${r.name} için AI ile üret`} title={`${r.name} üret · Şablon promptunu kullanır`}
+                              disabled={aiTextTarget !== null || isAiLoading} onClick={() => triggerAiGenerator(r.id)}>
+                              {aiTextTarget === r.id ? <Loader2 size={15} className="animate-spin"/> : <WandSparkles size={15}/>}
+                            </button>
                           </div>
 
                           <textarea
+                            aria-label={r.name}
+                            disabled={aiTextTarget === r.id || aiTextTarget === 'all'}
                             rows={3}
                             value={textVal}
                             onChange={(e) => updateActiveText(r.id, e.target.value)}
@@ -7736,278 +7270,15 @@ export default function App() {
             </motion.div>
           </div>
         )}
-        {/* ARAÇLAR & YOUTUBE MP3/MP4 İNDİRİCİ MODAL */}
-        {isToolsModalOpen && (
-          <div className="fixed inset-0 bg-[#1D1D1F]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.94, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.94, y: 15 }}
-              className="bg-[#1D1D1F] border border-[rgba(255,255,255,0.12)] rounded-3xl max-w-2xl w-full p-5 sm:p-7 shadow-2xl space-y-6 my-auto text-left relative overflow-hidden"
-            >
-              {/* Top Decorative Background Glow */}
-              <div className="absolute -top-24 -right-24 w-60 h-60 bg-red-500/15 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
-
-              {/* Modal Header */}
-              <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] pb-4">
-                <div className="flex items-center space-x-3">
-                  <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-red-600 via-orange-500 to-amber-500 shadow-md text-white">
-                    <Wrench className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center space-x-2">
-                      <h3 className="text-lg font-black text-white tracking-tight">Araçlar & Medya İndirici</h3>
-                      <span className="bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">
-                        Sınırsız & Ücretsiz
-                      </span>
-                    </div>
-                    <p className="text-xs text-[rgba(255,255,255,0.72)] font-medium mt-0.5">
-                      YouTube videolarını ve müziklerini <strong>Full HD</strong> ve <strong>320kbps</strong> kalitede hızlıca indirin.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsToolsModalOpen(false)}
-                  className="p-2 rounded-xl text-[rgba(255,255,255,0.72)] hover:text-white hover:bg-white/10 transition cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Input Area */}
-              <div className="space-y-3">
-                <label className="block text-xs font-bold text-[rgba(255,255,255,0.95)] flex items-center justify-between">
-                  <span>YouTube Video URL / Linki</span>
-                  <span className="text-[10px] text-amber-400 font-mono">Full HD (1080p Max) Otomatik</span>
-                </label>
-                <div className="flex items-center space-x-2">
-                  <div className="relative flex-1">
-                    <input
-                      type="text"
-                      value={ytUrl}
-                      onChange={(e) => {
-                        setYtUrl(e.target.value);
-                        if (e.target.value.includes('youtube.com') || e.target.value.includes('youtu.be')) {
-                          handleFetchYtInfo(e.target.value);
-                        }
-                      }}
-                      placeholder="https://www.youtube.com/watch?v=... veya https://youtu.be/..."
-                      className="w-full bg-[#252528] border border-[rgba(255,255,255,0.12)] rounded-2xl px-4 py-3 text-xs text-white placeholder:text-[rgba(255,255,255,0.4)] focus:outline-none focus:border-orange-500 transition shadow-inner pr-20"
-                    />
-                    {ytUrl && (
-                      <button
-                        onClick={() => {
-                          setYtUrl('');
-                          setYtInfo(null);
-                          setYtError(null);
-                        }}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[rgba(255,255,255,0.5)] hover:text-white p-1"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    onClick={() => handleFetchYtInfo()}
-                    disabled={ytLoading || !ytUrl.trim()}
-                    className="px-4 py-3 bg-[#252528] hover:bg-[#323236] border border-[rgba(255,255,255,0.12)] text-white text-xs font-bold rounded-2xl transition disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer shrink-0"
-                  >
-                    {ytLoading ? <Loader2 className="w-4 h-4 animate-spin text-orange-400" /> : <Sparkles className="w-4 h-4 text-orange-400" />}
-                    <span className="hidden sm:inline">İncele</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Video Info Preview Card */}
-              {ytInfo && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-[#252528]/80 border border-[rgba(255,255,255,0.1)] rounded-2xl p-3.5 flex items-center space-x-4 shadow-sm"
-                >
-                  <div className="relative w-28 sm:w-36 aspect-video shrink-0 rounded-xl overflow-hidden bg-black border border-white/10 group">
-                    <img src={ytInfo.thumbnail} alt={ytInfo.title} className="w-full h-full object-cover" />
-                    <span className="absolute bottom-1 right-1 bg-red-600/90 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow">
-                      FULL HD
-                    </span>
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400">
-                      {ytInfo.author}
-                    </span>
-                    <h4 className="text-xs sm:text-sm font-bold text-white leading-tight line-clamp-2">
-                      {ytInfo.title}
-                    </h4>
-                    <a
-                      href={`https://www.youtube.com/watch?v=${ytInfo.videoId}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[10px] text-[rgba(255,255,255,0.6)] hover:text-white flex items-center space-x-1 transition"
-                    >
-                      <ExternalLink className="w-3 h-3 text-red-500" />
-                      <span>YouTube'da Aç</span>
-                    </a>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* Error Message */}
-              {ytError && (
-                <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-semibold flex items-center space-x-2">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{ytError}</span>
-                </div>
-              )}
-
-              {/* Format Selection (MP4 / MP3) */}
-              <div className="space-y-2">
-                <label className="block text-xs font-bold text-[rgba(255,255,255,0.95)]">
-                  İndirme Formatı ve Kalite Seçeneği
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setYtFormat('mp4')}
-                    className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between space-y-2 transition cursor-pointer ${
-                      ytFormat === 'mp4'
-                        ? 'bg-gradient-to-br from-red-600/20 to-orange-500/20 border-orange-500 text-white shadow-lg'
-                        : 'bg-[#252528] border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] hover:border-[rgba(255,255,255,0.2)]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <Video className={`w-4 h-4 ${ytFormat === 'mp4' ? 'text-orange-400' : ''}`} />
-                        <span className="text-xs font-bold text-white">MP4 Video</span>
-                      </div>
-                      <span className="text-[9px] bg-orange-500/20 text-orange-400 font-extrabold px-1.5 py-0.5 rounded-md border border-orange-500/30">
-                        FULL HD
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-[rgba(255,255,255,0.6)] leading-tight">
-                      Görüntü + Ses (1080p En Yüksek Kalite)
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setYtFormat('mp3')}
-                    className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between space-y-2 transition cursor-pointer ${
-                      ytFormat === 'mp3'
-                        ? 'bg-gradient-to-br from-amber-600/20 to-yellow-500/20 border-amber-400 text-white shadow-lg'
-                        : 'bg-[#252528] border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] hover:border-[rgba(255,255,255,0.2)]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-2">
-                        <Music className={`w-4 h-4 ${ytFormat === 'mp3' ? 'text-amber-400' : ''}`} />
-                        <span className="text-xs font-bold text-white">MP3 Ses</span>
-                      </div>
-                      <span className="text-[9px] bg-amber-500/20 text-amber-400 font-extrabold px-1.5 py-0.5 rounded-md border border-amber-500/30">
-                        320 KBPS
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-[rgba(255,255,255,0.6)] leading-tight">
-                      Sadece Ses Dosyası (Yüksek Kalite MP3)
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Start Download Button */}
-              <button
-                type="button"
-                onClick={handleStartYtDownload}
-                disabled={ytDownloading || !ytUrl.trim()}
-                className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white text-xs font-black tracking-wide shadow-xl hover:shadow-orange-500/30 transition-all cursor-pointer flex items-center justify-center space-x-2 border border-white/20 disabled:opacity-50"
-              >
-                {ytDownloading ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>İndirme Hazırlanıyor...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    <span>{ytFormat === 'mp4' ? 'FULL HD MP4 İNDİR' : '320KBPS MP3 İNDİR'}</span>
-                  </>
-                )}
-              </button>
-
-              {/* Download Result / Direct Native Download Status */}
-              {ytDownloadResult && (
-                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>İndirme Başlatıldı! Dosyanız Aktarılıyor...</span>
-                    </div>
-                    <span className="text-[10px] font-mono text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md">
-                      {ytDownloadResult.quality}
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-[rgba(255,255,255,0.7)] leading-relaxed">
-                    Medya dosyası doğrudan cihazınızın İndirilenler klasörüne kaydedilmektedir. İndirme otomatik başlamadıysa aşağıdaki butona basabilirsiniz.
-                  </p>
-
-                  <a
-                    href={ytDownloadResult.downloadUrl}
-                    download={`${ytInfo?.title || 'youtube-media'}.${ytFormat}`}
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-extrabold text-center transition flex items-center justify-center space-x-2 shadow-lg cursor-pointer"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span>Dosyayı Tekrar İndir</span>
-                  </a>
-                </div>
-              )}
-
-              {/* Recent Downloads Section */}
-              {recentDownloads.length > 0 && (
-                <div className="pt-3 border-t border-[rgba(255,255,255,0.08)] space-y-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-[rgba(255,255,255,0.72)]">
-                    <span>Son İndirilenler</span>
-                    <button
-                      onClick={handleClearYtHistory}
-                      className="text-[10px] text-red-400 hover:text-red-300 flex items-center space-x-1"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span>Temizle</span>
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
-                    {recentDownloads.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="p-2 rounded-xl bg-[#252528]/60 border border-[rgba(255,255,255,0.06)] flex items-center space-x-2 text-left"
-                      >
-                        <img src={item.thumbnail} alt="" className="w-10 h-7 object-cover rounded-lg shrink-0 bg-black" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-[11px] font-bold text-white truncate">{item.title}</p>
-                          <div className="flex items-center space-x-2 text-[9px] text-[rgba(255,255,255,0.5)]">
-                            <span className="font-extrabold text-orange-400">{item.format}</span>
-                            <span>•</span>
-                            <span>{item.date}</span>
-                          </div>
-                        </div>
-                        <a
-                          href={item.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1.5 text-[rgba(255,255,255,0.6)] hover:text-white bg-white/5 hover:bg-white/15 rounded-lg transition"
-                          title="Tekrar İndir"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                        </a>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          </div>
-        )}
+        {isToolsModalOpen && <MediaDownloaderDialog
+          onClose={() => setIsToolsModalOpen(false)} url={ytUrl}
+          onUrlChange={value => { setYtUrl(value); setYtInfo(null); setYtError(null); setYtDownloadResult(null); }}
+          info={ytInfo} loading={ytLoading} error={ytError} format={ytFormat}
+          onFormatChange={value => { setYtFormat(value); setYtDownloadResult(null); }}
+          onInspect={() => handleFetchYtInfo()} downloading={ytDownloading}
+          onDownload={handleStartYtDownload} result={ytDownloadResult}
+          history={recentDownloads} onClearHistory={handleClearYtHistory}
+        />}
       </AnimatePresence>
     </div>
   );

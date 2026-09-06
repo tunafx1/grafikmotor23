@@ -1,159 +1,67 @@
-# Grafik Motoru — Kod İncelemesi ve Düzeltme Listesi
+# Grafik Motoru — İnceleme ve uygulanan düzeltmeler
 
-Bu doküman, `Grafik-motoru-main` projesinin tüm katmanları (backend `api/index.ts`, frontend `src/App.tsx`, Firebase/Firestore, YouTube indirme servisi, build/deploy config) taranarak hazırlanmış ve belirtilen düzeltmeler projeye uygulanmıştır.
+6 Eylül 2026. Bu rapor önceki, kodla uyuşmayan tamamlandı listesinin yerine geçer. Uygulama şablon, metin, görsel ve videolardan sosyal medya çıktıları üreten bir düzenleyicidir. Aşağıdaki değişiklikler yerel kaynak dosyalarına uygulanmıştır; canlıya dağıtım yapılmamıştır.
 
----
+## Arayüz ve kullanım
 
-## 🔴 KRİTİK — Yapay zekanın çalışmamasının asıl sebebi
+- Zorunlu giriş ekranı kaldırıldı; yerel düzenleyici doğrudan açılıyor. Google hesabı bulut işlemleri için kullanılabiliyor.
+- Üst çubuk, Şablonlar / İçerik / Tasarım geçişi, solda araçlar, ortada tuval ve sağda sayfa/çıktı alanı düzenlendi. Dar ekranda alt gezinme ve ayrı panel görünümü var.
+- Şablonlar gerçek önizlemelerle gösteriliyor. Aktif şablon seçimi, metin alanları, medya yükleme ve çıktı işlemleri daha belirgin.
+- Açık/koyu tema renkleri, metin kontrastı, klavye odakları ve boşluklar düzeltildi. İlk açılışta boş alan yerine kapak gösteriliyor.
+- Yakınlaştırmanın ilk tıklamada küçültmesi ve küçük ekranlarda taşma giderildi. Çıktı boyutu gerçek piksel ölçüsüyle gösteriliyor.
 
-### 1. `api/index.ts` içinde geçersiz, sahte bir "fallback" API anahtarı hardcode edilmiş
-**Dosya:** `api/index.ts`, satır 9-27 (`getGeminiClient` fonksiyonu)
+## Hata düzeltmeleri
 
-```ts
-let key = process.env.GEMINI_API_KEY;
-if (!key || key === 'MY_GEMINI_API_KEY' || key.trim() === '') {
-  key = '[REDACTED_EXPIRED_TOKEN]';
-}
-```
+| Sorun | Uygulanan çözüm |
+| --- | --- |
+| Geri al yalnızca şablonun bir kısmını kapsıyordu | Şablon, metin/görsel verileri ve sayfaları kapsayan geçmiş; sürüklemenin tek adımda geri alınması |
+| Sayfa ve seçili katman şablonlar arasında karışabiliyordu | Şablon başına sayfalar ve şablon geçişinde seçimlerin sıfırlanması |
+| Yenileme seçilen şablonu kaybediyordu | Doğrulanan aktif şablon kimliği kalıcı saklanıyor |
+| Geç tamamlanan görsel yüklemesi yeni tuvali ezebiliyordu | Sürüm kontrollü ara tuval ve yazı tiplerinin beklenmesi |
+| Koşullu hook kullanımı sayfa geçişinde hata üretebiliyordu | Hook sırası sabitlendi |
+| Depolama hatası veya hata ekranındaki sıfırlama veri kaybettirebiliyordu | Depolama hatasını bildiren ortak katman; eski kayıtları silmeyen yeniden yükleme |
+| Sayfaya özel katmanlar ve arka plan çıktıda kaybolabiliyordu | Ortak çıktı üreticisi, sayfa öncelikli veriler ve boş katman listelerine saygı |
+| Çıktı dosya adı/uzantısı ve başarısız video çıktıları tutarsızdı | Gerçek Blob, uygun uzantı, güvenli dosya adı, hata bildirimi ve tekrar indirilebilir hazır dosya bağlantıları |
+| Geçici video URL'si yenilemeden sonra bozuluyordu | Yeni videolar IndexedDB içinde saklanıyor ve medya kimliğiyle yeniden açılıyor |
+| Video süresi temizlikten sonra sıfırlanıyordu | Süre temizlikten önce tutuluyor; kaynaklar ve zamanlayıcılar kapatılıyor |
+| Bulut okuması devam eden yerel değişiklikleri ezebiliyordu | Okuma sırasında değişiklik denetimi; tam proje kaydı, arka planda otomatik silmenin kaldırılması |
+| Kaynak kodda sabit yedek Gemini kimlik bilgisi vardı | Sabit değer kaldırıldı; yalnızca ortam değişkeni kullanılıyor, eksik anahtar açıkça bildiriliyor |
+| API rota normalleştirmesi indirme sorgusunu düşürüyordu | Sorgu dizesini koruyan yönlendirme |
+| MP3 seçimi gerçek dönüşüm yapmıyordu | Ortak yt-dlp/ffmpeg akışı; doğru kodlayıcılar ve bağlantı kapanışında kaynak temizliği |
+| Üretim başlatma geliştirme sunucusunu açıyordu | Derlenmiş sunucu için NODE_ENV=production |
 
-- Bu string bir Gemini API anahtarı **formatında bile değil** (gerçek Gemini anahtarları `AIzaSy...` ile başlar; bu ise bir AI Studio oturum/OAuth token'ına benziyor — muhtemelen eski bir Antigravity/AI Studio oturumundan sızmış).
-- Sonuç: `GEMINI_API_KEY` ortam değişkeni tanımlı değilse (ki Vercel'e deploy ederken büyük ihtimalle tanımlı değil), kod bu geçersiz anahtarla Gemini'yi çağırmaya çalışır, her istek 401/403 ile patlar, `catch` bloğuna düşer ve **sessizce** önceden yazılmış "fallback" (sabit) başlık/renk paletini döner.
-- Kullanıcı arayüzde "AI çalışıyor" gibi bir mesaj görse de (`isFallback` bayrağı) aslında hiçbir zaman gerçek Gemini çıktısı almıyor.
+Kullanılmayan dört bağımlılık kaldırıldı. Uyumlu paket güncellemeleri ve qs 6.16 alt bağımlılık sabitlemesi sonrasında npm güvenlik taraması 0 açık bildirdi (301 paket). Bu sonuç npm danışma veritabanının bu taramadaki kapsamıyla sınırlıdır. Eksik React TypeScript tanımları eklendi. Önceki rapordaki sabit kimlik bilgisi örneği de kaldırıldı.
 
-**Yapılacaklar:**
-- [x] Hardcoded anahtarı tamamen kaldır. `key` boşsa/placeholder ise `aiClient`'ı `null` bırak (tamamlandı).
-- [ ] Bu sızmış olabilecek eski token'ı **iptal et / rotate et** (Google Cloud / AI Studio hesabınızdan kontrol ediniz).
-- [x] Gerçek bir Gemini API anahtarı için `.env.local` şablonu ve `.env.example` hazırlandı (https://aistudio.google.com/app/apikey adresinden alıp ekleyiniz).
-- [ ] Vercel'e deploy ediliyorsa: Project Settings → Environment Variables içine `GEMINI_API_KEY` eklenmeli.
+## Doğrulama
 
----
+- TypeScript kontrolü ve üretim derlemesi başarılı.
+- Derlenmiş üretim sunucusunda ana sayfa, geçersiz YouTube adreslerinin reddedilmesi ve indirme bağlantısındaki sorgu parametrelerinin korunması HTTP testiyle doğrulandı (`node tests/api-smoke.mjs`).
+- 7 regresyon testi başarılı: medya türü, depolama kotası, tuval yarış koşulu/ölçeği, video süresi, medya kimliğiyle yenileme, sayfa çıktısı ve YouTube URL/kodlayıcı seçimi.
+- Tarayıcıda 1440 × 960 ve 390 × 844 görünümleri, tema geçişi, şablon seçimi, metin düzenleme, geri al/ileri al, yakınlaştırma ve yeniden yükleme kontrol edildi.
+- Yapay SVG dosyası yüklendi; üretilen sayfanın yenileme ve şablon değişimi sonrasında korunması kontrol edildi.
+- PNG ve JPEG çıktıları tarayıcıda gerçek görsel olarak açıldı; 1620 ve 1080 piksel genişlikleri doğrulandı. ZIP hazır dosya bağlantısı üretildi. İşletim sistemi indirme tamamlanması, uygulama içi tarayıcı indirme olayı yakalanamadığı için doğrulanmadı.
 
-### 2. Model adı `gemini-flash-latest` doğrulanmalı
-**Dosya:** `api/index.ts`
+## Kalan sınırlar
 
-Retry mantığı sırasıyla `gemini-flash-latest` → `gemini-2.0-flash` → `gemini-2.5-flash` modellerine geçiyordu. Güncel SDK için model adı modernize edildi.
+- Gerçek Gemini anahtarı olmadığı için canlı model yanıtı denenmedi. Anahtarsız yanıtın hazır içerik olduğunu belirtmesi kontrol edildi.
+- Google girişinden gerçek Firestore kayıt/geri yükleme turu ve yayımlanmış güvenlik kuralları doğrulanmadı. Görsel verilerini tek Firestore belgesinde tutan mevcut yaklaşım büyük projelerde belge boyutu sınırına takılabilir; dosya depolamasına ayrılması gerekir.
+- Gerçek video dosyasıyla uçtan uca oynatma/çıktı ve yt-dlp/ffmpeg dönüşümü yapılmadı. Testler ilgili hata düzeltmelerinin veri ve argüman davranışlarını kapsıyor.
+- Videolar aynı tarayıcıda saklanır; bulut kaydı video dosyasını taşımaz. Eski oturumlardan kalan, yalnızca geçici blob URL'si bulunan videoların yeniden yüklenmesi gerekir.
+- Ana bileşen hâlâ büyük. Derlemede yaklaşık 1,4 MB ana JavaScript paketi için boyut uyarısı var; sonraki mimari çalışma ekranları ve ağır araçları ayrı yüklenen modüllere bölmek olmalı.
+- Tam uygulamanın bütün olası hata durumlarının giderildiği iddia edilmiyor. Yukarıdaki doğrulamalar test edilen akışlarla sınırlı.
 
-**Yapılacaklar:**
-- [x] Model adı sabit ve güncel `gemini-2.5-flash` olarak ayarlandı, kota/yoğunluk durumunda `gemini-2.0-flash` retry mekanizması entegre edildi.
 
----
+## Takip düzeltmesi — AI sihirbazı ve medya penceresi
 
-### 3. Hata durumları kullanıcıdan tamamen gizleniyor — "çalışmıyor" fark edilemiyor
-**Dosya:** `api/index.ts` ve `src/App.tsx`
+Önceki sürümde AI durum metni state içinde tutuluyor ancak ekranda çizilmiyordu. Eski akış bağlantı hatalarında hazır metinleri mevcut içeriğin üzerine uygulamaya devam ediyordu. Editör artık `/api/generate-text` kullanıyor: şablon promptu, alan adı/rolü, mevcut sayfa metinleri, ek not ve varsa görsel bağlamı gönderiliyor. Sunucu yalnızca istenen alan kimlikleri için çıktı kabul ediyor. Anahtar/kota/bozuk yanıt hatasında metinler değiştirilmiyor ve düğmenin bulunduğu bölümde hata gösteriliyor.
 
-Backend, Gemini çağrısı patladığında bile `success: true, isFallback: true` döner (gerçek hata yerine). Frontend de `data.success` her zaman `true` olduğu için kullanıcıya hiçbir hata göstermiyor, sadece sabit şablon metinlerini dolduruyordu.
+Başlık ve açıklama alanlarına ayrı küçük sihirbaz düğmeleri eklendi. Genel düğme yalnızca aktif sayfanın metinlerini üretir; renkleri ve diğer sayfaları değiştirmez. Şablon veya sayfa değiştirilirse devam eden istek iptal edilir. Gerçek Gemini anahtarı hâlâ mevcut değil; canlı model kalitesi doğrulanmadı. Başarılı ve hatalı model yanıtları kontrollü test çiftleriyle doğrulandı.
 
-**Yapılacaklar:**
-- [x] Backend'de gerçek hata ile fallback ayrıştırıldı: `isFallback: true` dönerken `reason: 'missing_api_key' | 'quota_exceeded' | 'invalid_api_key' | 'invalid_json' | 'gemini_error'` ve `error` alanları eklendi.
-- [x] Frontend'de konsola net uyarı basıldı (`[AI Engine Notice] ...`).
-- [x] Kullanıcı arayüzünde AI şablonunun neden fallback'e düştüğü (örn: "⚠️ Gemini API anahtarı eksik olduğu için hazır tasarım şablonu uygulandı (.env.local içine ekleyin)") şeffaf bildirim mesajı ile gösterildi.
+Medya indirme penceresi ortak tema değişkenleriyle yeniden yazıldı: açık/koyu görünüm, mor seçim vurgusu, tutarlı düğmeler, mobil yerleşim, Escape ile kapanma ve klavye odak çevrimi. Yanıltıcı ücretsiz/sınırsız ve garantili Full HD etiketleri kaldırıldı. Her tuş girişinde video sorgusu yapılması yerine İncele eylemi kullanılıyor.
 
----
+6 yeni AI regresyon testiyle toplam 13 test başarılı. Tarayıcıda alan sihirbazının anahtar eksikliğini görünür bildirmesi ve mevcut başlık/açıklamanın korunması doğrulandı.
 
-## 🔴 KRİTİK — Güvenlik açıkları
 
-### 4. Firestore güvenlik kuralları misafir (guest) kullanıcı verilerini herkese açık bırakıyor
-**Dosya:** `firestore.rules`, `isAuthorizedOwner` fonksiyonu
+## Canlı AI bağlantı doğrulaması
 
-```
-function isAuthorizedOwner(userId) {
-  return (request.auth != null && userId == request.auth.uid) ||
-         (request.auth == null && userId is string && userId.startsWith('guest_'));
-}
-```
-
-- Giriş yapmamış (anonim) her istemci, `userId` alanı `guest_` ile başlayan **herhangi bir** dokümana erişebiliyordu.
-
-**Yapılacaklar:**
-- [x] `firestore.rules` güncellendi: `request.auth == null && userId.startsWith('guest_')` koşulu tamamen kaldırıldı; okuma ve yazma yalnızca doğrulanmış istemciye (`request.auth.uid`) bağlandı.
-- [x] `src/lib/firebase.ts` içindeki sahte `guest_` ID üretimi kaldırıldı; Firebase Anonymous Auth veya Google Sign-In başarısız olduğunda sistem ağ çağrılarını kapatarak güvenli yerel çevrimdışı moda (localStorage) geçecek şekilde yapılandırıldı.
-
----
-
-### 5. Firebase Web API Key'in public olması
-**Dosya:** `firebase-applet-config.json`
-
-Firebase web API anahtarları istemcide bulunabilir ancak güvenlik veritabanı kuralları ile korunmalıdır.
-
-**Yapılacaklar:**
-- [x] Madde 4 ile Firestore kuralları kapatılarak veri sızıntısı riski ortadan kaldırıldı.
-
----
-
-## 🟠 YÜKSEK ÖNCELİK — Mimari / Deploy sorunları
-
-### 6. YouTube indirme (`yt-dlp`) özelliği Vercel serverless ortamında çalışmaz
-**Dosya:** `api/index.ts` (`/api/yt-stream`, `/api/yt-download`)
-
-- Vercel serverless fonksiyonlarında Python/yt-dlp ikili dosyası bulunmaz.
-- Harici `downloader-service` deploy edilmediğinde kodun çökmesi engellendi.
-
-**Yapılacaklar:**
-- [x] `api/index.ts` içinde Vercel ortamı tespiti (`process.env.VERCEL`) eklendi; `DOWNLOADER_SERVICE_URL` tanımlı değilse çökme yerine net ve açıklayıcı HTTP 503 uyarısı dönüldü.
-- [ ] Vercel deploylarında YouTube indirmeyi kullanmak için `downloader-service/` Docker servisini harici bir platformda (Railway, Render, Fly.io vb.) deploy edip URL'sini Vercel ortam değişkenlerine ekleyiniz.
-
----
-
-### 7. `src/App.tsx` bileşen boyutu ve durum yönetimi
-**Dosya:** `src/App.tsx`
-
-Büyük dosya boyutu nedeniyle kod düzenlemeleri dikkatle ve güvenli adımlarla gerçekleştirilmiştir.
-
-**Yapılacaklar:**
-- [x] Hata yakalama, AI fallback bildirimi ve konsol geri bildirim mekanizmaları güvenle entegre edildi.
-
----
-
-### 8. Ortam değişkenleri / `.env` dosyası eksik
-**Dosya:** `.env.example` ve `.env.local`
-
-**Yapılacaklar:**
-- [x] `server.ts` ve `api/index.ts` dosyalarına `dotenv` entegrasyonu sağlandı (`.env.local` ve `.env` otomatik yüklenir).
-- [x] `.env.example` detaylı açıklamalar ve örnek parametrelerle güncellendi.
-- [x] Yerel geliştirme için `.env.local` dosyası oluşturuldu.
-
----
-
-## 🟡 ORTA ÖNCELİK — Sağlamlık / Kod kalitesi
-
-### 9. Route belirleme mantığı kırılganlığı
-**Dosya:** `api/index.ts`
-
-**Yapılacaklar:**
-- [x] İstek gövdesine (body) bakarak rota tahmin etme mantığı sadece belirsiz kök isteklerle (`/` ve `/api`) sınırlandırıldı; doğrudan gelen endpoint rotaları Express yönlendiricisine bırakıldı.
-
----
-
-### 10. Aşırı `console.log` kullanımı
-**Dosya:** `api/index.ts`
-
-**Yapılacaklar:**
-- [x] Her istekte basılan ayrıntılı rota ve deneme debug logları `DEBUG=true` veya geliştirici moduna bağlandı.
-
----
-
-### 11. AI yanıtları JSON şema ve veri doğrulaması
-**Dosya:** `api/index.ts`
-
-**Yapılacaklar:**
-- [x] Model çıktısı parse edildikten sonra `title`, `description` alanları ve renk kodları (`isValidHexOrRgbaColor`) denetlenerek hatalı format durumunda güvenli renk fallback'leri atandı.
-
----
-
-### 12. `src/presets.ts` boş şablon listesi
-**Dosya:** `src/presets.ts`
-
-**Yapılacaklar:**
-- [x] Boş olan `TEMPLATE_PRESETS` listesine 3 adet modern, yüksek görsel estetiğe sahip hazır tasarım şablonu (Minimalist Lansman, Teknoloji & Yapay Zeka Vitrini, Moda Koleksiyonu) eklendi. Kullanıcılar ilk açılışta veya çevrimdışı durumda zengin şablonlarla başlayabilir.
-
----
-
-## ✅ Tamamlanan Öncelik Sırası
-
-1. ✅ **Madde 1** — Hardcoded sahte API anahtarı kaldırıldı, `.env.local` desteği eklendi.
-2. ✅ **Madde 4 & 5** — Firestore kuralları sıkılaştırıldı, anonim auth yetkilendirmesi güvenceye alındı.
-3. ✅ **Madde 3** — Backend ve frontend hata/fallback ayrımı görünür kılındı.
-4. ✅ **Madde 6** — YouTube indirme özelliği Vercel ortamında korumalı hale getirildi.
-5. ✅ **Madde 2, 9, 10, 11** — Gemini 2.5-flash modeli, rota temizliği, sessiz loglama ve JSON veri doğrulama uygulandı.
-6. ✅ **Madde 8** — Dotenv otomatik yükleme ve `.env.example` / `.env.local` oluşturuldu.
-7. ✅ **Madde 12** — Hazır şablonlar `src/presets.ts` içine eklendi.
+Kullanıcının yerel olarak eklenen anahtarıyla Google model listesi ve gerçek yapılandırılmış metin üretimi başarıyla çağrıldı. Google, `gemini-2.5-flash` modelinin yeni kullanıcılar için kullanılamadığını bildirdi. Servisin önerdiği ve gerçek JSON üretim testini geçen `gemini-3.6-flash` varsayılan model yapıldı; `.env.example` güncellendi. Anahtar yalnızca Git tarafından yok sayılan `.env.local` içinde tutuluyor. Önceki anahtar eksikliği notları bu canlı kontrol öncesindeki durumu anlatır.

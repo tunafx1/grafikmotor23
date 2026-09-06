@@ -2,7 +2,7 @@ import { Layers, ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, 
 
 type Props = {
   templateName: string; isDark: boolean; onTheme: () => void;
-  userName: string | null; cloudStatus: string; isCloudSynced: boolean;
+  isSigningIn?: boolean; userName: string | null; cloudStatus: string; isCloudSynced: boolean;
   onLogin: () => void; onLogout: () => void; onSave: () => void;
   onTools: () => void; onExport: () => void; exportPanelOpen: boolean;
 };
@@ -18,7 +18,7 @@ export function WorkspaceHeader(p: Props) {
       {p.userName && (!p.isCloudSynced || p.cloudStatus === 'error') && <button className="workspace-button" onClick={p.onSave}><CloudUpload size={16}/><span>Kaydet</span></button>}
       <button className="workspace-icon-button" onClick={p.onTools} title="Medya araçları" aria-label="Medya araçları"><Wrench size={17}/></button>
       <button className="workspace-icon-button" onClick={p.onTheme} title={p.isDark ? 'Açık temaya geç' : 'Koyu temaya geç'} aria-label={p.isDark ? 'Açık temaya geç' : 'Koyu temaya geç'}>{p.isDark ? <Sun size={17}/> : <Moon size={17}/>}</button>
-      <button className="workspace-button workspace-account" onClick={p.userName ? p.onLogout : p.onLogin} title={p.userName ? `${p.userName} — çıkış yap` : 'Bulut kaydı için Google ile giriş yap'}>{p.userName ? <LogOut size={16}/> : <LogIn size={16}/>}<span>{p.userName || 'Giriş yap'}</span></button>
+      <button className="workspace-button workspace-account" disabled={p.isSigningIn} aria-busy={p.isSigningIn} onClick={p.userName ? p.onLogout : p.onLogin} title={p.userName ? `${p.userName} — çıkış yap` : 'Bulut kaydı için Google ile giriş yap'}>{p.isSigningIn ? <Loader2 size={16} className="animate-spin"/> : p.userName ? <LogOut size={16}/> : <LogIn size={16}/>}<span>{p.isSigningIn ? 'Giriş yapılıyor…' : p.userName || 'Giriş yap'}</span></button>
       <button className="workspace-button workspace-primary" onClick={p.onExport} aria-label="Dışa aktar" aria-expanded={p.exportPanelOpen}><Download size={16}/><span>Dışa aktar</span></button>
     </div>
   </header>;
