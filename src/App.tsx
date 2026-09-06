@@ -2,6 +2,7 @@ import { describeGoogleLoginError } from './lib/authErrors';
 import { getAiTextFields, requestAiText } from './utils/aiText';
 import { MediaDownloaderDialog } from './components/MediaDownloaderDialog';
 import { LandingPage } from './components/LandingPage';
+import { AuthPortal } from './components/AuthPortal';
 import { createExportAsset, safeFileName } from './utils/exportAssets';
 import { storeVideo, getVideoUrl, replaceVideoUrls } from './lib/mediaStore';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -812,7 +813,7 @@ export default function App() {
   const [iosExportImages, setIosExportImages] = useState<{ url: string; name: string }[] | null>(null);
   const isLoadedRef = useRef<boolean>(false);
   const [isAppLoaded, setIsAppLoaded] = useState<boolean>(true);
-  const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
+  const [currentView, setCurrentView] = useState<'landing' | 'portal' | 'editor'>('landing');
   const lastSavedProjectRef = useRef<string>('');
   
   // Template Catalog Inline Edit States
@@ -1460,6 +1461,7 @@ export default function App() {
       await logoutUser();
       setUser(null);
       setCloudStatus('offline');
+      setCurrentView('landing');
     } catch (err) {
       console.error('Logout error:', err);
       setCloudStatus('error');
@@ -4048,8 +4050,25 @@ export default function App() {
 
 
   // --- LANDING PAGE ---
-  if (showLandingPage) {
-    return <LandingPage onEnter={() => setShowLandingPage(false)} onLogin={handleGoogleLogin} />;
+  if (currentView === 'landing') {
+    return (
+      <LandingPage 
+        onEnter={() => setCurrentView('portal')} 
+      />
+    );
+  }
+
+  // --- AUTH PORTAL ---
+  if (currentView === 'portal') {
+    return (
+      <AuthPortal
+        onBackToLanding={() => setCurrentView('landing')}
+        onCompleteAuth={(authedUser) => {
+          setUser(authedUser);
+          setCurrentView('editor');
+        }}
+      />
+    );
   }
 
   return (

@@ -679,7 +679,6 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
           </div>
         </div>
         <div className="lp-header-nav">
-          <button className="lp-nav-link" onClick={onLogin}>Giriş Yap</button>
           <motion.button
             className="lp-btn-accent"
             onClick={onEnter}

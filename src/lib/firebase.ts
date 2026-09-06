@@ -1,7 +1,19 @@
 import { storage } from './storage';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, disableNetwork, enableNetwork } from 'firebase/firestore';
-import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  GoogleAuthProvider, 
+  signInWithPopup, 
+  signOut,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  updateProfile,
+  User
+} from 'firebase/auth';
 import { getAnalytics, Analytics } from 'firebase/analytics';
 
 // Safely load config from root. Vite allows importing JSON natively.
@@ -80,7 +92,6 @@ export async function ensureUserSignIn(): Promise<{ uid: string; isAnonymous?: b
   }
 }
 
-
 export async function loginWithGoogle(): Promise<any> {
   if (!isValidConfig) throw Object.assign(new Error('Firebase configuration missing'), {code:'auth/configuration-not-found'});
   const provider = new GoogleAuthProvider();
@@ -91,6 +102,105 @@ export async function loginWithGoogle(): Promise<any> {
   } catch (err) {
     console.error('Google Sign-In failed:', err);
     throw err;
+  }
+}
+
+/**
+ * Register a new user with email and password, set display name,
+ * and send verification email.
+ */
+export async function registerWithEmail(email: string, password: string, displayName?: string): Promise<User> {
+  if (!isValidConfig) throw Object.assign(new Error('Firebase configuration missing'), {code:'auth/configuration-not-found'});
+  const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  const user = userCredential.user;
+
+  if (displayName && displayName.trim()) {
+    try {
+      await updateProfile(user, { displayName: displayName.trim() });
+    } catch (e) {
+      console.warn('Could not update display name:', e);
+    }
+  }
+
+  try {
+    await sendEmailVerification(user);
+  } catch (e) {
+    console.warn('Could not send verification email automatically:', e);
+  }
+
+  return user;
+}
+
+/**
+ * Sign in with email and password.
+ */
+export async function loginWithEmail(email: string, password: string): Promise<User> {
+  if (!isValidConfig) throw Object.assign(new Error('Firebase configuration missing'), {code:'auth/configuration-not-found'});
+  const userCredential = await signInWithEmailAndPassword(auth, email.trim(), password);
+  return userCredential.user;
+}
+
+/**
+ * Resend verification email to the user.
+ */
+export async function resendVerificationEmail(targetUser?: User | null): Promise<void> {
+  const u = targetUser || auth.currentUser;
+  if (!u) {
+    throw Object.assign(new Error('Aktif kullanıcı bulunamadı.'), { code: 'auth/no-current-user' });
+  }
+  await sendEmailVerification(u);
+}
+
+/**
+ * Reload current user from server to refresh `emailVerified` status.
+ */
+export async function reloadCurrentUser(): Promise<User | null> {
+  if (!auth.currentUser) return null;
+  await auth.currentUser.reload();
+  return auth.currentUser;
+}
+
+/**
+ * Send password reset email.
+ */
+export async function sendResetPassword(email: string): Promise<void> {
+  if (!isValidConfig) throw Object.assign(new Error('Firebase configuration missing'), {code:'auth/configuration-not-found'});
+  await sendPasswordResetEmail(auth, email.trim());
+}
+
+/**
+ * Human-readable Turkish error messages for Firebase Auth errors.
+ */
+export function getAuthErrorMessage(error: any): string {
+  if (!error) return 'Bilinmeyen bir hata oluştu.';
+  const code = error.code || '';
+  switch (code) {
+    case 'auth/invalid-email':
+      return 'Lütfen geçerli bir e-posta adresi girin.';
+    case 'auth/user-disabled':
+      return 'Bu hesap devre dışı bırakılmıştır. Lütfen destek ile iletişime geçin.';
+    case 'auth/user-not-found':
+      return 'Bu e-posta adresine ait bir hesap bulunamadı.';
+    case 'auth/wrong-password':
+      return 'Girdiğiniz şifre hatalı. Lütfen tekrar deneyin.';
+    case 'auth/invalid-credential':
+      return 'E-posta veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.';
+    case 'auth/email-already-in-use':
+      return 'Bu e-posta adresiyle zaten kayıtlı bir hesap var. Giriş yapabilirsiniz.';
+    case 'auth/weak-password':
+      return 'Şifreniz en az 6 karakter uzunluğunda olmalıdır.';
+    case 'auth/too-many-requests':
+      return 'Çok fazla başarısız deneme yapıldı. Lütfen biraz bekleyip tekrar deneyin.';
+    case 'auth/popup-closed-by-user':
+      return 'Giriş penceresi tamamlanmadan kapatıldı.';
+    case 'auth/cancelled-popup-request':
+      return 'Önceki oturum açma işlemi iptal edildi.';
+    case 'auth/network-request-failed':
+      return 'Ağ bağlantısı kurulamadı. Lütfen internet bağlantınızı kontrol edin.';
+    case 'auth/unverified-email':
+      return 'E-posta adresiniz henüz doğrulanmamış. Lütfen gelen kutunuzdaki linke tıklayın.';
+    default:
+      return error.message || 'İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.';
   }
 }
 
