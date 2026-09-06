@@ -11,3 +11,4 @@ bin/
 
 # Local handoff archives
 github-export/
+.vercel
