@@ -533,48 +533,188 @@ textarea::placeholder {
 .lp-bg-gradient {
   position: fixed; inset: 0; z-index: 0; pointer-events: none;
   background:
-    radial-gradient(ellipse 70% 55% at 20% 0%, rgba(255, 107, 26, 0.07) 0%, transparent 65%),
-    radial-gradient(ellipse 60% 50% at 85% 20%, rgba(255, 162, 107, 0.05) 0%, transparent 60%),
-    radial-gradient(ellipse 55% 45% at 50% 90%, rgba(255, 107, 26, 0.04) 0%, transparent 60%);
-  animation: lp-bg-shift 22s ease-in-out infinite alternate;
+    radial-gradient(ellipse 75% 60% at 15% 10%, rgba(255, 107, 26, 0.16) 0%, rgba(255, 133, 51, 0.07) 45%, transparent 70%),
+    radial-gradient(ellipse 70% 55% at 85% 25%, rgba(255, 162, 107, 0.14) 0%, rgba(255, 200, 160, 0.04) 50%, transparent 70%),
+    radial-gradient(ellipse 80% 60% at 50% 85%, rgba(255, 107, 26, 0.11) 0%, transparent 65%);
+  animation: lp-bg-shift 18s ease-in-out infinite alternate;
 }
 @keyframes lp-bg-shift {
-  0%   { opacity: 0.8; transform: scale(1); }
-  50%  { opacity: 1;   transform: scale(1.05); }
-  100% { opacity: 0.8; transform: scale(1); }
+  0%   { opacity: 0.85; transform: scale(1); }
+  50%  { opacity: 1;   transform: scale(1.04); }
+  100% { opacity: 0.85; transform: scale(1); }
 }
 
 /* ─── Grid Overlay (Clean architectural quiet luxury) ─── */
 .lp-grid-overlay {
-  position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.28;
+  position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: 0.32;
   background-image:
-    linear-gradient(rgba(226, 232, 240, 0.6) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(226, 232, 240, 0.6) 1px, transparent 1px);
+    linear-gradient(rgba(226, 232, 240, 0.65) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(226, 232, 240, 0.65) 1px, transparent 1px);
   background-size: 56px 56px;
   mask-image: radial-gradient(ellipse 90% 70% at 50% 25%, #000 50%, transparent 95%);
   -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 25%, #000 50%, transparent 95%);
 }
 
-/* ─── Spatial Parallax Ambient Mesh (Ultra-soft quiet luxury) ─── */
+/* ─── Spatial Parallax Ambient Mesh (Warm luminous glowing atmosphere) ─── */
 .lp-mesh-container {
   position: fixed; inset: 0; overflow: hidden; pointer-events: none; z-index: 0;
 }
 .lp-mesh {
-  position: absolute; border-radius: 50%; filter: blur(150px); opacity: 0.08;
+  position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.22;
   will-change: transform;
 }
 .lp-mesh-1 {
-  width: 760px; height: 760px; background: #FF6B1A;
-  top: -18%; left: -10%;
+  width: 720px; height: 720px; background: radial-gradient(circle, #FF6B1A 0%, rgba(255, 107, 26, 0.2) 70%, transparent 100%);
+  top: -15%; left: -8%;
 }
 .lp-mesh-2 {
-  width: 620px; height: 620px; background: #FF9E66;
-  right: -8%; top: 15%;
+  width: 600px; height: 600px; background: radial-gradient(circle, #FF9E66 0%, rgba(255, 158, 102, 0.2) 70%, transparent 100%);
+  right: -6%; top: 12%;
 }
 .lp-mesh-3 {
-  width: 680px; height: 680px; background: #FFA875;
-  bottom: -22%; left: 25%;
+  width: 650px; height: 650px; background: radial-gradient(circle, #FFA875 0%, rgba(255, 168, 117, 0.15) 70%, transparent 100%);
+  bottom: -20%; left: 22%;
 }
+
+/* ═══════ 3D INTERACTIVE FLOATING STUDIO ARTBOARDS ═══════ */
+.lp-floating-canvases-stage {
+  position: fixed; inset: 0; pointer-events: none; z-index: 1; overflow: hidden;
+  perspective: 1200px;
+}
+.lp-float-canvas {
+  position: absolute;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.76);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1.5px solid rgba(255, 107, 26, 0.28);
+  box-shadow:
+    0 22px 50px -12px rgba(255, 107, 26, 0.16),
+    0 8px 24px -4px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  padding: 16px;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.lp-float-canvas-1 {
+  width: 250px;
+  height: 250px;
+  top: 15%;
+  left: 2%;
+  opacity: 0.88;
+}
+.lp-float-canvas-2 {
+  width: 210px;
+  height: 340px;
+  top: 20%;
+  right: 2%;
+  opacity: 0.88;
+}
+@media (max-width: 1280px) {
+  .lp-float-canvas-1 { left: -50px; opacity: 0.55; }
+  .lp-float-canvas-2 { right: -50px; opacity: 0.55; }
+}
+@media (max-width: 900px) {
+  .lp-floating-canvases-stage { display: none; }
+}
+
+.lp-float-canvas-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+  margin-bottom: 12px;
+}
+.lp-float-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #FF6B1A;
+  box-shadow: 0 0 8px rgba(255, 107, 26, 0.6);
+}
+.lp-float-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #334155;
+  letter-spacing: -0.01em;
+  flex: 1;
+}
+.lp-float-badge {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #FF6B1A;
+  background: rgba(255, 107, 26, 0.12);
+  border: 1px solid rgba(255, 107, 26, 0.25);
+  padding: 2px 7px;
+  border-radius: 6px;
+}
+.lp-float-canvas-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.lp-float-wireframe-img {
+  height: 110px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255, 107, 26, 0.12) 0%, rgba(255, 162, 107, 0.05) 100%);
+  border: 1px dashed rgba(255, 107, 26, 0.35);
+  position: relative;
+}
+.lp-float-wireframe-img::after {
+  content: 'Görsel Katmanı';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: rgba(255, 107, 26, 0.75);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.lp-float-wireframe-story-guide {
+  height: 200px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(255, 107, 26, 0.1) 0%, rgba(255, 162, 107, 0.04) 100%);
+  border: 1px dashed rgba(255, 107, 26, 0.35);
+  position: relative;
+}
+.lp-float-wireframe-story-guide::after {
+  content: '9:16 Güvenli Alan';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: rgba(255, 107, 26, 0.75);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.lp-float-wireframe-title {
+  height: 10px;
+  width: 75%;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.12);
+}
+.lp-float-wireframe-sub {
+  height: 7px;
+  width: 50%;
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.08);
+}
+.lp-float-corner {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: #FF6B1A;
+  pointer-events: none;
+}
+.lp-float-corner.top-left { top: -2px; left: -2px; border-top: 2px solid; border-left: 2px solid; }
+.lp-float-corner.top-right { top: -2px; right: -2px; border-top: 2px solid; border-right: 2px solid; }
+.lp-float-corner.bottom-left { bottom: -2px; left: -2px; border-bottom: 2px solid; border-left: 2px solid; }
+.lp-float-corner.bottom-right { bottom: -2px; right: -2px; border-bottom: 2px solid; border-right: 2px solid; }
 
 /* ═══════ HEADER (Floating Crisp Rounded Bar) ═══════ */
 .lp-header {

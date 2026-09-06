@@ -301,10 +301,20 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
 
   const mouseNormX = useMotionValue(0);
   const mouseNormY = useMotionValue(0);
-  const parallaxX1 = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [-35, 35]), { damping: 40, stiffness: 70 });
-  const parallaxY1 = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [-35, 35]), { damping: 40, stiffness: 70 });
-  const parallaxX2 = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [25, -25]), { damping: 45, stiffness: 65 });
-  const parallaxY2 = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [25, -25]), { damping: 45, stiffness: 65 });
+
+  // Parallax for ambient aurora lights
+  const parallaxX1 = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [-45, 45]), { damping: 35, stiffness: 60 });
+  const parallaxY1 = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [-45, 45]), { damping: 35, stiffness: 60 });
+  const parallaxX2 = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [35, -35]), { damping: 40, stiffness: 55 });
+  const parallaxY2 = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [35, -35]), { damping: 40, stiffness: 55 });
+
+  // 3D Tilt & Float springs for background studio artboards
+  const cardRotateX = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [12, -12]), { damping: 25, stiffness: 75 });
+  const cardRotateY = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [-15, 15]), { damping: 25, stiffness: 75 });
+  const floatCard1X = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [-24, 24]), { damping: 28, stiffness: 65 });
+  const floatCard1Y = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [-24, 24]), { damping: 28, stiffness: 65 });
+  const floatCard2X = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [30, -30]), { damping: 30, stiffness: 60 });
+  const floatCard2Y = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [30, -30]), { damping: 30, stiffness: 60 });
 
   const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -60]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0.2]);
@@ -349,7 +359,7 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
       {/* Animated brand ambient background */}
       <div className="lp-bg-gradient" />
 
-      {/* Spatial Parallax Ambient Mesh (Quiet luxury - no dots, no cursor ball) */}
+      {/* Spatial Parallax Ambient Mesh (Warm luminous glowing atmosphere) */}
       <div className="lp-mesh-container">
         <motion.div
           className="lp-mesh lp-mesh-1"
@@ -363,6 +373,60 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
           className="lp-mesh lp-mesh-3"
           style={{ x: parallaxX1, y: parallaxY2 }}
         />
+      </div>
+
+      {/* 3D Interactive Floating Studio Artboards (Responsive to mouse tilt) */}
+      <div className="lp-floating-canvases-stage">
+        {/* Floating Artboard 1: 1:1 Square Post */}
+        <motion.div
+          className="lp-float-canvas lp-float-canvas-1"
+          style={{
+            x: floatCard1X,
+            y: floatCard1Y,
+            rotateX: cardRotateX,
+            rotateY: cardRotateY,
+          }}
+        >
+          <div className="lp-float-canvas-header">
+            <span className="lp-float-dot" />
+            <span className="lp-float-label">1080 × 1080 · Post Şablonu</span>
+            <span className="lp-float-badge">1:1</span>
+          </div>
+          <div className="lp-float-canvas-body">
+            <div className="lp-float-wireframe-img" />
+            <div className="lp-float-wireframe-title" />
+            <div className="lp-float-wireframe-sub" />
+          </div>
+          <div className="lp-float-corner top-left" />
+          <div className="lp-float-corner top-right" />
+          <div className="lp-float-corner bottom-left" />
+          <div className="lp-float-corner bottom-right" />
+        </motion.div>
+
+        {/* Floating Artboard 2: 9:16 Story Canvas */}
+        <motion.div
+          className="lp-float-canvas lp-float-canvas-2"
+          style={{
+            x: floatCard2X,
+            y: floatCard2Y,
+            rotateX: cardRotateX,
+            rotateY: cardRotateY,
+          }}
+        >
+          <div className="lp-float-canvas-header">
+            <span className="lp-float-dot" />
+            <span className="lp-float-label">1080 × 1920 · Story & Reels</span>
+            <span className="lp-float-badge">9:16</span>
+          </div>
+          <div className="lp-float-canvas-body">
+            <div className="lp-float-wireframe-story-guide" />
+            <div className="lp-float-wireframe-sub" />
+          </div>
+          <div className="lp-float-corner top-left" />
+          <div className="lp-float-corner top-right" />
+          <div className="lp-float-corner bottom-left" />
+          <div className="lp-float-corner bottom-right" />
+        </motion.div>
       </div>
 
       {/* Architectural subtle grid pattern */}
@@ -403,21 +467,11 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
       {/* ═══════════ HERO ═══════════ */}
       <motion.section className="lp-hero" style={{ y: heroY, opacity: heroOpacity }}>
         <div className="lp-hero-text">
-          <motion.div
-            className="lp-pill"
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-          >
-            <span className="lp-pill-dot" />
-            ✦ Yapay Zekâ Destekli Sosyal Medya Motoru
-          </motion.div>
-
           <motion.h1
             className="lp-hero-h1"
             initial={{ opacity: 0, y: 25 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
           >
             Sosyal medyanı <span className="lp-shimmer-text">hızlandır.</span>
           </motion.h1>
