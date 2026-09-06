@@ -557,7 +557,7 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
             İhtiyacınız olan her şey <span className="lp-shimmer-text">tek stüdyoda.</span>
           </h2>
           <p className="lp-sec-desc">
-            Kurumsal kimliğinizi korurken üretkenliğinizi katlayın.
+            Marka kimliğinizi korurken üretkenliğinizi katlayın.
           </p>
         </motion.div>
 
@@ -579,7 +579,7 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
               </div>
               <h3 className="lp-bento-title">Akıllı Metin & Başlık Sentezi</h3>
               <p className="lp-bento-desc">
-                Tek bir cümlelik taslak girin; AI modelimiz kurumsal tonunuza en uygun
+                Tek bir cümlelik taslak girin; AI modelimiz marka tonunuza en uygun
                 başlık ve etiketleri anında üretsin.
               </p>
             </div>

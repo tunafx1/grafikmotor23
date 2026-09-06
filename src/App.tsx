@@ -4541,7 +4541,7 @@ export default function App() {
                     <div>
                       <label className="text-xs text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold flex items-center space-x-1">
                         <Sparkles className="w-3.5 h-3.5 text-[#FF6B1A]" />
-                        <span>Kurumsal Dil / AI Prompt</span>
+                        <span>Marka Dili / AI Prompt</span>
                       </label>
                       <textarea
                         value={currentTemplate.aiSystemPrompt || ''}
@@ -5936,7 +5936,7 @@ export default function App() {
                       <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wide">Gönderiden kısaca bahset</span>
                       {currentTemplate.aiSystemPrompt && (
                         <span className="text-[9px] text-[#FF6B1A] dark:text-[#FF6B1A] font-medium bg-[#252528] dark:bg-[#252528]/60 px-2 py-0.5 rounded-full">
-                          Kurumsal Dil Aktif
+                          Marka Dili Aktif
                         </span>
                       )}
                     </div>

@@ -146,11 +146,11 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
     setIsOperationNotAllowed(false);
 
     if (!regName.trim()) {
-      setErrorMessage('Lütfen adınızı veya kurumsal unvanınızı giriniz.');
+      setErrorMessage('Lütfen adınızı ve soyadınızı giriniz.');
       return;
     }
     if (!regEmail.trim()) {
-      setErrorMessage('Lütfen geçerli bir kurumsal e-posta adresi giriniz.');
+      setErrorMessage('Lütfen geçerli bir e-posta adresi giriniz.');
       return;
     }
     if (regPassword.length < 6) {
@@ -314,7 +314,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
           <div className="ap-brand-meta">
             <span className="ap-brand-name">Grafik Motoru</span>
             <span className="ap-brand-divider">•</span>
-            <span className="ap-brand-sub">Kurumsal Tasarım Portalı</span>
+            <span className="ap-brand-sub">Tasarım Portalı</span>
           </div>
         </div>
 
@@ -341,12 +341,12 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
             {/* Eyebrow Badge */}
             <div className="ap-eyebrow">
               <span className="ap-eyebrow-dot" />
-              <span>Kurumsal Tasarım Portalı</span>
+              <span>Tasarım Portalı</span>
             </div>
 
             {/* Confident Headline */}
             <h1 className="ap-hero-title">
-              Kurumsal tasarım sürecinizi <br />
+              Tüm tasarım sürecinizi <br />
               <span className="ap-hero-accent">tek merkezden</span> yönetin.
             </h1>
 
@@ -430,7 +430,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                   <strong className="ap-rating-num">4.9 / 5</strong>
                 </div>
                 <p className="ap-trust-caption">
-                  10.000+ tasarımcı ve kurumsal ekip tarafından tercih ediliyor.
+                  10.000+ tasarımcı ve kreatif ekip tarafından tercih ediliyor.
                 </p>
               </div>
             </div>
@@ -441,7 +441,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
-              <span>Kurumsal standartlarda 256-bit şifreleme ve güvenli kimlik doğrulama</span>
+              <span>Gelişmiş 256-bit şifreleme ve güvenli kimlik doğrulama</span>
             </div>
           </section>
 
@@ -713,9 +713,10 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               type="email"
                               value={loginEmail}
                               onChange={(e) => setLoginEmail(e.target.value)}
-                              placeholder="adiniz@kurumunuz.com"
+                              placeholder="adiniz@ornek.com"
                               autoComplete="email"
                               required
+                              style={{ backgroundColor: '#FFFFFF', color: '#111827', colorScheme: 'light' }}
                             />
                           </div>
                         </div>
@@ -743,6 +744,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               placeholder="••••••••"
                               autoComplete="current-password"
                               required
+                              style={{ backgroundColor: '#FFFFFF', color: '#111827', colorScheme: 'light' }}
                             />
                             <button 
                               type="button" 
@@ -804,6 +806,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               placeholder="Adınız Soyadınız"
                               autoComplete="name"
                               required
+                              style={{ backgroundColor: '#FFFFFF', color: '#111827', colorScheme: 'light' }}
                             />
                           </div>
                         </div>
@@ -816,9 +819,10 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               type="email"
                               value={regEmail}
                               onChange={(e) => setRegEmail(e.target.value)}
-                              placeholder="adiniz@kurumunuz.com"
+                              placeholder="adiniz@ornek.com"
                               autoComplete="email"
                               required
+                              style={{ backgroundColor: '#FFFFFF', color: '#111827', colorScheme: 'light' }}
                             />
                           </div>
                         </div>
@@ -841,6 +845,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               placeholder="En az 6 karakter"
                               autoComplete="new-password"
                               required
+                              style={{ backgroundColor: '#FFFFFF', color: '#111827', colorScheme: 'light' }}
                             />
                             <button 
                               type="button" 
@@ -883,6 +888,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               placeholder="Şifrenizi tekrar yazın"
                               autoComplete="new-password"
                               required
+                              style={{ backgroundColor: '#FFFFFF', color: '#111827', colorScheme: 'light' }}
                             />
                             {regPasswordConfirm && (
                               <span className="ap-match-pill">
@@ -959,7 +965,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                         className="ap-sso-button"
                         onClick={() => setIsSsoModalOpen(true)}
                       >
-                        Kurumsal Tek Oturum Açma (SSO) ile Giriş
+                        Tek Oturum Açma (SSO) ile Giriş
                       </button>
                     </div>
                   </motion.div>
@@ -1020,8 +1026,9 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                       type="email"
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
-                      placeholder="adiniz@kurumunuz.com"
+                      placeholder="adiniz@ornek.com"
                       required
+                      style={{ backgroundColor: '#FFFFFF', color: '#111827', colorScheme: 'light' }}
                     />
                   </div>
                 </div>
@@ -1061,7 +1068,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
               transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             >
               <div className="ap-dialog-head">
-                <h3>Kurumsal Tek Oturum (SSO)</h3>
+                <h3>Tek Oturum Açma (SSO)</h3>
                 <button 
                   type="button" 
                   className="ap-dialog-close" 
@@ -1073,7 +1080,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
               </div>
 
               <p className="ap-dialog-desc">
-                Okta, Azure AD veya Google Workspace SAML 2.0 entegrasyonu kurumsal plan kullanıcılarımız için aktiftir. Kurum alan adınızla giriş yapmak için lütfen BT yöneticinizle irtibata geçin veya doğrudan e-posta/şifre yöntemiyle devam edin.
+                Okta, Azure AD veya Google Workspace SAML 2.0 entegrasyonu mevcuttur. Şirket alan adınızla giriş yapmak için lütfen yöneticinizle irtibata geçin veya doğrudan e-posta/şifre yöntemiyle devam edin.
               </p>
 
               <div className="ap-dialog-footer">

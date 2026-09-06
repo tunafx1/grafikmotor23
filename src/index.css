@@ -265,15 +265,15 @@
   color: #FFFFFF !important;
 }
 
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus,
-textarea:-webkit-autofill,
-textarea:-webkit-autofill:hover,
-textarea:-webkit-autofill:focus,
-select:-webkit-autofill,
-select:-webkit-autofill:hover,
-select:-webkit-autofill:focus {
+#graphics-engine-app input:-webkit-autofill,
+#graphics-engine-app input:-webkit-autofill:hover,
+#graphics-engine-app input:-webkit-autofill:focus,
+#graphics-engine-app textarea:-webkit-autofill,
+#graphics-engine-app textarea:-webkit-autofill:hover,
+#graphics-engine-app textarea:-webkit-autofill:focus,
+#graphics-engine-app select:-webkit-autofill,
+#graphics-engine-app select:-webkit-autofill:hover,
+#graphics-engine-app select:-webkit-autofill:focus {
   -webkit-text-fill-color: rgba(255, 255, 255, 0.95) !important;
   -webkit-box-shadow: 0 0 0px 1000px #252528 inset !important;
   transition: background-color 5000s ease-in-out 0s !important;
@@ -1489,7 +1489,7 @@ textarea::placeholder {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   KURUMSAL AUTH PORTAL STİLLERİ (Apple-Grade Premium Creative Studio)
+   AUTH PORTAL STİLLERİ (Apple-Grade Premium Creative Studio)
    Brand Color: #FF6B00 (Controlled Accent), Surface: Pure White (#FFFFFF)
    ═══════════════════════════════════════════════════════════════ */
 
@@ -1518,6 +1518,7 @@ textarea::placeholder {
 }
 
 .ap-root {
+  color-scheme: light !important;
   min-height: 100vh;
   min-height: 100dvh;
   background-color: var(--bg);
@@ -1861,6 +1862,7 @@ textarea::placeholder {
 }
 
 .ap-card {
+  color-scheme: light !important;
   width: 100%;
   max-width: 460px;
   background: var(--surface);
@@ -2014,21 +2016,36 @@ textarea::placeholder {
 }
 
 .ap-input-field input {
+  color-scheme: light !important;
   width: 100%;
   height: 54px;
   padding: 0 16px;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(17, 24, 39, 0.09);
-  background: #FFFFFF;
+  border: 1px solid rgba(17, 24, 39, 0.12);
+  background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
   font-size: 15px;
-  color: var(--text-primary);
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
   font-family: inherit;
   transition: border-color 180ms var(--ease-premium), box-shadow 180ms var(--ease-premium);
   outline: none;
 }
 
+.ap-input-field input:-webkit-autofill,
+.ap-input-field input:-webkit-autofill:hover,
+.ap-input-field input:-webkit-autofill:focus,
+.ap-input-field input:-webkit-autofill:active {
+  -webkit-text-fill-color: #111827 !important;
+  -webkit-box-shadow: 0 0 0px 1000px #FFFFFF inset !important;
+  box-shadow: 0 0 0px 1000px #FFFFFF inset !important;
+  caret-color: #111827 !important;
+  transition: background-color 5000s ease-in-out 0s !important;
+}
+
 .ap-input-field input::placeholder {
-  color: var(--text-soft);
+  color: var(--text-soft) !important;
+  -webkit-text-fill-color: var(--text-soft) !important;
 }
 
 .ap-input-field input:focus {
