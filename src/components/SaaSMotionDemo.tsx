@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
-  Sparkles, Download, Check, ArrowRight, Layers, FileArchive
+  Sparkles, Download, Check, Layers, FileArchive
 } from 'lucide-react';
 
 const DEMO_PHOTOS = [
@@ -654,21 +654,7 @@ export function SaaSMotionDemo({ onEnterApp }: Props) {
           </div>
         </div>
 
-        {/* ═══════════ CLEAN EMBEDDED FOOTER (NO SCRUBBER OR TIMERS) ═══════════ */}
-        <div className="saas-embedded-footer">
-          <div className="saas-footer-status">
-            <span className="saas-pulse-dot" />
-            <span className="saas-status-text">Otomatik Önizleme</span>
-            <span className="saas-status-sub">· Figma & Canva Uyumlu Motor</span>
-          </div>
 
-          {onEnterApp && (
-            <button onClick={onEnterApp} className="saas-footer-action-btn">
-              <span>Stüdyoyu Başlat</span>
-              <ArrowRight size={12} />
-            </button>
-          )}
-        </div>
       </div>
     </div>
   );
