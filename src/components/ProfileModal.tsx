@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User } from 'firebase/auth';
 import { X, ShieldCheck, KeyRound, LogOut, Check, Eye, EyeOff, Loader2, Sparkles, Mail } from 'lucide-react';
-import { setOrUpdateAccountPassword, sendResetPassword, getAuthErrorMessage } from '../lib/firebase';
+import { setOrUpdateAccountPassword, sendResetPassword, getAuthErrorMessage, reloadCurrentUser } from '../lib/firebase';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -20,14 +20,29 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [refreshedUser, setRefreshedUser] = useState<typeof user>(user);
+
+  // Reload user from Firebase each time the modal opens to get fresh providerData
+  useEffect(() => {
+    if (isOpen && user) {
+      setRefreshedUser(user); // set immediately with current
+      reloadCurrentUser().then(fresh => {
+        if (fresh) {
+          setRefreshedUser(fresh);
+          console.log('[ProfileModal] providers:', fresh.providerData.map(p => p.providerId));
+        }
+      }).catch(console.warn);
+    }
+  }, [isOpen]);
 
   if (!isOpen || !user) return null;
 
-  const hasPasswordProvider = user.providerData.some(p => p.providerId === 'password');
-  const hasGoogleProvider = user.providerData.some(p => p.providerId === 'google.com');
+  const activeUser = refreshedUser || user;
+  const hasPasswordProvider = activeUser.providerData.some(p => p.providerId === 'password');
+  const hasGoogleProvider = activeUser.providerData.some(p => p.providerId === 'google.com');
 
-  const displayName = user.displayName || 'Kullanıcı';
-  const email = user.email || '';
+  const displayName = activeUser.displayName || 'Kullanıcı';
+  const email = activeUser.email || '';
   const initialLetter = (displayName[0] || email[0] || 'K').toUpperCase();
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
