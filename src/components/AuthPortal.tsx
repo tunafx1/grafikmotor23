@@ -53,6 +53,8 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
+  const [isOperationNotAllowed, setIsOperationNotAllowed] = useState(false);
+  const [isSimulationMode, setIsSimulationMode] = useState(false);
 
   // Handle resend countdown
   useEffect(() => {
@@ -98,6 +100,9 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
       }, 500);
     } catch (err: any) {
       console.error('Login error:', err);
+      if (err.code === 'auth/operation-not-allowed') {
+        setIsOperationNotAllowed(true);
+      }
       setErrorMessage(getAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
@@ -109,6 +114,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
     e.preventDefault();
     setErrorMessage(null);
     setSuccessNotice(null);
+    setIsOperationNotAllowed(false);
 
     if (!regName.trim()) {
       setErrorMessage('Lütfen adınızı veya kullanıcı adınızı giriniz.');
@@ -140,6 +146,9 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
       setResendCooldown(45); // 45 seconds cooldown
     } catch (err: any) {
       console.error('Registration error:', err);
+      if (err.code === 'auth/operation-not-allowed') {
+        setIsOperationNotAllowed(true);
+      }
       setErrorMessage(getAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
@@ -151,6 +160,21 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
     setVerifyCheckError(null);
     setVerifyCheckStatus(null);
     setIsLoading(true);
+
+    if (isSimulationMode) {
+      setVerifyCheckStatus('✓ Test Modu: E-posta başarıyla doğrulandı! Portala giriş yapılıyor...');
+      setTimeout(() => {
+        onCompleteAuth({
+          uid: 'simulated-' + Date.now(),
+          email: verificationEmail,
+          displayName: regName.trim() || 'Kullanıcı',
+          emailVerified: true,
+          isAnonymous: false,
+        } as any);
+      }, 700);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const updatedUser = await reloadCurrentUser();
@@ -176,6 +200,13 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
     setVerifyCheckError(null);
     setVerifyCheckStatus(null);
     setIsLoading(true);
+
+    if (isSimulationMode) {
+      setVerifyCheckStatus('Test Modu: Yeni doğrulama bağlantısı simüle edildi.');
+      setResendCooldown(30);
+      setIsLoading(false);
+      return;
+    }
 
     try {
       await resendVerificationEmail(currentUserForVerify);
@@ -497,6 +528,46 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                           <line x1="12" y1="16" x2="12.01" y2="16" />
                         </svg>
                         <span>{errorMessage}</span>
+                      </div>
+                    )}
+
+                    {isOperationNotAllowed && (
+                      <div className="ap-operation-card">
+                        <div className="ap-operation-header">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FF6B1A" strokeWidth="2.2">
+                            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                            <line x1="12" y1="9" x2="12" y2="13" />
+                            <line x1="12" y1="17" x2="12.01" y2="17" />
+                          </svg>
+                          <span>Firebase Konsolunda E-posta/Şifre'yi Açın</span>
+                        </div>
+                        <p className="ap-operation-desc">
+                          Firebase projenizde (<code>grafik-motoru</code>) E-posta ile kayıt yöntemi henüz aktif edilmemiş. 
+                          Konsoldan <strong>Authentication → Sign-in method → Email/Password</strong> seçeneğini "Enable" yapıp kaydedin.
+                        </p>
+                        <div className="ap-operation-actions">
+                          <a 
+                            href="https://console.firebase.google.com/project/grafik-motoru/authentication/providers" 
+                            target="_blank" 
+                            rel="noopener noreferrer" 
+                            className="ap-btn-console"
+                          >
+                            <span>Firebase Konsolunu Aç ↗</span>
+                          </a>
+                          <button
+                            type="button"
+                            className="ap-btn-sim"
+                            onClick={() => {
+                              setIsSimulationMode(true);
+                              setVerificationEmail(regEmail.trim() || loginEmail.trim() || 'kullanici@ornek.com');
+                              setVerificationPending(true);
+                              setResendCooldown(30);
+                              setVerifyCheckStatus('Test Modu Aktif: Doğrulama ekranı ve adımları simüle edilmektedir.');
+                            }}
+                          >
+                            <span>🧪 Önizleme Modunda Doğrulamayı Test Et</span>
+                          </button>
+                        </div>
                       </div>
                     )}
 

@@ -197,6 +197,8 @@ export function getAuthErrorMessage(error: any): string {
       return 'Önceki oturum açma işlemi iptal edildi.';
     case 'auth/network-request-failed':
       return 'Ağ bağlantısı kurulamadı. Lütfen internet bağlantınızı kontrol edin.';
+    case 'auth/operation-not-allowed':
+      return "Firebase konsolunda 'E-posta/Şifre' (Email/Password) ile kayıt seçeneği henüz etkinleştirilmemiş. Firebase Console > Authentication > Sign-in method sekmesinden 'Email/Password' sağlayıcısını etkinleştirmeniz gerekmektedir.";
     case 'auth/unverified-email':
       return 'E-posta adresiniz henüz doğrulanmamış. Lütfen gelen kutunuzdaki linke tıklayın.';
     default:
