@@ -1,6 +1,7 @@
 import { describeGoogleLoginError } from './lib/authErrors';
 import { getAiTextFields, requestAiText } from './utils/aiText';
 import { MediaDownloaderDialog } from './components/MediaDownloaderDialog';
+import { LandingPage } from './components/LandingPage';
 import { createExportAsset, safeFileName } from './utils/exportAssets';
 import { storeVideo, getVideoUrl, replaceVideoUrls } from './lib/mediaStore';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
@@ -811,6 +812,7 @@ export default function App() {
   const [iosExportImages, setIosExportImages] = useState<{ url: string; name: string }[] | null>(null);
   const isLoadedRef = useRef<boolean>(false);
   const [isAppLoaded, setIsAppLoaded] = useState<boolean>(true);
+  const [showLandingPage, setShowLandingPage] = useState<boolean>(true);
   const lastSavedProjectRef = useRef<string>('');
   
   // Template Catalog Inline Edit States
@@ -4044,6 +4046,11 @@ export default function App() {
     );
   }
 
+
+  // --- LANDING PAGE ---
+  if (showLandingPage) {
+    return <LandingPage onEnter={() => setShowLandingPage(false)} onLogin={handleGoogleLogin} />;
+  }
 
   return (
     <div id="graphics-engine-app" data-export-open={exportPanelOpen} className="h-[100dvh] bg-[#1D1D1F] dark:bg-[#1D1D1F] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-sans flex flex-col selection:bg-[#6C5CE7] selection:text-[rgba(255,255,255,0.95)] overflow-hidden relative transition-colors duration-300">
