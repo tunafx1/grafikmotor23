@@ -306,14 +306,16 @@ const samplePhoto = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78
 function HeroMotionGraphic({ onEnter }: { onEnter: () => void }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [isPhotoDropped, setIsPhotoDropped] = useState(false);
+  const [showAiText, setShowAiText] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
 
-  // Automated 3-step loop: 1. Drag&Drop -> 2. AI Synthesis -> 3. Swoop & 4K Download
+  // Automated 3-step loop: 1. Drag&Drop -> 2. AI Synthesis -> 3. Swoop & Download
   useEffect(() => {
     let timer: NodeJS.Timeout;
 
     if (step === 1) {
       setIsPhotoDropped(false);
+      setShowAiText(false);
       // Photo snaps into place 1.2s into step 1
       const dropTimer = setTimeout(() => {
         setIsPhotoDropped(true);
@@ -329,12 +331,24 @@ function HeroMotionGraphic({ onEnter }: { onEnter: () => void }) {
       };
     } else if (step === 2) {
       setIsPhotoDropped(true);
+      setShowAiText(false); // Clean photo first, no text!
+
+      // Laser scan runs first; text only appears after AI magic finishes
+      const textTimer = setTimeout(() => {
+        setShowAiText(true);
+      }, 1300);
+
       timer = setTimeout(() => {
         setStep(3);
-      }, 3000);
-      return () => clearTimeout(timer);
+      }, 3400);
+
+      return () => {
+        clearTimeout(textTimer);
+        clearTimeout(timer);
+      };
     } else if (step === 3) {
       setIsPhotoDropped(true);
+      setShowAiText(true);
       setDownloadProgress(0);
 
       // Animate download progress from 0% to 100%
@@ -376,21 +390,33 @@ function HeroMotionGraphic({ onEnter }: { onEnter: () => void }) {
         <div className="lp-motion-stepper">
           <button
             className={`lp-motion-step-pill ${step === 1 ? 'active' : 'inactive'}`}
-            onClick={() => setStep(1)}
+            onClick={() => {
+              setStep(1);
+              setIsPhotoDropped(false);
+              setShowAiText(false);
+            }}
           >
             <span>1.</span> Görseli Bırak
           </button>
           <button
             className={`lp-motion-step-pill ${step === 2 ? 'active' : 'inactive'}`}
-            onClick={() => setStep(2)}
+            onClick={() => {
+              setStep(2);
+              setIsPhotoDropped(true);
+              setShowAiText(false);
+            }}
           >
             <span>2.</span> AI Sihri
           </button>
           <button
             className={`lp-motion-step-pill ${step === 3 ? 'active' : 'inactive'}`}
-            onClick={() => setStep(3)}
+            onClick={() => {
+              setStep(3);
+              setIsPhotoDropped(true);
+              setShowAiText(true);
+            }}
           >
-            <span>3.</span> 4K İndir
+            <span>3.</span> İndir
           </button>
         </div>
 
@@ -438,55 +464,45 @@ function HeroMotionGraphic({ onEnter }: { onEnter: () => void }) {
             )}
 
             {/* Step 2: AI Scanning Laser Line */}
-            {step === 2 && (
+            {step === 2 && !showAiText && (
               <motion.div
                 className="lp-motion-laser"
                 initial={{ top: '0%' }}
                 animate={{ top: ['0%', '100%', '0%'] }}
-                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
               />
             )}
 
             {/* Step 2 & 3: AI Generated Post Typography & Layout */}
             {isPhotoDropped && (
-              <motion.div
-                className="lp-motion-post-content"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.4 }}
-              >
+              <div className="lp-motion-post-content">
                 <div className="lp-motion-top-tag">
                   <span>✦</span>
-                  <span>{step === 2 ? 'AI Metin Yazıyor...' : 'Yaz Kampanyası 2026'}</span>
+                  <span>{step === 2 && !showAiText ? 'AI Metin Yazıyor...' : 'Yaz Kampanyası 2026'}</span>
                 </div>
 
-                <div className="lp-motion-bottom-box">
-                  <motion.h4
-                    className="lp-motion-post-title"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.2, duration: 0.4 }}
-                  >
-                    Yeni Sezon Koleksiyonu
-                  </motion.h4>
-                  <motion.p
-                    className="lp-motion-post-sub"
-                    initial={{ opacity: 0, y: 8 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.35, duration: 0.4 }}
-                  >
-                    Seçili parçalarda sepette net %50 indirim fırsatını kaçırmayın.
-                  </motion.p>
-                  <motion.div
-                    className="lp-motion-post-cta"
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: 0.5, duration: 0.3 }}
-                  >
-                    Hemen Keşfet →
-                  </motion.div>
-                </div>
-              </motion.div>
+                <AnimatePresence>
+                  {showAiText && (
+                    <motion.div
+                      className="lp-motion-bottom-box"
+                      initial={{ opacity: 0, y: 14 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 8 }}
+                      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                      <h4 className="lp-motion-post-title">
+                        Yeni Sezon Koleksiyonu
+                      </h4>
+                      <p className="lp-motion-post-sub">
+                        Seçili parçalarda sepette net %50 indirim fırsatını kaçırmayın.
+                      </p>
+                      <div className="lp-motion-post-cta">
+                        Hemen Keşfet →
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             )}
           </div>
 
@@ -520,7 +536,7 @@ function HeroMotionGraphic({ onEnter }: { onEnter: () => void }) {
             )}
           </AnimatePresence>
 
-          {/* Step 3: 4K Download Button & Interactive Progress Bar */}
+          {/* Step 3: Download Button & Interactive Progress Bar */}
           <AnimatePresence>
             {step === 3 && (
               <motion.div
@@ -531,7 +547,7 @@ function HeroMotionGraphic({ onEnter }: { onEnter: () => void }) {
                 transition={{ duration: 0.35 }}
               >
                 <button className="lp-motion-download-btn" onClick={onEnter}>
-                  <span>✦ 4K Ultra-HD İndir</span>
+                  <span>✦ İndir</span>
                   <span style={{ fontSize: '0.78rem', opacity: 0.9 }}>
                     {downloadProgress >= 100 ? '✓ Tamamlandı' : `%${downloadProgress}`}
                   </span>
