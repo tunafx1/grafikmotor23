@@ -7,300 +7,6 @@ interface LandingPageProps {
   onLogin: () => void;
 }
 
-/* ─── AI Synaptic Neural Canvas (Clean Warm Amber & Orange on Light) ─── */
-interface Sparkle {
-  x: number;
-  y: number;
-  size: number;
-  rotation: number;
-  rotSpeed: number;
-  baseAlpha: number;
-  phase: number;
-  vx: number;
-  vy: number;
-}
-
-interface NeuralNode {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  radius: number;
-  baseRadius: number;
-  phase: number;
-  color: string;
-}
-
-interface SynapticPulse {
-  fromNode: number;
-  toNode: number;
-  progress: number;
-  speed: number;
-}
-
-function AINeuralCanvas() {
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d', { alpha: true });
-    if (!ctx) return;
-
-    let animId: number;
-    let width = (canvas.width = window.innerWidth);
-    let height = (canvas.height = window.innerHeight);
-
-    const targetMouse = { x: -2000, y: -2000 };
-    const currentMouse = { x: -2000, y: -2000 };
-
-    const handleResize = () => {
-      if (!canvas) return;
-      width = canvas.width = window.innerWidth;
-      height = canvas.height = window.innerHeight;
-      initNodes();
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      targetMouse.x = e.clientX;
-      targetMouse.y = e.clientY;
-    };
-
-    window.addEventListener('resize', handleResize);
-    window.addEventListener('mousemove', handleMouseMove);
-
-    const nodeColors = [
-      'rgba(255, 107, 26, 0.85)',
-      'rgba(255, 162, 107, 0.75)',
-      'rgba(233, 87, 15, 0.75)',
-      'rgba(255, 133, 51, 0.8)',
-    ];
-
-    let nodes: NeuralNode[] = [];
-    let sparkles: Sparkle[] = [];
-    let pulses: SynapticPulse[] = [];
-
-    const initNodes = () => {
-      const isMobile = width < 768;
-      const count = isMobile ? 32 : 60;
-      nodes = [];
-      for (let i = 0; i < count; i++) {
-        nodes.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          vx: (Math.random() - 0.5) * 0.35,
-          vy: (Math.random() - 0.5) * 0.35,
-          radius: Math.random() * 1.8 + 1.2,
-          baseRadius: Math.random() * 1.8 + 1.2,
-          phase: Math.random() * Math.PI * 2,
-          color: nodeColors[Math.floor(Math.random() * nodeColors.length)],
-        });
-      }
-
-      const sparkleCount = isMobile ? 6 : 14;
-      sparkles = [];
-      for (let i = 0; i < sparkleCount; i++) {
-        sparkles.push({
-          x: Math.random() * width,
-          y: Math.random() * height,
-          size: Math.random() * 6 + 5,
-          rotation: Math.random() * Math.PI * 2,
-          rotSpeed: (Math.random() - 0.5) * 0.006,
-          baseAlpha: Math.random() * 0.4 + 0.2,
-          phase: Math.random() * Math.PI * 2,
-          vx: (Math.random() - 0.5) * 0.2,
-          vy: (Math.random() - 0.5) * 0.2,
-        });
-      }
-    };
-
-    initNodes();
-
-    const drawSparkle = (
-      c: CanvasRenderingContext2D,
-      x: number,
-      y: number,
-      size: number,
-      rotation: number,
-      alpha: number
-    ) => {
-      c.save();
-      c.translate(x, y);
-      c.rotate(rotation);
-      c.fillStyle = `rgba(255, 107, 26, ${alpha})`;
-      c.shadowColor = 'rgba(255, 107, 26, 0.4)';
-      c.shadowBlur = 6;
-
-      c.beginPath();
-      const inner = size * 0.22;
-      for (let i = 0; i < 4; i++) {
-        const outerAngle = (i * Math.PI) / 2;
-        const innerAngle = outerAngle + Math.PI / 4;
-        if (i === 0) {
-          c.moveTo(Math.cos(outerAngle) * size, Math.sin(outerAngle) * size);
-        } else {
-          c.lineTo(Math.cos(outerAngle) * size, Math.sin(outerAngle) * size);
-        }
-        c.lineTo(Math.cos(innerAngle) * inner, Math.sin(innerAngle) * inner);
-      }
-      c.closePath();
-      c.fill();
-      c.restore();
-    };
-
-    const maxLinkDist = 135;
-    let frameCount = 0;
-
-    const render = () => {
-      frameCount++;
-      currentMouse.x += (targetMouse.x - currentMouse.x) * 0.05;
-      currentMouse.y += (targetMouse.y - currentMouse.y) * 0.05;
-
-      ctx.clearRect(0, 0, width, height);
-
-      if (frameCount % 45 === 0 && nodes.length > 2 && pulses.length < 12) {
-        const from = Math.floor(Math.random() * nodes.length);
-        for (let j = 0; j < nodes.length; j++) {
-          if (from === j) continue;
-          const dx = nodes[from].x - nodes[j].x;
-          const dy = nodes[from].y - nodes[j].y;
-          if (Math.sqrt(dx * dx + dy * dy) < maxLinkDist) {
-            pulses.push({
-              fromNode: from,
-              toNode: j,
-              progress: 0,
-              speed: 0.02 + Math.random() * 0.02,
-            });
-            break;
-          }
-        }
-      }
-
-      // Synaptic lines
-      for (let i = 0; i < nodes.length; i++) {
-        const a = nodes[i];
-        for (let j = i + 1; j < nodes.length; j++) {
-          const b = nodes[j];
-          const dx = a.x - b.x;
-          const dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-
-          if (dist < maxLinkDist) {
-            const lineAlpha = (1 - dist / maxLinkDist) * 0.16;
-            const midX = (a.x + b.x) * 0.5;
-            const midY = (a.y + b.y) * 0.5;
-            const mdx = midX - currentMouse.x;
-            const mdy = midY - currentMouse.y;
-            const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
-
-            let boostAlpha = 0;
-            if (mdist < 150) {
-              boostAlpha = (1 - mdist / 150) * 0.35;
-            }
-
-            ctx.strokeStyle = `rgba(255, 107, 26, ${lineAlpha + boostAlpha})`;
-            ctx.lineWidth = boostAlpha > 0 ? 1.2 : 0.65;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
-        }
-      }
-
-      // Synaptic pulses
-      for (let p = pulses.length - 1; p >= 0; p--) {
-        const pulse = pulses[p];
-        pulse.progress += pulse.speed;
-
-        if (pulse.progress >= 1) {
-          pulses.splice(p, 1);
-          continue;
-        }
-
-        const a = nodes[pulse.fromNode];
-        const b = nodes[pulse.toNode];
-        if (!a || !b) continue;
-
-        const px = a.x + (b.x - a.x) * pulse.progress;
-        const py = a.y + (b.y - a.y) * pulse.progress;
-
-        ctx.save();
-        ctx.fillStyle = '#FF6B1A';
-        ctx.shadowColor = 'rgba(255, 107, 26, 0.8)';
-        ctx.shadowBlur = 8;
-        ctx.beginPath();
-        ctx.arc(px, py, 2.2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-
-      // Neural nodes
-      for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i];
-        node.phase += 0.025;
-        const pulse = Math.sin(node.phase) * 0.35 + 0.9;
-        const currentRadius = node.baseRadius * pulse;
-
-        const mdx = node.x - currentMouse.x;
-        const mdy = node.y - currentMouse.y;
-        const mdist = Math.sqrt(mdx * mdx + mdy * mdy);
-        const mouseRadius = 150;
-
-        if (mdist < mouseRadius && mdist > 0) {
-          const pushFactor = (1 - mdist / mouseRadius) * 0.55;
-          node.x += (mdx / mdist) * pushFactor;
-          node.y += (mdy / mdist) * pushFactor;
-        }
-
-        node.x += node.vx;
-        node.y += node.vy;
-
-        if (node.x < -10) node.x = width + 10;
-        if (node.x > width + 10) node.x = -10;
-        if (node.y < -10) node.y = height + 10;
-        if (node.y > height + 10) node.y = -10;
-
-        ctx.save();
-        ctx.fillStyle = node.color;
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, currentRadius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
-      }
-
-      // AI Sparkles
-      for (let i = 0; i < sparkles.length; i++) {
-        const s = sparkles[i];
-        s.rotation += s.rotSpeed;
-        s.phase += 0.02;
-        const alpha = s.baseAlpha + Math.sin(s.phase) * 0.2;
-        s.x += s.vx;
-        s.y += s.vy;
-
-        if (s.x < -20) s.x = width + 20;
-        if (s.x > width + 20) s.x = -20;
-        if (s.y < -20) s.y = height + 20;
-        if (s.y > height + 20) s.y = -20;
-
-        drawSparkle(ctx, s.x, s.y, s.size, s.rotation, Math.max(0.08, alpha));
-      }
-
-      animId = requestAnimationFrame(render);
-    };
-
-    animId = requestAnimationFrame(render);
-
-    return () => {
-      cancelAnimationFrame(animId);
-      window.removeEventListener('resize', handleResize);
-      window.removeEventListener('mousemove', handleMouseMove);
-    };
-  }, []);
-
-  return <canvas ref={canvasRef} className="lp-ai-canvas" />;
-}
-
 /* ─── Hero Animated Motion Graphic: Step-by-Step Simulated Design Studio ─── */
 const samplePhoto = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=600&auto=format&fit=crop&q=80';
 
@@ -593,18 +299,20 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
   ];
   const [bentoFormat, setBentoFormat] = useState<'1:1' | '9:16'>('1:1');
 
-  const mouseX = useMotionValue(-1000);
-  const mouseY = useMotionValue(-1000);
-  const smoothX = useSpring(mouseX, { damping: 32, stiffness: 120 });
-  const smoothY = useSpring(mouseY, { damping: 32, stiffness: 120 });
+  const mouseNormX = useMotionValue(0);
+  const mouseNormY = useMotionValue(0);
+  const parallaxX1 = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [-35, 35]), { damping: 40, stiffness: 70 });
+  const parallaxY1 = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [-35, 35]), { damping: 40, stiffness: 70 });
+  const parallaxX2 = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [25, -25]), { damping: 45, stiffness: 65 });
+  const parallaxY2 = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [25, -25]), { damping: 45, stiffness: 65 });
 
   const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -60]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0.2]);
 
   const handleMouseMove = (e: React.MouseEvent) => {
-    if (!hasMoved) setHasMoved(true);
-    mouseX.set(e.clientX - 220);
-    mouseY.set(e.clientY - 220);
+    const { innerWidth, innerHeight } = window;
+    mouseNormX.set((e.clientX / innerWidth) - 0.5);
+    mouseNormY.set((e.clientY / innerHeight) - 0.5);
   };
 
   const howItWorks = [
@@ -641,28 +349,23 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
       {/* Animated brand ambient background */}
       <div className="lp-bg-gradient" />
 
-      {/* Silky cushioned mouse aura */}
-      <motion.div
-        className="lp-cursor-glow"
-        style={{
-          x: smoothX,
-          y: smoothY,
-          opacity: hasMoved ? 1 : 0,
-        }}
-      />
-
-      {/* AI Synaptic Canvas */}
-      <AINeuralCanvas />
-
-      {/* Soft warm drifting blobs */}
+      {/* Spatial Parallax Ambient Mesh (Quiet luxury - no dots, no cursor ball) */}
       <div className="lp-mesh-container">
-        <div className="lp-mesh lp-mesh-1" />
-        <div className="lp-mesh lp-mesh-2" />
-        <div className="lp-mesh lp-mesh-3" />
-        <div className="lp-mesh lp-mesh-4" />
+        <motion.div
+          className="lp-mesh lp-mesh-1"
+          style={{ x: parallaxX1, y: parallaxY1 }}
+        />
+        <motion.div
+          className="lp-mesh lp-mesh-2"
+          style={{ x: parallaxX2, y: parallaxY2 }}
+        />
+        <motion.div
+          className="lp-mesh lp-mesh-3"
+          style={{ x: parallaxX1, y: parallaxY2 }}
+        />
       </div>
 
-      {/* Subtle grid pattern */}
+      {/* Architectural subtle grid pattern */}
       <div className="lp-grid-overlay" />
 
       {/* ═══════════ HEADER ═══════════ */}
