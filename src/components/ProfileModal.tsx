@@ -466,44 +466,57 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
                   )}
                 </button>
 
-                {/* Reset via email fallback - shown for users who can't login with current password */}
-                <div style={{ marginTop: '10px', textAlign: 'center' }}>
-                  <button
-                    type="button"
-                    disabled={isLoading || !!successMessage}
-                    onClick={async () => {
-                      if (!email) return;
-                      setIsLoading(true);
-                      setErrorMessage(null);
-                      setSuccessMessage(null);
-                      try {
-                        await sendResetPassword(email);
-                        setSuccessMessage(
-                          `Şifre sıfırlama bağlantısı ${email} adresine gönderildi. ` +
-                          'Linke tıklayarak yeni şifrenizi belirleyin; ardından e-posta ve yeni şifrenizle giriş yapabilirsiniz.'
-                        );
-                      } catch (err: any) {
-                        setErrorMessage(getAuthErrorMessage(err));
-                      } finally {
-                        setIsLoading(false);
-                      }
-                    }}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'rgba(255, 255, 255, 0.45)',
-                      fontSize: '11px',
-                      cursor: 'pointer',
-                      textDecoration: 'underline',
-                      textUnderlineOffset: '2px',
-                      padding: '2px 0',
-                      transition: 'color 0.15s ease'
-                    }}
-                  >
-                    <Mail size={11} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
-                    Mevcut şifrenizi bilmiyorsanız e-posta ile sıfırlayın
-                  </button>
+                {/* Divider */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', margin: '14px 0' }}>
+                  <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
+                  <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>veya</span>
+                  <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
                 </div>
+
+                {/* Reset via email - prominent button */}
+                <button
+                  type="button"
+                  disabled={isLoading || !!successMessage}
+                  onClick={async () => {
+                    if (!email) return;
+                    setIsLoading(true);
+                    setErrorMessage(null);
+                    setSuccessMessage(null);
+                    try {
+                      await sendResetPassword(email);
+                      setSuccessMessage(
+                        `Şifre sıfırlama bağlantısı ${email} adresine gönderildi. ` +
+                        'Linke tıklayarak yeni şifrenizi belirleyin; ardından e-posta ve yeni şifrenizle giriş yapabilirsiniz.'
+                      );
+                    } catch (err: any) {
+                      setErrorMessage(getAuthErrorMessage(err));
+                    } finally {
+                      setIsLoading(false);
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    height: '42px',
+                    background: 'rgba(255, 255, 255, 0.06)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    borderRadius: '10px',
+                    color: 'rgba(255, 255, 255, 0.8)',
+                    fontSize: '13px',
+                    fontWeight: 500,
+                    cursor: isLoading || !!successMessage ? 'not-allowed' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '7px',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  <Mail size={15} />
+                  <span>Şifreyi E-posta ile Sıfırla</span>
+                </button>
+                <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: 'rgba(255,255,255,0.35)', textAlign: 'center', lineHeight: 1.4 }}>
+                  Mevcut şifrenizi bilmiyorsanız bu yöntemi kullanın
+                </p>
               </form>
             )}
           </div>
