@@ -1006,8 +1006,25 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
               </p>
 
               {forgotMessage && (
-                <div className="ap-alert ap-alert-success">
-                  <span>{forgotMessage}</span>
+                <div className="ap-alert ap-alert-success" style={{ display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left', lineHeight: 1.5 }}>
+                  <div style={{ fontWeight: 600 }}>{forgotMessage}</div>
+                  <div style={{ fontSize: '12px', color: '#166534', opacity: 0.95 }}>
+                    <p style={{ margin: '0 0 6px 0' }}>📬 <strong>E-posta ulaşmadıysa dikkat ediniz:</strong></p>
+                    <ul style={{ margin: 0, paddingLeft: '18px' }}>
+                      <li>Lütfen <strong>Spam / Gereksiz</strong> ve <strong>Tanıtımlar (Promotions)</strong> klasörlerini kontrol edin (Gönderici: <em>noreply@grafik-motoru.firebaseapp.com</em>).</li>
+                      <li>Güvenlik politikası gereği, yalnızca sistemde <strong>daha önce 'Kayıt Ol' adımıyla oluşturulmuş</strong> hesaplara e-posta iletilir. Eğer hesabınız yoksa veya <strong>Google ile giriş</strong> yaptıysanız şifre sıfırlama gönderilmez.</li>
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    style={{ marginTop: '4px', alignSelf: 'flex-start', background: 'transparent', border: 'none', color: '#15803D', textDecoration: 'underline', cursor: 'pointer', fontSize: '12px', fontWeight: 600, padding: 0 }}
+                    onClick={() => {
+                      setIsForgotModalOpen(false);
+                      setTab('register');
+                    }}
+                  >
+                    Hesabınız yok mu? Buradan Kayıt Olun →
+                  </button>
                 </div>
               )}
 
