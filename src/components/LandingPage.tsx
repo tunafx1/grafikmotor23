@@ -308,14 +308,6 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
   const parallaxX2 = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [35, -35]), { damping: 40, stiffness: 55 });
   const parallaxY2 = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [35, -35]), { damping: 40, stiffness: 55 });
 
-  // 3D Tilt & Float springs for background studio artboards
-  const cardRotateX = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [12, -12]), { damping: 25, stiffness: 75 });
-  const cardRotateY = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [-15, 15]), { damping: 25, stiffness: 75 });
-  const floatCard1X = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [-24, 24]), { damping: 28, stiffness: 65 });
-  const floatCard1Y = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [-24, 24]), { damping: 28, stiffness: 65 });
-  const floatCard2X = useSpring(useTransform(mouseNormX, [-0.5, 0.5], [30, -30]), { damping: 30, stiffness: 60 });
-  const floatCard2Y = useSpring(useTransform(mouseNormY, [-0.5, 0.5], [30, -30]), { damping: 30, stiffness: 60 });
-
   const heroY = useTransform(scrollYProgress, [0, 0.3], [0, -60]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.3], [1, 0.2]);
 
@@ -373,60 +365,6 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
           className="lp-mesh lp-mesh-3"
           style={{ x: parallaxX1, y: parallaxY2 }}
         />
-      </div>
-
-      {/* 3D Interactive Floating Studio Artboards (Responsive to mouse tilt) */}
-      <div className="lp-floating-canvases-stage">
-        {/* Floating Artboard 1: 1:1 Square Post */}
-        <motion.div
-          className="lp-float-canvas lp-float-canvas-1"
-          style={{
-            x: floatCard1X,
-            y: floatCard1Y,
-            rotateX: cardRotateX,
-            rotateY: cardRotateY,
-          }}
-        >
-          <div className="lp-float-canvas-header">
-            <span className="lp-float-dot" />
-            <span className="lp-float-label">1080 × 1080 · Post Şablonu</span>
-            <span className="lp-float-badge">1:1</span>
-          </div>
-          <div className="lp-float-canvas-body">
-            <div className="lp-float-wireframe-img" />
-            <div className="lp-float-wireframe-title" />
-            <div className="lp-float-wireframe-sub" />
-          </div>
-          <div className="lp-float-corner top-left" />
-          <div className="lp-float-corner top-right" />
-          <div className="lp-float-corner bottom-left" />
-          <div className="lp-float-corner bottom-right" />
-        </motion.div>
-
-        {/* Floating Artboard 2: 9:16 Story Canvas */}
-        <motion.div
-          className="lp-float-canvas lp-float-canvas-2"
-          style={{
-            x: floatCard2X,
-            y: floatCard2Y,
-            rotateX: cardRotateX,
-            rotateY: cardRotateY,
-          }}
-        >
-          <div className="lp-float-canvas-header">
-            <span className="lp-float-dot" />
-            <span className="lp-float-label">1080 × 1920 · Story & Reels</span>
-            <span className="lp-float-badge">9:16</span>
-          </div>
-          <div className="lp-float-canvas-body">
-            <div className="lp-float-wireframe-story-guide" />
-            <div className="lp-float-wireframe-sub" />
-          </div>
-          <div className="lp-float-corner top-left" />
-          <div className="lp-float-corner top-right" />
-          <div className="lp-float-corner bottom-left" />
-          <div className="lp-float-corner bottom-right" />
-        </motion.div>
       </div>
 
       {/* Architectural subtle grid pattern */}
