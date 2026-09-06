@@ -76,7 +76,7 @@ class RootErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState
             <button
               onClick={this.handleReset}
               style={{
-                backgroundColor: '#6C5CE7',
+                backgroundColor: '#FF6B1A',
                 color: '#FFFFFF',
                 border: 'none',
                 borderRadius: '12px',

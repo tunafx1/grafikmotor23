@@ -195,8 +195,8 @@ const fallbackResponses: Record<string, any> = {
     title: "**Yapay Zeka** ile Sınırları Aşın",
     subtitle: "YENİ NESİL OTOMASYON",
     description: "Geleceğin algoritma mimarileri ve *büyük dil modelleri* ile iş akışlarınızı otomatikleştirin.",
-    primaryColor: "#6C5CE7", // Neon Cyan
-    accentColor: "#6C5CE7",  // Electric Blue
+    primaryColor: "#FF6B1A", // Motor Orange
+    accentColor: "#FFA26B",  // Soft Amber Glow
     textColor: "rgba(255,255,255,0.95)",    // Light Gray
     bgColor: "#1D1D1F"       // Deep Dark Space
   },
@@ -213,7 +213,7 @@ const fallbackResponses: Record<string, any> = {
     title: "Geleceğinizi **Kodlayarak** Şekillendirin",
     subtitle: "UZMAN EĞİTMENLER",
     description: "Birebir mentorluk ve *pratik projelerle* sıfırdan ileri seviyeye yazılım mühendisliği eğitimi.",
-    primaryColor: "#6C5CE7", // Indigo
+    primaryColor: "#FF6B1A", // Motor Orange
     accentColor: "#34C759",  // Emerald
     textColor: "rgba(255,255,255,0.95)",    // Slate 900
     bgColor: "#1D1D1F"       // Slate 50
@@ -296,8 +296,8 @@ Yanıtı kesinlikle şu JSON şemasında ver:
   "title": "string (başlık, en önemli kelimeler **kalın** olmalı)",
   "subtitle": "string (alt başlık, rozet veya kısa slogan)",
   "description": "string (açıklama metni, bazı kelimeler *eğik* olmalı)",
-  "primaryColor": "string (Hex rengi, örn: #6C5CE7)",
-  "accentColor": "string (Hex rengi, örn: #FF9F0A)",
+  "primaryColor": "string (Hex rengi, örn: #FF6B1A)",
+  "accentColor": "string (Hex rengi, örn: #FFA26B)",
   "textColor": "string (Hex rengi, örn: rgba(255,255,255,0.95))",
   "bgColor": "string (Hex rengi, örn: #1D1D1F)"
 }`;
@@ -386,8 +386,8 @@ app.post(['/api/analyze-collage', '/analyze-collage'], async (req, res) => {
     title: `**${topic.toUpperCase()}** Koleksiyonu`,
     subtitle: `*${topic}* Özel Konsepti`,
     description: `${topic} ile ilgili *en yeni tasarımlar*, trendler ve sürpriz fırsatlar sizleri bekliyor.`,
-    primaryColor: "#6C5CE7",
-    accentColor: "#FF9F0A",
+    primaryColor: "#FF6B1A",
+    accentColor: "#FFA26B",
     textColor: "rgba(255,255,255,0.95)",
     bgColor: "#1D1D1F"
   };
@@ -529,8 +529,8 @@ Metin kuralları:
       title: `**${topic.toUpperCase()}** Fırsatları & Rotaları`,
       subtitle: `*${topic}* Özel Konsepti`,
       description: `${topic} ile ilgili *en popüler detaylar*, özel sürprizler ve güncel içerikler sizleri bekliyor.`,
-      primaryColor: "#6C5CE7",
-      accentColor: "#FF9F0A",
+      primaryColor: "#FF6B1A",
+      accentColor: "#FFA26B",
       textColor: "rgba(255,255,255,0.95)",
       bgColor: "#1D1D1F"
     });

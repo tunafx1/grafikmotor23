@@ -1,15 +1,15 @@
 /* Application chrome. Canvas artwork keeps its own palette in canvasRenderer. */
 :root {
-  --ws-bg: #f3f4f7; --ws-panel: #ffffff; --ws-field: #f7f8fa; --ws-hover: #eeedf7;
-  --ws-text: #252733; --ws-muted: #6b7080; --ws-border: #e6e7ed; --ws-accent: #6952da;
+  --ws-bg: #f5f6f9; --ws-panel: #ffffff; --ws-field: #f7f8fa; --ws-hover: #FFF1E8;
+  --ws-text: #1a1a1f; --ws-muted: #667085; --ws-border: #e6e7ed; --ws-accent: #FF6B1A;
   --apple-bg-primary: var(--ws-field); --apple-bg-secondary: var(--ws-panel);
   --apple-bg-card: var(--ws-panel); --apple-bg-surface: var(--ws-field); --apple-bg-hover: var(--ws-hover);
   --apple-text-primary: var(--ws-text); --apple-text-secondary: var(--ws-muted); --apple-border: var(--ws-border);
   color-scheme: light;
 }
 :root.dark {
-  --ws-bg: #16171c; --ws-panel: #202127; --ws-field: #282930; --ws-hover: #33313f;
-  --ws-text: #f0f0f5; --ws-muted: #a4a6b4; --ws-border: #34353e; --ws-accent: #aa96ff;
+  --ws-bg: #0F1014; --ws-panel: #17181D; --ws-field: #202127; --ws-hover: #261B14;
+  --ws-text: #f0f0f5; --ws-muted: #9497a6; --ws-border: #2C2D35; --ws-accent: #FF6B1A;
   color-scheme: dark;
 }
 #graphics-engine-app { background: var(--ws-bg); color: var(--ws-text); font-size: 13px; }
@@ -19,16 +19,15 @@
 #graphics-engine-app button:disabled { cursor: not-allowed; }
 #graphics-engine-app :is(input:not([type="color"]):not([type="range"]):not([type="file"]),textarea,select) { background: var(--ws-field); color: var(--ws-text); border-color: var(--ws-border); border-radius: 8px; min-height: 36px; font-size: 12px; }
 #graphics-engine-app :is(input,textarea)::placeholder { color: var(--ws-muted); opacity: .85; }
-#graphics-engine-app input[type="range"] { accent-color: #7962df; }
+#graphics-engine-app input[type="range"] { accent-color: #FF6B1A; }
 #graphics-engine-app [class*="text-[rgba(255,255,255,0.95)]"] { color: var(--ws-text); }
 #graphics-engine-app [class*="text-[rgba(255,255,255,0.72)]"] { color: var(--ws-muted); }
 #graphics-engine-app [class*="border-[rgba(255,255,255,0.08)]"] { border-color: var(--ws-border); }
 #graphics-engine-app [class~="bg-[#1D1D1F]"] { background-color: var(--ws-field); }
 #graphics-engine-app [class~="bg-[#252528]"] { background-color: var(--ws-panel); }
-#graphics-engine-app [class~="bg-[#303033]"] { background-color: var(--ws-hover); }
-#graphics-engine-app [class~="text-[#6C5CE7]"] { color: var(--ws-accent); }
-#graphics-engine-app [class~="bg-[#6C5CE7]"], #graphics-engine-app .clay-btn-primary { background: #6952da; color: #fff; }
-#graphics-engine-app [class~="bg-[#6C5CE7]"] *, #graphics-engine-app .clay-btn-primary * { color: inherit; }
+#graphics-engine-app [class~="text-[#6C5CE7]"], #graphics-engine-app [class~="text-[#FF6B1A]"] { color: var(--ws-accent); }
+#graphics-engine-app [class~="bg-[#6C5CE7]"], #graphics-engine-app [class~="bg-[#FF6B1A]"], #graphics-engine-app .clay-btn-primary { background: #FF6B1A; color: #fff; }
+#graphics-engine-app [class~="bg-[#6C5CE7]"] *, #graphics-engine-app [class~="bg-[#FF6B1A]"] *, #graphics-engine-app .clay-btn-primary * { color: inherit; }
 #graphics-engine-app .clay-card, #graphics-engine-app .clay-inset { background: var(--ws-panel); border: 1px solid var(--ws-border); box-shadow: none; border-radius: 10px; }
 #graphics-engine-app .clay-btn { background: var(--ws-panel); color: var(--ws-text); box-shadow: none; border-color: var(--ws-border); border-radius: 7px; }
 #graphics-engine-app .animate-pulse, #graphics-engine-app .animate-bounce { animation: none; }
@@ -36,7 +35,8 @@
 .workspace-brand { display: flex; align-items: center; gap: 10px; font-size: 19px; font-weight: 750; letter-spacing: -.7px; flex-shrink: 0; line-height: 1.2; }
 .workspace-brand small { display: block; font-size: 8px; letter-spacing: 2px; color: var(--ws-muted); font-weight: 550; margin-top: 5px; }
 .brand-light { font-weight: 420; }
-.workspace-mark { width: 38px; height: 38px; border-radius: 11px; background: #6952da; color: white; display: grid; place-items: center; }
+.workspace-mark { width: 38px; height: 38px; border-radius: 11px; background: #FF6B1A; color: white; display: grid; place-items: center; overflow: hidden; padding: 3px; box-shadow: 0 4px 14px rgba(255, 107, 26, 0.35); flex-shrink: 0; }
+.workspace-logo-img { width: 100%; height: 100%; object-fit: contain; }
 .workspace-breadcrumb { display: flex; align-items: center; gap: 10px; color: var(--ws-muted); font-size: 11px; min-width: 0; flex: 1; }
 .workspace-breadcrumb strong { color: var(--ws-text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 550; }
 .workspace-header-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -44,7 +44,8 @@
 .workspace-button, .workspace-icon-button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--ws-border); border-radius: 8px; padding: 9px 12px; background: var(--ws-panel); color: var(--ws-text); font-size: 11px; font-weight: 550; min-height: 36px; }
 .workspace-icon-button { padding: 8px; border-color: transparent; }
 .workspace-button:hover, .workspace-icon-button:hover { background: var(--ws-hover); }
-.workspace-button.workspace-primary { background: #6952da; color: white; border-color: #6952da; }
+.workspace-button.workspace-primary { background: #FF6B1A; color: white; border-color: #FF6B1A; }
+.workspace-button.workspace-primary:hover { background: #E9570F; border-color: #E9570F; }
 .workspace-tabs { padding: 14px 16px 0; display: flex; gap: 4px; border-bottom: 1px solid var(--ws-border); }
 .workspace-tabs button { flex: 1; display: flex; justify-content: center; align-items: center; gap: 7px; padding: 12px 4px; border-bottom: 2px solid transparent; color: var(--ws-muted); font-size: 12px; }
 .workspace-tabs button[aria-pressed="true"] { border-bottom-color: var(--ws-accent); color: var(--ws-accent); font-weight: 650; }
@@ -66,7 +67,8 @@
 #canvas-viewport > div.flex { width: auto; flex-shrink: 0; }
 #export-assets-bar { background: var(--ws-panel); border: 0; border-left: 1px solid var(--ws-border); border-radius: 0; margin: 0; padding: 24px 18px; gap: 24px; min-height: 0; }
 #export-assets-bar > div:last-child { display: none; }
-#export-assets-bar button:has(>svg.lucide-download), #export-assets-bar button:has(>span>svg.lucide-download) { background: #6952da; color: white; }
+#export-assets-bar button:has(>svg.lucide-download), #export-assets-bar button:has(>span>svg.lucide-download) { background: #FF6B1A; color: white; }
+#export-assets-bar button:has(>svg.lucide-download):hover, #export-assets-bar button:has(>span>svg.lucide-download):hover { background: #E9570F; }
 #export-assets-bar button:has(>svg.lucide-download) * { color: white; }
 #mobile-nav-bar { background: var(--ws-panel); }
 #mobile-nav-bar button { min-height: 44px; }
@@ -102,7 +104,7 @@
 #graphics-engine-app #editor-controls .workspace-panel-body > div > div { background: var(--ws-panel); }
 .workspace-page-caption { display: flex; width: 100%; justify-content: space-between; gap: 12px; font-size: 10px; color: var(--ws-muted); padding: 0 2px; }
 .workspace-page-caption span:last-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.workspace-active-page { border: 1px solid #b8aaee; background: var(--ws-field); padding: 10px; border-radius: 9px; display: flex; align-items: center; gap: 10px; }
+.workspace-active-page { border: 1px solid rgba(255, 107, 26, 0.45); background: var(--ws-field); padding: 10px; border-radius: 9px; display: flex; align-items: center; gap: 10px; }
 .workspace-active-page .template-thumbnail { height: 64px; width: 54px; padding: 0; margin: 0; flex-shrink: 0; }
 .workspace-active-page strong { display: block; font-size: 12px; font-weight: 550; }
 .workspace-active-page span { display: block; margin-top: 4px; font-size: 10px; color: var(--ws-muted); }
@@ -110,7 +112,8 @@
 .workspace-ai-disclosure summary { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ws-accent); cursor: pointer; padding: 10px 0; list-style: none; }
 .workspace-ai-disclosure summary > svg:last-child { margin-left: auto; }
 .workspace-ai-disclosure[open] summary > svg:last-child { transform: rotate(180deg); }
-#graphics-engine-app .workspace-ai-disclosure button { background: #6952da; color: white; }
+#graphics-engine-app .workspace-ai-disclosure button { background: #FF6B1A; color: white; }
+#graphics-engine-app .workspace-ai-disclosure button:hover { background: #E9570F; }
 #graphics-engine-app .workspace-ai-disclosure button * { color: white; }
 #graphics-engine-app #export-assets-bar { justify-content: flex-start; }
 #graphics-engine-app #export-assets-bar > div:nth-child(2) { margin-top: auto; }

@@ -25,6 +25,7 @@
   --gm-border: #E5E7EB;
   --gm-white: #FFFFFF;
   --gm-font: "Outfit", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --apple-accent-purple: var(--gm-orange);
 
   /* 5. Typography */
   --ds-font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -260,8 +261,8 @@
    BROWSER DEFAULTS & APPLE DARK MODE OVERRIDES
    ========================================================== */
 ::selection {
-  background: rgba(108, 92, 231, 0.4) !important;
-  color: rgba(255, 255, 255, 0.95) !important;
+  background: rgba(255, 107, 26, 0.35) !important;
+  color: #FFFFFF !important;
 }
 
 input:-webkit-autofill,
@@ -381,9 +382,13 @@ textarea::placeholder {
     background: var(--apple-accent-purple);
     color: white;
     border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(108, 92, 231, 0.3);
+    box-shadow: 0 4px 16px rgba(255, 107, 26, 0.35);
     transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
     border: none;
+  }
+  .clay-btn-primary:hover {
+    background: var(--gm-orange-hover);
+    box-shadow: 0 6px 22px rgba(255, 107, 26, 0.45);
   }
 
   .clay-inset {
@@ -913,51 +918,343 @@ textarea::placeholder {
   max-width: 580px; margin: 0 auto; line-height: 1.65;
 }
 
-/* ═══════ FEATURES ═══════ */
+/* ═══════ LUXURY BENTO GRID & FEATURES ═══════ */
 .lp-features {
-  max-width: 1320px; margin: 0 auto 100px; padding: 0 32px;
+  max-width: 1320px; margin: 0 auto 120px; padding: 0 32px;
   position: relative; z-index: 10;
 }
-.lp-features-grid {
-  display: grid; grid-template-columns: repeat(2, 1fr);
+.lp-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
   gap: 24px;
 }
-.lp-fcard {
-  background: rgba(255, 255, 255, 0.035);
+.lp-bento-card {
+  background: rgba(14, 16, 23, 0.72);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--lp-r); padding: 36px 30px;
-  position: relative; overflow: hidden;
+  border-radius: 24px;
+  padding: 34px 30px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
-.lp-fcard:hover {
-  border-color: rgba(255, 107, 26, 0.3);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4), 0 0 30px rgba(255, 107, 26, 0.1);
+.lp-bento-card:hover {
+  border-color: rgba(255, 107, 26, 0.38);
+  transform: translateY(-5px);
+  box-shadow:
+    0 30px 60px rgba(0, 0, 0, 0.5),
+    0 0 35px rgba(255, 107, 26, 0.14),
+    inset 0 1px 0 rgba(255, 107, 26, 0.25);
 }
-.lp-fcard-tag {
-  display: inline-block; font-size: 0.6875rem; font-weight: 700;
+.lp-bento-large {
+  grid-column: span 2;
+}
+.lp-bento-top {
+  position: relative; z-index: 2;
+}
+.lp-bento-header-row {
+  display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+}
+.lp-bento-tag {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.6875rem; font-weight: 700;
   text-transform: uppercase; letter-spacing: 0.08em;
-  color: #FFA26B; margin-bottom: 16px;
+  color: #FFA26B;
   padding: 4px 12px; border-radius: 8px;
   background: rgba(255, 107, 26, 0.12);
+  border: 1px solid rgba(255, 107, 26, 0.2);
 }
-.lp-fcard-icon {
-  width: 56px; height: 56px; border-radius: 16px;
+.lp-bento-icon {
+  width: 48px; height: 48px; border-radius: 14px;
   display: flex; justify-content: center; align-items: center;
-  font-size: 1.5rem; margin-bottom: 20px;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  font-size: 1.4rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
-.lp-fcard-title {
-  font-size: 1.25rem; font-weight: 700; letter-spacing: -0.02em;
-  margin: 0 0 10px 0;
+.lp-bento-title {
+  font-size: 1.35rem; font-weight: 700; letter-spacing: -0.02em;
+  margin: 0 0 10px 0; color: #FFFFFF;
 }
-.lp-fcard-desc {
-  color: var(--lp-muted); line-height: 1.65; margin: 0;
-  font-size: 0.9375rem;
+.lp-bento-desc {
+  color: var(--lp-muted); line-height: 1.65; margin: 0 0 24px 0;
+  font-size: 0.95rem;
 }
-.lp-fcard-shine {
-  position: absolute; top: 0; right: 0; width: 220px; height: 220px;
-  background: radial-gradient(circle, rgba(255, 107, 26, 0.08) 0%, transparent 70%);
+.lp-bento-visual {
+  position: relative;
+  border-radius: 16px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 20px;
+  overflow: hidden;
+  margin-top: auto;
+}
+.lp-bento-shine {
+  position: absolute; top: -50px; right: -50px; width: 220px; height: 220px;
+  background: radial-gradient(circle, rgba(255, 107, 26, 0.12) 0%, transparent 70%);
   pointer-events: none;
+}
+
+/* ─── Bento Mini Widgets ─── */
+.lp-ai-prompt-box {
+  display: flex; flex-direction: column; gap: 12px;
+}
+.lp-ai-prompt-input {
+  display: flex; align-items: center; gap: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px; padding: 10px 14px;
+  font-size: 0.85rem; color: rgba(255, 255, 255, 0.9);
+}
+.lp-ai-prompt-input span { color: #FF6B1A; }
+.lp-ai-output-cards {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+}
+.lp-ai-output-pill {
+  background: rgba(255, 107, 26, 0.08);
+  border: 1px solid rgba(255, 107, 26, 0.2);
+  border-radius: 10px; padding: 10px 12px;
+}
+.lp-ai-output-label {
+  font-size: 0.65rem; color: #FFA26B; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; margin-bottom: 4px; display: block;
+}
+.lp-ai-output-val {
+  font-size: 0.82rem; color: #FFFFFF; font-weight: 600;
+}
+
+/* ─── Waveform Animation ─── */
+.lp-waveform-strip {
+  display: flex; align-items: center; gap: 4px; height: 40px; padding: 0 10px;
+}
+.lp-wave-bar {
+  flex: 1; background: linear-gradient(180deg, #FF6B1A 0%, #E9570F 100%);
+  border-radius: 4px; min-height: 6px;
+  animation: lp-wave-dance 1.4s ease-in-out infinite alternate;
+}
+@keyframes lp-wave-dance {
+  0% { height: 15%; }
+  50% { height: 90%; }
+  100% { height: 35%; }
+}
+
+/* ─── Stack Visual ─── */
+.lp-stack-layers {
+  position: relative; height: 110px; display: flex; align-items: center; justify-content: center;
+}
+.lp-stack-layer {
+  position: absolute; width: 78%; height: 60px; border-radius: 12px;
+  border: 1px solid rgba(255, 107, 26, 0.3);
+  background: rgba(255, 107, 26, 0.08);
+  backdrop-filter: blur(8px);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 18px; font-size: 0.75rem; font-weight: 700; color: #FFA26B;
+  transition: all 0.3s ease;
+}
+.lp-stack-layer-1 { transform: translateY(-20px) scale(0.92); opacity: 0.55; }
+.lp-stack-layer-2 { transform: translateY(-7px) scale(0.96); opacity: 0.75; }
+.lp-stack-layer-3 { transform: translateY(8px) scale(1); opacity: 1; border-color: #FF6B1A; background: rgba(255, 107, 26, 0.16); }
+
+/* ═══════ BEFORE VS AFTER COMPARISON ═══════ */
+.lp-comparison {
+  max-width: 1220px; margin: 0 auto 120px; padding: 0 32px;
+  position: relative; z-index: 10;
+}
+.lp-comp-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 32px;
+}
+.lp-comp-card {
+  border-radius: 28px; padding: 44px 38px;
+  position: relative; overflow: hidden;
+}
+.lp-comp-old {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.lp-comp-new {
+  background: linear-gradient(145deg, rgba(255, 107, 26, 0.12) 0%, rgba(18, 20, 29, 0.85) 60%);
+  border: 1px solid rgba(255, 107, 26, 0.35);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.45), 0 0 40px rgba(255, 107, 26, 0.12);
+}
+.lp-comp-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.75rem; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.08em; padding: 6px 14px; border-radius: 8px; margin-bottom: 24px;
+}
+.lp-comp-badge-old {
+  background: rgba(239, 68, 68, 0.12); color: #F87171; border: 1px solid rgba(239, 68, 68, 0.25);
+}
+.lp-comp-badge-new {
+  background: rgba(255, 107, 26, 0.2); color: #FFA26B; border: 1px solid rgba(255, 107, 26, 0.4);
+}
+.lp-comp-title {
+  font-size: 1.65rem; font-weight: 800; letter-spacing: -0.03em;
+  margin: 0 0 24px 0;
+}
+.lp-comp-list {
+  display: flex; flex-direction: column; gap: 16px; margin: 0; padding: 0; list-style: none;
+}
+.lp-comp-item {
+  display: flex; align-items: flex-start; gap: 12px; font-size: 0.95rem; line-height: 1.55;
+}
+.lp-comp-item-old { color: var(--lp-muted); }
+.lp-comp-item-new { color: #FFFFFF; font-weight: 500; }
+.lp-comp-icon {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; justify-content: center; align-items: center;
+  font-size: 0.75rem; flex-shrink: 0; margin-top: 2px;
+}
+.lp-comp-icon-old {
+  background: rgba(239, 68, 68, 0.15); color: #F87171;
+}
+.lp-comp-icon-new {
+  background: #FF6B1A; color: white;
+  box-shadow: 0 0 12px rgba(255, 107, 26, 0.6);
+}
+
+/* ═══════ CANLI INTERAKTIF AI STUDYOSU ONAYI ═══════ */
+.lp-demo-section {
+  max-width: 1220px; margin: 0 auto 120px; padding: 0 32px;
+  position: relative; z-index: 10;
+}
+.lp-demo-window {
+  background: rgba(14, 16, 23, 0.85);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid rgba(255, 107, 26, 0.28);
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6), 0 0 50px rgba(255, 107, 26, 0.12);
+}
+.lp-demo-topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+}
+.lp-demo-dots { display: flex; gap: 8px; }
+.lp-demo-dots span {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+}
+.lp-demo-status-pill {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 0.75rem; font-weight: 700; color: #FFA26B;
+  background: rgba(255, 107, 26, 0.12);
+  border: 1px solid rgba(255, 107, 26, 0.25);
+  padding: 4px 14px; border-radius: 999px;
+}
+.lp-demo-status-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: #FF6B1A;
+  box-shadow: 0 0 8px #FF6B1A; animation: lp-dot-blink 1.8s infinite;
+}
+.lp-demo-tabs {
+  display: flex; gap: 8px; padding: 14px 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.2); overflow-x: auto;
+}
+.lp-demo-tab {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px; padding: 8px 18px;
+  font-size: 0.8125rem; font-weight: 600; color: var(--lp-muted);
+  cursor: pointer; transition: all 0.2s ease; font-family: var(--gm-font);
+  white-space: nowrap;
+}
+.lp-demo-tab:hover {
+  background: rgba(255, 255, 255, 0.08); color: #FFFFFF;
+}
+.lp-demo-tab.active {
+  background: #FF6B1A; color: white; border-color: #FF6B1A;
+  box-shadow: 0 4px 16px rgba(255, 107, 26, 0.4);
+}
+.lp-demo-content-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 32px; padding: 36px 32px; align-items: center;
+}
+.lp-demo-left {
+  display: flex; flex-direction: column; gap: 20px;
+}
+.lp-demo-sub {
+  font-size: 0.95rem; color: var(--lp-muted); line-height: 1.6; margin: 0;
+}
+.lp-demo-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: linear-gradient(135deg, #FF6B1A 0%, #E9570F 100%);
+  color: white; border: none; border-radius: 12px;
+  padding: 12px 24px; font-size: 0.9rem; font-weight: 700;
+  cursor: pointer; align-self: flex-start;
+  box-shadow: 0 8px 24px rgba(255, 107, 26, 0.35);
+  transition: all 0.25s ease;
+}
+.lp-demo-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 30px rgba(255, 107, 26, 0.5);
+}
+.lp-demo-preview-card {
+  background: #111218;
+  border: 1px solid rgba(255, 107, 26, 0.3);
+  border-radius: 20px; padding: 24px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+  position: relative; overflow: hidden;
+}
+.lp-demo-preview-canvas {
+  aspect-ratio: 16/9; border-radius: 12px;
+  background: linear-gradient(135deg, #1A1C25 0%, #12131C 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  padding: 24px; text-align: center; position: relative; overflow: hidden;
+  margin-bottom: 16px;
+}
+.lp-demo-preview-tag {
+  font-size: 0.7rem; font-weight: 800; color: #FF6B1A;
+  background: rgba(255, 107, 26, 0.15); border: 1px solid rgba(255, 107, 26, 0.3);
+  padding: 3px 12px; border-radius: 999px; margin-bottom: 12px;
+}
+.lp-demo-preview-h {
+  font-size: 1.25rem; font-weight: 800; color: #FFFFFF; margin: 0 0 8px 0;
+  letter-spacing: -0.02em; line-height: 1.3;
+}
+.lp-demo-preview-p {
+  font-size: 0.8rem; color: var(--lp-muted); margin: 0; max-width: 320px;
+}
+.lp-demo-scanline {
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, #FF6B1A, transparent);
+  box-shadow: 0 0 12px 3px rgba(255, 107, 26, 0.8);
+  animation: ds-scanline 2.8s infinite;
+}
+.lp-demo-meta-row {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 0.75rem; color: var(--lp-muted);
+}
+.lp-demo-meta-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  color: #FFA26B; font-weight: 600;
+}
+
+/* ─── Floating 3D AI Badges in Hero ─── */
+.lp-ai-float-chip {
+  position: absolute; z-index: 25;
+  background: rgba(14, 16, 23, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 107, 26, 0.35);
+  border-radius: 999px; padding: 8px 16px;
+  display: flex; align-items: center; gap: 8px;
+  font-size: 0.75rem; font-weight: 700; color: #FFFFFF;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 20px rgba(255, 107, 26, 0.15);
+  white-space: nowrap; pointer-events: none;
+}
+.lp-chip-1 { top: 12%; left: -30px; animation: lp-chip-float 6s ease-in-out infinite; }
+.lp-chip-2 { bottom: 8%; right: -25px; animation: lp-chip-float 7s ease-in-out infinite 1.5s; }
+@keyframes lp-chip-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
 }
 
 /* ═══════ HOW IT WORKS ═══════ */

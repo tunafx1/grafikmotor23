@@ -210,7 +210,7 @@ function SingleVideoPlayer({
               title="İleri / Geri Sar"
             >
               <div
-                className="h-full bg-gradient-to-r from-[#6C5CE7] to-[#34C759] rounded-full transition-[width] duration-75"
+                className="h-full bg-gradient-to-r from-[#FF6B1A] to-[#FF9F0A] rounded-full transition-[width] duration-75"
                 style={{ width: `${progress}%` }}
               />
             </div>
@@ -342,7 +342,7 @@ export function CanvasVideoOverlay({
               className="pointer-events-auto group flex items-center gap-2.5 px-4 py-2 sm:px-5 sm:py-2.5 rounded-full bg-black/80 hover:bg-black/95 backdrop-blur-md border border-white/30 text-white font-bold text-xs sm:text-sm shadow-[0_10px_30px_rgba(0,0,0,0.6)] transition-all duration-200 hover:scale-105 active:scale-95 cursor-pointer"
               title="Videoyu Şablon İçinde Canlı Oynat"
             >
-              <span className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#6C5CE7] to-[#34C759] flex items-center justify-center text-white text-[10px] shadow-md group-hover:scale-110 transition-transform pl-0.5">
+              <span className="w-6 h-6 rounded-full bg-gradient-to-tr from-[#FF6B1A] to-[#FFA26B] flex items-center justify-center text-white text-[10px] shadow-md group-hover:scale-110 transition-transform pl-0.5">
                 <Play className="w-3.5 h-3.5 fill-current text-white" />
               </span>
               <span className="tracking-wide font-bold">Videoyu Oynat</span>

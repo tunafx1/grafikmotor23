@@ -95,7 +95,7 @@ const INITIAL_FALLBACK_TEMPLATE: DesignTemplate = {
   height: 1080,
   backgroundColor: '#1D1D1F',
   palette: {
-    primary: '#6C5CE7',
+    primary: '#FF6B1A',
     accent: '#FF9F0A',
     text: '#F5F5F7',
     bg: '#1D1D1F'
@@ -207,7 +207,7 @@ export function StaticPageCanvas({
   return (
     <div 
       onClick={onClick}
-      className="absolute inset-0 cursor-pointer hover:ring-4 hover:ring-[#6C5CE7] rounded-lg transition duration-200 overflow-hidden bg-[#252528] select-none"
+      className="absolute inset-0 cursor-pointer hover:ring-4 hover:ring-[#FF6B1A] rounded-lg transition duration-200 overflow-hidden bg-[#252528] select-none"
     >
       <canvas
         ref={localCanvasRef}
@@ -354,7 +354,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           height: Math.floor(t.height * 0.65),
           backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#6C5CE7',
+          borderColor: t.palette?.primary || '#FF6B1A',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -370,7 +370,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           height: Math.floor(t.height * 0.65),
           backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#6C5CE7',
+          borderColor: t.palette?.primary || '#FF6B1A',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -421,7 +421,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           height: Math.floor(t.height * 0.55),
           backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#6C5CE7',
+          borderColor: t.palette?.primary || '#FF6B1A',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -437,7 +437,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           height: Math.floor(t.height * 0.55),
           backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#6C5CE7',
+          borderColor: t.palette?.primary || '#FF6B1A',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -453,7 +453,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           height: Math.floor(t.height * 0.55),
           backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#6C5CE7',
+          borderColor: t.palette?.primary || '#FF6B1A',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -504,7 +504,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           height: Math.floor(t.height * 0.65),
           backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#6C5CE7',
+          borderColor: t.palette?.primary || '#FF6B1A',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -1236,7 +1236,7 @@ export default function App() {
 
   // --- GLOBAL HIGHLIGHT/ACCENT (VURGU) COLOR STATE ---
   const [vurguColor, setVurguColor] = useState<string>(() => {
-    return storage.getItem('vurgu_color') || '#6C5CE7';
+    return storage.getItem('vurgu_color') || '#FF6B1A';
   });
 
   const handleVurguColorChange = (color: string) => {
@@ -2113,11 +2113,11 @@ export default function App() {
   const resetTemplatePalette = () => {
     const preset = TEMPLATE_PRESETS.find(p => p.id === currentTemplateId);
     const defaultPalette = preset?.palette || {
-      primary: '#6C5CE7',
+      primary: '#FF6B1A',
       accent: '#FF9F0A',
       text: '#1D1D1F',
       bg: '#1D1D1F',
-      boldHighlight: '#6C5CE7'
+      boldHighlight: '#FF6B1A'
     };
 
     setTemplates(prev => {
@@ -2425,7 +2425,7 @@ export default function App() {
       height: 1080,
       backgroundColor: '#1D1D1F',
       palette: {
-        primary: '#6C5CE7',
+        primary: '#FF6B1A',
         accent: '#FF9F0A',
         text: '#F5F5F7',
         bg: '#1D1D1F'
@@ -2465,7 +2465,7 @@ export default function App() {
           height: 450,
           backgroundColor: 'rgba(255,255,255,0.08)',
           opacity: 1,
-          borderColor: '#6C5CE7',
+          borderColor: '#FF6B1A',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -2485,7 +2485,7 @@ export default function App() {
           textStyle: {
             fontFamily: 'Inter',
             fontSize: 18,
-            color: '#6C5CE7',
+            color: '#FF6B1A',
             fontWeight: 'bold',
             lineHeight: 1,
             align: 'center',
@@ -2624,7 +2624,7 @@ export default function App() {
         height: Math.floor(currentTemplate.height * 0.5),
         backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
+        borderColor: currentTemplate.palette?.primary || '#FF6B1A',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2641,7 +2641,7 @@ export default function App() {
         height: Math.floor(currentTemplate.height * 0.55),
         backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
+        borderColor: currentTemplate.palette?.primary || '#FF6B1A',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2683,7 +2683,7 @@ export default function App() {
         height: Math.floor(currentTemplate.height * 0.55),
         backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
+        borderColor: currentTemplate.palette?.primary || '#FF6B1A',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2699,7 +2699,7 @@ export default function App() {
         height: Math.floor(currentTemplate.height * 0.55),
         backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
+        borderColor: currentTemplate.palette?.primary || '#FF6B1A',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2741,7 +2741,7 @@ export default function App() {
         height: Math.floor(currentTemplate.height * 0.55),
         backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
+        borderColor: currentTemplate.palette?.primary || '#FF6B1A',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2757,7 +2757,7 @@ export default function App() {
         height: Math.floor(currentTemplate.height * 0.55),
         backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
+        borderColor: currentTemplate.palette?.primary || '#FF6B1A',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2773,7 +2773,7 @@ export default function App() {
         height: Math.floor(currentTemplate.height * 0.55),
         backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
+        borderColor: currentTemplate.palette?.primary || '#FF6B1A',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2987,7 +2987,7 @@ export default function App() {
       height: 300,
       backgroundColor: 'rgba(255,255,255,0.08)',
       opacity: 1,
-      borderColor: '#6C5CE7',
+      borderColor: '#FF6B1A',
       borderWidth: 2,
       borderRadius: 12,
       isDynamic: true,
@@ -3173,7 +3173,7 @@ export default function App() {
       textStyle: {
         fontFamily: 'Space Grotesk',
         fontSize: 18,
-        color: '#6C5CE7',
+        color: '#FF6B1A',
         fontWeight: 'bold',
         lineHeight: 1,
         align: 'left'
@@ -4016,7 +4016,7 @@ export default function App() {
   const PALETTE_PRESETS = [
     { name: 'Kozmik Mürekkep', primary: '#A394F5', accent: '#F2BE6A', text: '#F5F3FF', bg: '#202033' },
     { name: 'Doğal Toprak', primary: '#FF9F0A', accent: '#FF9F0A', text: 'rgba(255,255,255,0.72)', bg: '#252528' },
-    { name: 'Sanal Neon', primary: '#6C5CE7', accent: '#6C5CE7', text: 'rgba(255,255,255,0.95)', bg: '#1D1D1F' },
+    { name: 'Sanal Neon', primary: '#FF6B1A', accent: '#FF6B1A', text: 'rgba(255,255,255,0.95)', bg: '#1D1D1F' },
     { name: 'Minimalist Kömür', primary: '#A6ABB8', accent: '#D9DCE4', text: '#F5F5F7', bg: '#252528' },
     { name: 'Canlı Nar', primary: '#FF453A', accent: '#FF9F0A', text: '#F5F5F7', bg: '#252528' },
     { name: 'Sakin Orman', primary: '#34C759', accent: '#FF9F0A', text: '#F5F5F7', bg: '#252528' }
@@ -4053,7 +4053,7 @@ export default function App() {
   }
 
   return (
-    <div id="graphics-engine-app" data-export-open={exportPanelOpen} className="h-[100dvh] bg-[#1D1D1F] dark:bg-[#1D1D1F] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-sans flex flex-col selection:bg-[#6C5CE7] selection:text-[rgba(255,255,255,0.95)] overflow-hidden relative transition-colors duration-300">
+    <div id="graphics-engine-app" data-export-open={exportPanelOpen} className="h-[100dvh] bg-[#1D1D1F] dark:bg-[#1D1D1F] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-sans flex flex-col selection:bg-[#FF6B1A] selection:text-[rgba(255,255,255,0.95)] overflow-hidden relative transition-colors duration-300">
       <WorkspaceHeader
         templateName={currentTemplate.name}
         isDark={isDarkMode} onTheme={() => setIsDarkMode(v => !v)}
@@ -4109,7 +4109,7 @@ export default function App() {
                   <h3 className="text-xs font-bold tracking-wider text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase">ŞABLON KATALOĞU</h3>
                   <button
                     onClick={createNewTemplate}
-                    className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-[#6C5CE7] hover:bg-[#6C5CE7] text-[rgba(255,255,255,0.95)] text-xs font-bold shadow-sm shadow-[rgba(108,92,231,0.2)]/10 cursor-pointer transition"
+                    className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-[#FF6B1A] hover:bg-[#FF6B1A] text-[rgba(255,255,255,0.95)] text-xs font-bold shadow-sm shadow-[rgba(255,107,26,0.2)]/10 cursor-pointer transition"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Özel Şablon Ekle</span>
@@ -4135,7 +4135,7 @@ export default function App() {
                         }}
                         className={`template-card group relative p-4 rounded-xl border transition cursor-pointer text-left ${
                           isSelected
-                            ? 'bg-[#252528]/40 dark:bg-[#252528]/60 border-[#6C5CE7] dark:border-[#6C5CE7]/50 shadow-md ring-1 ring-[#6C5CE7]/10'
+                            ? 'bg-[#252528]/40 dark:bg-[#252528]/60 border-[#FF6B1A] dark:border-[#FF6B1A]/50 shadow-md ring-1 ring-[#FF6B1A]/10'
                             : 'bg-[#252528] dark:bg-[#1D1D1F] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/50 shadow-sm'
                         }`}
                       >
@@ -4153,7 +4153,7 @@ export default function App() {
                                 type="text"
                                 value={editingName}
                                 onChange={(e) => setEditingName(e.target.value)}
-                                className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] dark:focus:ring-[#6C5CE7] font-medium"
+                                className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] dark:focus:ring-[#FF6B1A] font-medium"
                                 placeholder="Şablon İsmi"
                               />
                             </div>
@@ -4165,7 +4165,7 @@ export default function App() {
                                   type="number"
                                   value={editingWidth}
                                   onChange={(e) => setEditingWidth(parseInt(e.target.value) || 0)}
-                                  className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] dark:focus:ring-[#6C5CE7] font-mono"
+                                  className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] dark:focus:ring-[#FF6B1A] font-mono"
                                   min={200}
                                   max={3000}
                                 />
@@ -4176,7 +4176,7 @@ export default function App() {
                                   type="number"
                                   value={editingHeight}
                                   onChange={(e) => setEditingHeight(parseInt(e.target.value) || 0)}
-                                  className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] dark:focus:ring-[#6C5CE7] font-mono"
+                                  className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] dark:focus:ring-[#FF6B1A] font-mono"
                                   min={200}
                                   max={3000}
                                 />
@@ -4204,7 +4204,7 @@ export default function App() {
                           <>
                             <div className="flex justify-between items-start">
                               <div>
-                                <h4 className="font-bold text-sm text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] group-hover:text-[rgba(255,255,255,0.95)] dark:group-hover:text-[#6C5CE7] transition">
+                                <h4 className="font-bold text-sm text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] group-hover:text-[rgba(255,255,255,0.95)] dark:group-hover:text-[#FF6B1A] transition">
                                   {temp.name}
                                 </h4>
                                 <p className="text-xs text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] mt-1 flex items-center space-x-2 font-medium">
@@ -4222,7 +4222,7 @@ export default function App() {
                                     KULLANICI
                                   </span>
                                 ) : (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#6C5CE7] dark:text-[#6C5CE7] border border-[rgba(255,255,255,0.08)] dark:border-[#6C5CE7] font-bold">
+                                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#FF6B1A] dark:text-[#FF6B1A] border border-[rgba(255,255,255,0.08)] dark:border-[#FF6B1A] font-bold">
                                     HAZIR ŞABLON
                                   </span>
                                 )}
@@ -4248,7 +4248,7 @@ export default function App() {
                                     setSelectedNodeId(null);
                                     setActiveTab('phase1');
                                   }}
-                                  className="flex items-center space-x-1 px-2 py-1 rounded bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#6C5CE7] dark:hover:bg-[#6C5CE7] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] text-[11px] font-semibold transition cursor-pointer"
+                                  className="flex items-center space-x-1 px-2 py-1 rounded bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#FF6B1A] dark:hover:bg-[#FF6B1A] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] text-[11px] font-semibold transition cursor-pointer"
                                   title="Şablon Tasarımı Düzenle"
                                 >
                                   <Sliders className="w-3 h-3" />
@@ -4352,7 +4352,7 @@ export default function App() {
                       <h4 className="text-xs font-bold text-[rgba(255,255,255,0.72)] tracking-wider uppercase">ŞABLON SAYFALARI</h4>
                       <InfoTooltip text="Şablonunuz birden çok sayfadan oluşabilir. Her sayfa için farklı bir görsel düzeni (Kapak, 1, 2 veya 3 Görselli vb.) seçerek, çoklu resim yüklediğinizde resimlerin otomatik yerleşimini sağlayabilirsiniz." />
                     </div>
-                    <span className="text-[10px] bg-[#252528] text-[#6C5CE7] px-2.5 py-0.5 rounded-full font-bold font-mono">
+                    <span className="text-[10px] bg-[#252528] text-[#FF6B1A] px-2.5 py-0.5 rounded-full font-bold font-mono">
                       {(currentTemplate.pages || []).length} Sayfa
                     </span>
                   </div>
@@ -4372,7 +4372,7 @@ export default function App() {
                         roleBadgeColor = 'bg-[#252528] text-[#34C759] border border-[rgba(255,255,255,0.08)]';
                       } else if (page.pageRole === '2-image') {
                         roleBadgeText = '2 Görsel';
-                        roleBadgeColor = 'bg-[#252528] text-[#6C5CE7] border border-[rgba(255,255,255,0.08)]';
+                        roleBadgeColor = 'bg-[#252528] text-[#FF6B1A] border border-[rgba(255,255,255,0.08)]';
                       } else if (page.pageRole === '3-image') {
                         roleBadgeText = '3 Görsel';
                         roleBadgeColor = 'bg-[#252528] text-[#FF9F0A] border border-[rgba(255,255,255,0.08)]';
@@ -4383,7 +4383,7 @@ export default function App() {
                           key={page.id}
                           className={`rounded-lg border p-3 transition ${
                             isActive
-                              ? 'border-[#6C5CE7] bg-[#252528]/20 dark:bg-[#252528]/40 shadow-sm'
+                              ? 'border-[#FF6B1A] bg-[#252528]/20 dark:bg-[#252528]/40 shadow-sm'
                               : 'border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] bg-[#1D1D1F]/40 dark:bg-[#252528]'
                           }`}
                         >
@@ -4425,7 +4425,7 @@ export default function App() {
                                   type="text"
                                   value={page.name}
                                   onChange={(e) => handlePagePropertyChange(idx, 'name', e.target.value)}
-                                  className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium focus:outline-none focus:border-[#6C5CE7]"
+                                  className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium focus:outline-none focus:border-[#FF6B1A]"
                                 />
                               </div>
 
@@ -4434,7 +4434,7 @@ export default function App() {
                                 <select
                                   value={page.pageRole || 'custom'}
                                   onChange={(e) => handlePagePropertyChange(idx, 'pageRole', e.target.value)}
-                                  className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-semibold cursor-pointer focus:outline-none focus:border-[#6C5CE7]"
+                                  className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-semibold cursor-pointer focus:outline-none focus:border-[#FF6B1A]"
                                 >
                                   <option value="cover">Kapak Sayfası (Cover Page)</option>
                                   <option value="1-image">Tek Görselli Kolaj (1-Image Collage)</option>
@@ -4462,7 +4462,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => addNewTemplatePage('1-image')}
-                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#6C5CE7] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
+                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#FF6B1A] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         <span>+ Tek Görselli</span>
@@ -4470,7 +4470,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => addNewTemplatePage('2-image')}
-                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#6C5CE7] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
+                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#FF6B1A] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         <span>+ 2 Görselli</span>
@@ -4478,7 +4478,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => addNewTemplatePage('3-image')}
-                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#6C5CE7] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
+                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#FF6B1A] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         <span>+ 3 Görselli</span>
@@ -4486,7 +4486,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => addNewTemplatePage('cover')}
-                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#6C5CE7] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
+                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#FF6B1A] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         <span>+ Kapak</span>
@@ -4510,13 +4510,13 @@ export default function App() {
                         type="text"
                         value={currentTemplate.name}
                         onChange={(e) => handleTemplatePropertyChange('name', e.target.value)}
-                        className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium"
+                        className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium"
                       />
                     </div>
 
                     <div>
                       <label className="text-xs text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold flex items-center space-x-1">
-                        <Sparkles className="w-3.5 h-3.5 text-[#6C5CE7]" />
+                        <Sparkles className="w-3.5 h-3.5 text-[#FF6B1A]" />
                         <span>Kurumsal Dil / AI Prompt</span>
                       </label>
                       <textarea
@@ -4524,7 +4524,7 @@ export default function App() {
                         onChange={(e) => handleTemplatePropertyChange('aiSystemPrompt', e.target.value)}
                         placeholder="Örn: Genç ve samimi bir ton kullan, emojiler ekle, lüks marka dili, ingilizce yaz vb."
                         rows={2}
-                        className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium resize-none"
+                        className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium resize-none"
                       />
                     </div>
 
@@ -4537,7 +4537,7 @@ export default function App() {
                           min={200}
                           max={3000}
                           onChange={(e) => handleTemplatePropertyChange('width', parseInt(e.target.value) || 1080)}
-                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] font-mono text-[rgba(255,255,255,0.95)] font-medium"
+                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] font-mono text-[rgba(255,255,255,0.95)] font-medium"
                         />
                       </div>
                       <div>
@@ -4548,7 +4548,7 @@ export default function App() {
                           min={200}
                           max={3000}
                           onChange={(e) => handleTemplatePropertyChange('height', parseInt(e.target.value) || 1080)}
-                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] font-mono text-[rgba(255,255,255,0.95)] font-medium"
+                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] font-mono text-[rgba(255,255,255,0.95)] font-medium"
                         />
                       </div>
                     </div>
@@ -4566,7 +4566,7 @@ export default function App() {
                           type="text"
                           value={currentTemplate.backgroundColor}
                           onChange={(e) => handleTemplatePropertyChange('backgroundColor', e.target.value)}
-                          className="flex-1 bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-1.5 text-xs font-mono text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] font-medium"
+                          className="flex-1 bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-1.5 text-xs font-mono text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] font-medium"
                         />
                       </div>
                     </div>
@@ -4622,7 +4622,7 @@ export default function App() {
                                   <button
                                     type="button"
                                     onClick={() => handleTemplatePropertyChange('backgroundImageUrl', url)}
-                                    className="relative w-11 h-11 rounded-lg overflow-hidden border border-[rgba(255,255,255,0.08)] hover:border-[#6C5CE7] shrink-0 bg-[#252528] cursor-pointer shadow-sm transition hover:scale-105 active:scale-95 group"
+                                    className="relative w-11 h-11 rounded-lg overflow-hidden border border-[rgba(255,255,255,0.08)] hover:border-[#FF6B1A] shrink-0 bg-[#252528] cursor-pointer shadow-sm transition hover:scale-105 active:scale-95 group"
                                     title="Bu görseli şablon arka planı yap"
                                   >
                                     <img src={url} alt={`Varlık ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -4655,7 +4655,7 @@ export default function App() {
                 <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-xl p-4 space-y-4 shadow-sm" id="custom-palette-overrides-card">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs font-bold text-[rgba(255,255,255,0.72)] tracking-wider uppercase flex items-center space-x-1.5">
-                      <Palette className="w-3.5 h-3.5 text-[#6C5CE7]" />
+                      <Palette className="w-3.5 h-3.5 text-[#FF6B1A]" />
                       <span>2. ŞABLON RENK PALETİ</span>
                     </span>
                     <button
@@ -4677,11 +4677,11 @@ export default function App() {
                       <div className="flex items-center space-x-2">
                         <input
                           type="color"
-                          value={currentTemplate.palette?.primary || '#6C5CE7'}
+                          value={currentTemplate.palette?.primary || '#FF6B1A'}
                           onChange={(e) => handleTemplatePaletteChange('primary', e.target.value)}
                           className="w-6 h-6 rounded-md border border-[rgba(255,255,255,0.08)] cursor-pointer p-0"
                         />
-                        <span className="font-mono text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold uppercase">{currentTemplate.palette?.primary || '#6C5CE7'}</span>
+                        <span className="font-mono text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold uppercase">{currentTemplate.palette?.primary || '#FF6B1A'}</span>
                       </div>
                     </div>
 
@@ -4729,7 +4729,7 @@ export default function App() {
                   </div>
 
                   {/* Kalın Vurgu Yazı Rengi */}
-                  <div className="bg-[#252528]/50 dark:bg-[#252528]/40 p-3 rounded-xl border border-[#6C5CE7] dark:border-[#6C5CE7]/40 flex items-center justify-between">
+                  <div className="bg-[#252528]/50 dark:bg-[#252528]/40 p-3 rounded-xl border border-[#FF6B1A] dark:border-[#FF6B1A]/40 flex items-center justify-between">
                     <div>
                       <span className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] block">Kalın Vurgu Yazı Rengi</span>
                       <span className="text-[10px] text-[rgba(255,255,255,0.72)] block">**kalın yazılar** bu renkle vurgulanır.</span>
@@ -4737,12 +4737,12 @@ export default function App() {
                     <div className="flex items-center space-x-2">
                       <input
                         type="color"
-                        value={currentTemplate.palette?.boldHighlight || currentTemplate.palette?.primary || '#6C5CE7'}
+                        value={currentTemplate.palette?.boldHighlight || currentTemplate.palette?.primary || '#FF6B1A'}
                         onChange={(e) => handleTemplatePaletteChange('boldHighlight', e.target.value)}
                         className="w-8 h-8 rounded-lg border border-[rgba(255,255,255,0.08)] shadow-sm cursor-pointer p-0"
                       />
-                      <span className="font-mono text-xs text-[#6C5CE7] font-extrabold uppercase">
-                        {currentTemplate.palette?.boldHighlight || currentTemplate.palette?.primary || '#6C5CE7'}
+                      <span className="font-mono text-xs text-[#FF6B1A] font-extrabold uppercase">
+                        {currentTemplate.palette?.boldHighlight || currentTemplate.palette?.primary || '#FF6B1A'}
                       </span>
                     </div>
                   </div>
@@ -4759,7 +4759,7 @@ export default function App() {
                         onClick={() => addNewRegion('text')}
                         className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[10px] font-extrabold cursor-pointer shadow-sm transition"
                       >
-                        <Type className="w-3 h-3 text-[#6C5CE7] font-bold" />
+                        <Type className="w-3 h-3 text-[#FF6B1A] font-bold" />
                         <span>Metin Bölgesi</span>
                       </button>
                       <button
@@ -4767,7 +4767,7 @@ export default function App() {
                         onClick={() => addNewRegion('image')}
                         className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[10px] font-extrabold cursor-pointer shadow-sm transition"
                       >
-                        <ImageIcon className="w-3 h-3 text-[#6C5CE7] font-bold" />
+                        <ImageIcon className="w-3 h-3 text-[#FF6B1A] font-bold" />
                         <span>Boş Resim</span>
                       </button>
                       <label
@@ -4819,7 +4819,7 @@ export default function App() {
                           }}
                           className={`flex items-center justify-between p-2 rounded-lg border transition ${
                             isSelected
-                              ? 'bg-[#252528] dark:bg-[#252528]/60 border-[#6C5CE7] shadow-sm'
+                              ? 'bg-[#252528] dark:bg-[#252528]/60 border-[#FF6B1A] shadow-sm'
                               : 'bg-[#252528] dark:bg-[#1D1D1F] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] shadow-sm'
                           } ${draggedIndex === origIndex ? 'opacity-40 border-dashed' : ''}`}
                           onClick={() => setSelectedNodeId(r.id)}
@@ -4865,7 +4865,7 @@ export default function App() {
                                       setEditingRegionId(null);
                                     }
                                   }}
-                                  className="w-full bg-[#1D1D1F] border border-[#6C5CE7] rounded px-1.5 py-0.5 text-xs text-[rgba(255,255,255,0.95)] font-bold focus:outline-none focus:ring-1 focus:ring-[#6C5CE7]"
+                                  className="w-full bg-[#1D1D1F] border border-[#FF6B1A] rounded px-1.5 py-0.5 text-xs text-[rgba(255,255,255,0.95)] font-bold focus:outline-none focus:ring-1 focus:ring-[#FF6B1A]"
                                   autoFocus
                                   onClick={(e) => e.stopPropagation()}
                                 />
@@ -4889,7 +4889,7 @@ export default function App() {
                                       setEditingRegionId(r.id);
                                       setTempRegionName(r.name);
                                     }}
-                                    className="opacity-0 group-hover/name:opacity-100 p-0.5 text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] transition cursor-pointer"
+                                    className="opacity-0 group-hover/name:opacity-100 p-0.5 text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] transition cursor-pointer"
                                     title="İsmi Düzenle"
                                   >
                                     <Pencil className="w-2.5 h-2.5" />
@@ -4910,8 +4910,8 @@ export default function App() {
                               onClick={() => handleRegionPropertyChange(r.id, 'hidden', !r.hidden)}
                               className={`p-1 rounded transition cursor-pointer ${
                                 r.hidden 
-                                  ? 'text-[#FF453A] hover:text-[#6C5CE7] bg-[#252528] hover:bg-[#1D1D1F]' 
-                                  : 'text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] hover:bg-[#1D1D1F]'
+                                  ? 'text-[#FF453A] hover:text-[#FF6B1A] bg-[#252528] hover:bg-[#1D1D1F]' 
+                                  : 'text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] hover:bg-[#1D1D1F]'
                               }`}
                               title={r.hidden ? "Katmanı Göster (Gizli)" : "Katmanı Gizle (Görünür)"}
                             >
@@ -4924,8 +4924,8 @@ export default function App() {
                               onClick={() => handleRegionPropertyChange(r.id, 'locked', !r.locked)}
                               className={`p-1 rounded transition cursor-pointer ${
                                 r.locked 
-                                  ? 'text-[#FF9F0A] hover:text-[#6C5CE7] bg-[#252528] hover:bg-[#1D1D1F] font-bold' 
-                                  : 'text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] hover:bg-[#1D1D1F]'
+                                  ? 'text-[#FF9F0A] hover:text-[#FF6B1A] bg-[#252528] hover:bg-[#1D1D1F] font-bold' 
+                                  : 'text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] hover:bg-[#1D1D1F]'
                               }`}
                               title={r.locked ? "Kilidi Aç (Kilitli)" : "Katmanı Kilitle (Seçilebilir)"}
                             >
@@ -4939,7 +4939,7 @@ export default function App() {
                               type="button"
                               disabled={origIndex === editingTemplate.regions.length - 1}
                               onClick={() => moveRegionInList(origIndex, origIndex + 1)}
-                              className="text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] hover:bg-[#1D1D1F] disabled:opacity-20 disabled:pointer-events-none p-1 rounded transition cursor-pointer"
+                              className="text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] hover:bg-[#1D1D1F] disabled:opacity-20 disabled:pointer-events-none p-1 rounded transition cursor-pointer"
                               title="Üste Taşı"
                             >
                               <ArrowUp className="w-3 h-3" />
@@ -4950,7 +4950,7 @@ export default function App() {
                               type="button"
                               disabled={origIndex === 0}
                               onClick={() => moveRegionInList(origIndex, origIndex - 1)}
-                              className="text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] hover:bg-[#1D1D1F] disabled:opacity-20 disabled:pointer-events-none p-1 rounded transition cursor-pointer"
+                              className="text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] hover:bg-[#1D1D1F] disabled:opacity-20 disabled:pointer-events-none p-1 rounded transition cursor-pointer"
                               title="Alta Taşı"
                             >
                               <ArrowDown className="w-3 h-3" />
@@ -4994,7 +4994,7 @@ export default function App() {
                                   <h5 className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] uppercase">KATMAN DÜZENLEYİCİ</h5>
                                   <InfoTooltip text="Seçtiğiniz bu katmanın ekrandaki yerini (X ve Y konumları), genişlik/yükseklik boyutlarını, yazı tipini, boyutunu, rengini ve metin hiyerarşisi rollerini buradan detaylıca ayarlayabilirsiniz." />
                                 </div>
-                                <span className="text-[9px] bg-[#252528] dark:bg-[#252528]/60 border border-[rgba(255,255,255,0.08)] dark:border-[#6C5CE7]/50 text-[#6C5CE7] dark:text-[#6C5CE7] px-2.5 py-0.5 rounded-md font-extrabold font-mono">Dinamik</span>
+                                <span className="text-[9px] bg-[#252528] dark:bg-[#252528]/60 border border-[rgba(255,255,255,0.08)] dark:border-[#FF6B1A]/50 text-[#FF6B1A] dark:text-[#FF6B1A] px-2.5 py-0.5 rounded-md font-extrabold font-mono">Dinamik</span>
                               </div>
 
                               <div className="grid grid-cols-2 gap-3">
@@ -5004,7 +5004,7 @@ export default function App() {
                                     type="text"
                                     value={region.name}
                                     onChange={(e) => handleRegionPropertyChange(region.id, 'name', e.target.value)}
-                                    className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium focus:outline-none focus:border-[#6C5CE7]"
+                                    className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium focus:outline-none focus:border-[#FF6B1A]"
                                   />
                                 </div>
                                 <div>
@@ -5056,7 +5056,7 @@ export default function App() {
                                   <div>
                                     <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Konum X</span>
-                                      <span className="font-mono text-[#6C5CE7] font-bold">{region.x}px</span>
+                                      <span className="font-mono text-[#FF6B1A] font-bold">{region.x}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -5064,13 +5064,13 @@ export default function App() {
                                       max={currentTemplate.width}
                                       value={region.x}
                                       onChange={(e) => handleRegionPropertyChange(region.id, 'x', parseInt(e.target.value))}
-                                      className="w-full accent-[#6C5CE7] cursor-pointer"
+                                      className="w-full accent-[#FF6B1A] cursor-pointer"
                                     />
                                   </div>
                                   <div>
                                     <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Konum Y</span>
-                                      <span className="font-mono text-[#6C5CE7] font-bold">{region.y}px</span>
+                                      <span className="font-mono text-[#FF6B1A] font-bold">{region.y}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -5078,7 +5078,7 @@ export default function App() {
                                       max={currentTemplate.height}
                                       value={region.y}
                                       onChange={(e) => handleRegionPropertyChange(region.id, 'y', parseInt(e.target.value))}
-                                      className="w-full accent-[#6C5CE7] cursor-pointer"
+                                      className="w-full accent-[#FF6B1A] cursor-pointer"
                                     />
                                   </div>
                                 </div>
@@ -5087,7 +5087,7 @@ export default function App() {
                                   <div>
                                     <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Genişlik</span>
-                                      <span className="font-mono text-[#6C5CE7] font-bold">{region.width}px</span>
+                                      <span className="font-mono text-[#FF6B1A] font-bold">{region.width}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -5095,13 +5095,13 @@ export default function App() {
                                       max={currentTemplate.width}
                                       value={region.width}
                                       onChange={(e) => handleRegionPropertyChange(region.id, 'width', parseInt(e.target.value))}
-                                      className="w-full accent-[#6C5CE7] cursor-pointer"
+                                      className="w-full accent-[#FF6B1A] cursor-pointer"
                                     />
                                   </div>
                                   <div>
                                     <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Yükseklik</span>
-                                      <span className="font-mono text-[#6C5CE7] font-bold">{region.height}px</span>
+                                      <span className="font-mono text-[#FF6B1A] font-bold">{region.height}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -5109,7 +5109,7 @@ export default function App() {
                                       max={currentTemplate.height}
                                       value={region.height}
                                       onChange={(e) => handleRegionPropertyChange(region.id, 'height', parseInt(e.target.value))}
-                                      className="w-full accent-[#6C5CE7] cursor-pointer"
+                                      className="w-full accent-[#FF6B1A] cursor-pointer"
                                     />
                                   </div>
                                 </div>
@@ -5134,7 +5134,7 @@ export default function App() {
                                     <button
                                       type="button"
                                       onClick={() => centerSelectedLayer('both')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#252528] hover:bg-[#303033] border border-[#6C5CE7] text-[#6C5CE7] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
+                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#252528] hover:bg-[#303033] border border-[#FF6B1A] text-[#FF6B1A] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
                                     >
                                       <span>✛ Tam</span>
                                     </button>
@@ -5147,7 +5147,7 @@ export default function App() {
                                 <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Arka Plan (Dolgu) & Çerçeve</span>
 
                                 {region.type === 'text' && (
-                                  <div className="flex items-center justify-between bg-[#252528]/50 border border-[#6C5CE7] rounded-xl p-2.5">
+                                  <div className="flex items-center justify-between bg-[#252528]/50 border border-[#FF6B1A] rounded-xl p-2.5">
                                     <div className="space-y-0.5 pr-2">
                                       <span className="text-[11px] font-extrabold text-[rgba(255,255,255,0.95)] block">Metin Arka Planını Sığdır</span>
                                       <span className="text-[9px] text-[rgba(255,255,255,0.72)] block leading-tight font-medium">Arka planı başlık/metin uzunluğuna göre eş zamanlı uyarla.</span>
@@ -5159,7 +5159,7 @@ export default function App() {
                                         onChange={(e) => handleRegionPropertyChange(region.id, 'fitBackgroundToText', e.target.checked)}
                                         className="sr-only peer"
                                       />
-                                      <div className="w-8 h-4 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#6C5CE7] peer-checked:after:bg-[#252528]"></div>
+                                      <div className="w-8 h-4 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#FF6B1A] peer-checked:after:bg-[#252528]"></div>
                                     </label>
                                   </div>
                                 )}
@@ -5174,7 +5174,7 @@ export default function App() {
                                           onChange={(e) => handleRegionPropertyChange(region.id, 'hasBackground', e.target.checked)}
                                           className="sr-only peer"
                                         />
-                                        <div className="w-7 h-3.5 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[12px] peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-[#6C5CE7] peer-checked:after:bg-[#252528]"></div>
+                                        <div className="w-7 h-3.5 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[12px] peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-[#FF6B1A] peer-checked:after:bg-[#252528]"></div>
                                       </label>
                                     </div>
                                     <div className="flex space-x-1">
@@ -5205,13 +5205,13 @@ export default function App() {
                                           onChange={(e) => handleRegionPropertyChange(region.id, 'hasBorder', e.target.checked)}
                                           className="sr-only peer"
                                         />
-                                        <div className="w-7 h-3.5 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[12px] peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-[#6C5CE7] peer-checked:after:bg-[#252528]"></div>
+                                        <div className="w-7 h-3.5 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[12px] peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-[#FF6B1A] peer-checked:after:bg-[#252528]"></div>
                                       </label>
                                     </div>
                                     <div className="flex space-x-1">
                                       <input
                                         type="color"
-                                        value={region.borderColor?.startsWith('#') ? region.borderColor : '#6C5CE7'}
+                                        value={region.borderColor?.startsWith('#') ? region.borderColor : '#FF6B1A'}
                                         onChange={(e) => handleRegionPropertyChange(region.id, 'borderColor', e.target.value)}
                                         className="w-8 h-7 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer"
                                         disabled={region.hasBorder === false}
@@ -5373,7 +5373,7 @@ export default function App() {
                                           onClick={() => handleRegionTextStyleChange(region.id, 'align', 'left')}
                                           className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                             region.textStyle.align === 'left'
-                                              ? 'bg-[#252528] text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)]'
+                                              ? 'bg-[#252528] text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)]'
                                               : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
                                           }`}
                                           title="Sola Hizala"
@@ -5385,7 +5385,7 @@ export default function App() {
                                           onClick={() => handleRegionTextStyleChange(region.id, 'align', 'center')}
                                           className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                             region.textStyle.align === 'center'
-                                              ? 'bg-[#252528] text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)]'
+                                              ? 'bg-[#252528] text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)]'
                                               : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
                                           }`}
                                           title="Ortala"
@@ -5397,7 +5397,7 @@ export default function App() {
                                           onClick={() => handleRegionTextStyleChange(region.id, 'align', 'right')}
                                           className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                             region.textStyle.align === 'right'
-                                              ? 'bg-[#252528] text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)]'
+                                              ? 'bg-[#252528] text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)]'
                                               : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
                                           }`}
                                           title="Sağa Hizala"
@@ -5419,7 +5419,7 @@ export default function App() {
                                           onChange={(e) => handleRegionTextStyleChange(region.id, 'hasShadow', e.target.checked)}
                                           className="sr-only peer"
                                         />
-                                        <div className="w-8 h-4 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#6C5CE7] peer-checked:after:bg-[#252528]"></div>
+                                        <div className="w-8 h-4 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#FF6B1A] peer-checked:after:bg-[#252528]"></div>
                                       </label>
                                     </div>
                                     <div className={`space-y-3 ${region.textStyle.hasShadow === false ? "opacity-45 pointer-events-none transition-opacity duration-200" : "transition-opacity duration-200"}`}>
@@ -5498,7 +5498,7 @@ export default function App() {
                                     className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
                                     title="Bir Üste Çıkar"
                                   >
-                                    <ChevronUp className="w-3 h-3 text-[#6C5CE7]" />
+                                    <ChevronUp className="w-3 h-3 text-[#FF6B1A]" />
                                     <span>Öne</span>
                                   </button>
                                   <button
@@ -5506,7 +5506,7 @@ export default function App() {
                                     className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
                                     title="Bir Alta İndir"
                                   >
-                                    <ChevronDown className="w-3 h-3 text-[#6C5CE7]" />
+                                    <ChevronDown className="w-3 h-3 text-[#FF6B1A]" />
                                     <span>Arka</span>
                                   </button>
                                   <button
@@ -5787,7 +5787,7 @@ export default function App() {
                                             onClick={() => handleFixedElementTextStyleChange(fixed.id, 'align', 'left')}
                                             className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                               fixed.textStyle.align === 'left'
-                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#6C5CE7] dark:text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
+                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#FF6B1A] dark:text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
                                                 : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
                                             }`}
                                             title="Sola Hizala"
@@ -5799,7 +5799,7 @@ export default function App() {
                                             onClick={() => handleFixedElementTextStyleChange(fixed.id, 'align', 'center')}
                                             className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                               fixed.textStyle.align === 'center'
-                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#6C5CE7] dark:text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
+                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#FF6B1A] dark:text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
                                                 : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
                                             }`}
                                             title="Ortala"
@@ -5811,7 +5811,7 @@ export default function App() {
                                             onClick={() => handleFixedElementTextStyleChange(fixed.id, 'align', 'right')}
                                             className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                               fixed.textStyle.align === 'right'
-                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#6C5CE7] dark:text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
+                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#FF6B1A] dark:text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
                                                 : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
                                             }`}
                                             title="Sağa Hizala"
@@ -5886,7 +5886,7 @@ export default function App() {
                     <button
                       type="button"
                       onClick={() => setActiveTab('presets')}
-                      className="text-[10px] text-[#6C5CE7] dark:text-[#6C5CE7] hover:text-[#6C5CE7] dark:hover:text-[#6C5CE7] font-medium flex items-center space-x-0.5 cursor-pointer transition-colors"
+                      className="text-[10px] text-[#FF6B1A] dark:text-[#FF6B1A] hover:text-[#FF6B1A] dark:hover:text-[#FF6B1A] font-medium flex items-center space-x-0.5 cursor-pointer transition-colors"
                     >
                       <span>Tümünü Yönet ({templates.length})</span>
                       <ChevronRight className="w-3 h-3" />
@@ -5900,7 +5900,7 @@ export default function App() {
                 {/* Sihirbaz Modülü */}
                 <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-[24px] p-5 space-y-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] relative overflow-hidden">
                   <div className="flex items-center space-x-2">
-                    <div className="p-1.5 bg-[#252528] dark:bg-[#252528]/60 text-[#6C5CE7] dark:text-[#6C5CE7] rounded-[10px]">
+                    <div className="p-1.5 bg-[#252528] dark:bg-[#252528]/60 text-[#FF6B1A] dark:text-[#FF6B1A] rounded-[10px]">
                       <Sparkles className="w-4 h-4" />
                     </div>
                     <h3 className="text-sm font-semibold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] tracking-tight">Medya ve içerik</h3>
@@ -5911,7 +5911,7 @@ export default function App() {
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wide">Gönderiden kısaca bahset</span>
                       {currentTemplate.aiSystemPrompt && (
-                        <span className="text-[9px] text-[#6C5CE7] dark:text-[#6C5CE7] font-medium bg-[#252528] dark:bg-[#252528]/60 px-2 py-0.5 rounded-full">
+                        <span className="text-[9px] text-[#FF6B1A] dark:text-[#FF6B1A] font-medium bg-[#252528] dark:bg-[#252528]/60 px-2 py-0.5 rounded-full">
                           Kurumsal Dil Aktif
                         </span>
                       )}
@@ -5924,7 +5924,7 @@ export default function App() {
                         onChange={(e) => setAiCollageBrief(e.target.value)}
                         placeholder="Örn: 'Butiğim için yaz koleksiyonu, keten elbiseler', 'fiyat odaklı ve sıcak bir dil kullan' vb."
                         rows={2}
-                        className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)] rounded-[12px] px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-[#6C5CE7] focus:ring-4 focus:ring-[#6C5CE7]/10 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium resize-y transition-all placeholder:text-[rgba(255,255,255,0.72)] dark:placeholder:text-[rgba(255,255,255,0.72)]"
+                        className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)] rounded-[12px] px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-[#FF6B1A] focus:ring-4 focus:ring-[#FF6B1A]/10 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium resize-y transition-all placeholder:text-[rgba(255,255,255,0.72)] dark:placeholder:text-[rgba(255,255,255,0.72)]"
                       />
                     </div>
 
@@ -5948,7 +5948,7 @@ export default function App() {
                     onDrop={handleMultiDrop}
                     className={`rounded-[16px] p-6 text-center transition-all cursor-pointer relative overflow-hidden flex flex-col items-center justify-center space-y-1.5 ${
                       dragActive['multi-collage']
-                        ? 'bg-[#252528]/50 dark:bg-[#252528]/40 border-2 border-[#6C5CE7] dark:border-[#6C5CE7] scale-[1.01]'
+                        ? 'bg-[#252528]/50 dark:bg-[#252528]/40 border-2 border-[#FF6B1A] dark:border-[#FF6B1A] scale-[1.01]'
                         : 'bg-[#1D1D1F] dark:bg-[#252528] hover:bg-[#1D1D1F] dark:hover:bg-[#252528]/80 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] border-dashed'
                     }`}
                   >
@@ -6102,7 +6102,7 @@ export default function App() {
                             rows={3}
                             value={textVal}
                             onChange={(e) => updateActiveText(r.id, e.target.value)}
-                            className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] rounded-[14px] px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-[#6C5CE7] focus:ring-4 focus:ring-[#6C5CE7]/10 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium leading-relaxed resize-y transition-all"
+                            className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] rounded-[14px] px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-[#FF6B1A] focus:ring-4 focus:ring-[#FF6B1A]/10 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium leading-relaxed resize-y transition-all"
                             placeholder="Metninizi yazın..."
                           />
 
@@ -6214,7 +6214,7 @@ export default function App() {
                                   className={`px-3 py-1.5 rounded-[10px] text-[10px] font-bold border cursor-pointer text-center transition-all shadow-sm ${
                                     playingVideoRegionId === r.id
                                       ? 'bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30'
-                                      : 'bg-gradient-to-r from-[#6C5CE7] to-[#34C759] text-white border-transparent hover:opacity-90'
+                                      : 'bg-gradient-to-r from-[#FF6B1A] to-[#34C759] text-white border-transparent hover:opacity-90'
                                   }`}
                                 >
                                   {playingVideoRegionId === r.id ? 'Durdur' : '▶ Oynat'}
@@ -6246,7 +6246,7 @@ export default function App() {
                             onDrop={(e) => handleDrop(e, r.id)}
                             className={`rounded-[16px] p-6 text-center transition-all flex flex-col items-center justify-center space-y-2 ${
                               dragActive[r.id]
-                                ? 'bg-[#252528]/50 dark:bg-[#252528]/40 border-2 border-[#6C5CE7] dark:border-[#6C5CE7]'
+                                ? 'bg-[#252528]/50 dark:bg-[#252528]/40 border-2 border-[#FF6B1A] dark:border-[#FF6B1A]'
                                 : 'bg-[#1D1D1F] dark:bg-[#252528] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] border-dashed'
                             }`}
                           >
@@ -6283,7 +6283,7 @@ export default function App() {
                                     <button
                                       type="button"
                                       onClick={() => updateActiveImageProp(r.id, 'url', url)}
-                                      className="relative w-12 h-12 rounded-[10px] overflow-hidden border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] hover:border-[#6C5CE7] shrink-0 bg-[#1D1D1F] dark:bg-[#3A3A3C] cursor-pointer shadow-sm transition-all hover:scale-[1.03] active:scale-95 group"
+                                      className="relative w-12 h-12 rounded-[10px] overflow-hidden border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] hover:border-[#FF6B1A] shrink-0 bg-[#1D1D1F] dark:bg-[#3A3A3C] cursor-pointer shadow-sm transition-all hover:scale-[1.03] active:scale-95 group"
                                       title="Bu görseli buraya yerleştir"
                                     >
                                       <img src={url} alt={`Varlık ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -6317,10 +6317,10 @@ export default function App() {
                               ...prev,
                               [r.id]: !isExpanded
                             }))}
-                            className="w-full flex items-center justify-between py-1.5 text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] dark:hover:text-[#6C5CE7] cursor-pointer transition select-none"
+                            className="w-full flex items-center justify-between py-1.5 text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] dark:hover:text-[#FF6B1A] cursor-pointer transition select-none"
                           >
                             <div className="flex items-center space-x-1.5">
-                              <Sliders className="w-3.5 h-3.5 text-[#6C5CE7] dark:text-[#6C5CE7]" />
+                              <Sliders className="w-3.5 h-3.5 text-[#FF6B1A] dark:text-[#FF6B1A]" />
                               <span>İnce Ayarlar ve Hizalama</span>
                             </div>
                             <span className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-0'}`}>
@@ -6339,7 +6339,7 @@ export default function App() {
                                     updateActiveImageProp(r.id, 'offsetY', 0);
                                     updateActiveImageProp(r.id, 'rotation', 0);
                                   }}
-                                  className="text-[#6C5CE7] hover:text-[#6C5CE7] font-bold flex items-center space-x-1 transition"
+                                  className="text-[#FF6B1A] hover:text-[#FF6B1A] font-bold flex items-center space-x-1 transition"
                                 >
                                   <RotateCcw className="w-3 h-3" />
                                   <span>Pozisyonu Sıfırla</span>
@@ -6360,7 +6360,7 @@ export default function App() {
                                 className={`w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center space-x-2 border transition cursor-pointer ${
                                   editingImageRegionId === r.id
                                     ? 'bg-[#34C759] border-[#34C759] text-[rgba(255,255,255,0.95)] shadow-lg shadow-[rgba(52,199,89,0.2)] dark:shadow-[rgba(52,199,89,0.2)]/30'
-                                    : 'bg-[#252528] dark:bg-[#2C2C2E]/20 border-[#6C5CE7] dark:border-[#6C5CE7]/50 hover:bg-[#303033] dark:hover:bg-[#2C2C2E]/40 text-[#6C5CE7] dark:text-[#6C5CE7]'
+                                    : 'bg-[#252528] dark:bg-[#2C2C2E]/20 border-[#FF6B1A] dark:border-[#FF6B1A]/50 hover:bg-[#303033] dark:hover:bg-[#2C2C2E]/40 text-[#FF6B1A] dark:text-[#FF6B1A]'
                                 }`}
                               >
                                 <MousePointer className={`w-3.5 h-3.5 ${editingImageRegionId === r.id ? 'animate-pulse' : ''}`} />
@@ -6382,7 +6382,7 @@ export default function App() {
                                   }}
                                   className={`px-2.5 py-1 rounded text-[10px] font-extrabold border transition cursor-pointer shrink-0 ${
                                     r.clipImage !== false
-                                      ? 'bg-[#252528] dark:bg-[#2C2C2E]/30 border-[#6C5CE7] dark:border-[#6C5CE7]/50 text-[#6C5CE7] dark:text-[#6C5CE7]'
+                                      ? 'bg-[#252528] dark:bg-[#2C2C2E]/30 border-[#FF6B1A] dark:border-[#FF6B1A]/50 text-[#FF6B1A] dark:text-[#FF6B1A]'
                                       : 'bg-[#252528] dark:bg-[#252528]/30 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 text-[#34C759] dark:text-[#34C759]'
                                   }`}
                                 >
@@ -6394,7 +6394,7 @@ export default function App() {
                               <div>
                                 <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
                                   <span>Ölçek (Yakınlaştır / Uzaklaştır)</span>
-                                  <span className="font-mono text-[#6C5CE7] dark:text-[#6C5CE7] font-bold">{(imgData.scale || 1.0).toFixed(2)}x</span>
+                                  <span className="font-mono text-[#FF6B1A] dark:text-[#FF6B1A] font-bold">{(imgData.scale || 1.0).toFixed(2)}x</span>
                                 </div>
                                 <input
                                   type="range"
@@ -6403,7 +6403,7 @@ export default function App() {
                                   step={0.05}
                                   value={imgData.scale || 1.0}
                                   onChange={(e) => updateActiveImageProp(r.id, 'scale', parseFloat(e.target.value))}
-                                  className="w-full accent-[#6C5CE7] dark:accent-[#6C5CE7] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
+                                  className="w-full accent-[#FF6B1A] dark:accent-[#FF6B1A] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
                                 />
                               </div>
 
@@ -6411,7 +6411,7 @@ export default function App() {
                               <div>
                                 <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
                                   <span>Yatay Kaydırma (Sol - Sağ)</span>
-                                  <span className="font-mono text-[#6C5CE7] dark:text-[#6C5CE7] font-bold">{imgData.offsetX}px</span>
+                                  <span className="font-mono text-[#FF6B1A] dark:text-[#FF6B1A] font-bold">{imgData.offsetX}px</span>
                                 </div>
                                 <input
                                   type="range"
@@ -6419,7 +6419,7 @@ export default function App() {
                                   max={1000}
                                   value={imgData.offsetX}
                                   onChange={(e) => updateActiveImageProp(r.id, 'offsetX', parseInt(e.target.value))}
-                                  className="w-full accent-[#6C5CE7] dark:accent-[#6C5CE7] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
+                                  className="w-full accent-[#FF6B1A] dark:accent-[#FF6B1A] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
                                 />
                               </div>
 
@@ -6427,7 +6427,7 @@ export default function App() {
                               <div>
                                 <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
                                   <span>Dikey Kaydırma (Yukarı - Aşağı)</span>
-                                  <span className="font-mono text-[#6C5CE7] dark:text-[#6C5CE7] font-bold">{imgData.offsetY}px</span>
+                                  <span className="font-mono text-[#FF6B1A] dark:text-[#FF6B1A] font-bold">{imgData.offsetY}px</span>
                                 </div>
                                 <input
                                   type="range"
@@ -6435,7 +6435,7 @@ export default function App() {
                                   max={1000}
                                   value={imgData.offsetY}
                                   onChange={(e) => updateActiveImageProp(r.id, 'offsetY', parseInt(e.target.value))}
-                                  className="w-full accent-[#6C5CE7] dark:accent-[#6C5CE7] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
+                                  className="w-full accent-[#FF6B1A] dark:accent-[#FF6B1A] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
                                 />
                               </div>
 
@@ -6443,7 +6443,7 @@ export default function App() {
                               <div>
                                 <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
                                   <span>Döndür (Açı)</span>
-                                  <span className="font-mono text-[#6C5CE7] dark:text-[#6C5CE7] font-bold">{imgData.rotation}°</span>
+                                  <span className="font-mono text-[#FF6B1A] dark:text-[#FF6B1A] font-bold">{imgData.rotation}°</span>
                                 </div>
                                 <input
                                   type="range"
@@ -6451,7 +6451,7 @@ export default function App() {
                                   max={180}
                                   value={imgData.rotation}
                                   onChange={(e) => updateActiveImageProp(r.id, 'rotation', parseInt(e.target.value))}
-                                  className="w-full accent-[#6C5CE7] dark:accent-[#6C5CE7] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
+                                  className="w-full accent-[#FF6B1A] dark:accent-[#FF6B1A] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
                                 />
                               </div>
                             </div>
@@ -6472,7 +6472,7 @@ export default function App() {
           {/* Top Info Bar */}
           <div className="w-full max-w-2xl clay-card dark:bg-[#252528] dark:border-[rgba(255,255,255,0.08)] px-4 py-2 mb-4 flex items-center justify-between text-xs font-semibold z-10 shrink-0 border-0">
             <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 bg-[#6C5CE7] dark:bg-[#6C5CE7] rounded-full animate-pulse" />
+              <span className="w-2 h-2 bg-[#FF6B1A] dark:bg-[#FF6B1A] rounded-full animate-pulse" />
               <span className="text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-bold">Önizleme</span>
               <span className="text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]">|</span>
               <span className="text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold font-mono">{currentTemplate.width} × {currentTemplate.height} px</span>
@@ -6487,7 +6487,7 @@ export default function App() {
                 className="clay-btn flex items-center space-x-1 px-2 py-1 sm:px-2.5 sm:py-1 transition cursor-pointer font-bold text-[11px] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.72)] disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Geri Al (Ctrl+Z)"
               >
-                <Undo2 className="w-3.5 h-3.5 text-[#6C5CE7] dark:text-[#6C5CE7]" />
+                <Undo2 className="w-3.5 h-3.5 text-[#FF6B1A] dark:text-[#FF6B1A]" />
                 <span className="hidden xs:inline">Geri Al</span>
               </button>
 
@@ -6499,7 +6499,7 @@ export default function App() {
                 className="clay-btn flex items-center space-x-1 px-2 py-1 sm:px-2.5 sm:py-1 transition cursor-pointer font-bold text-[11px] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.72)] disabled:opacity-40 disabled:cursor-not-allowed"
                 title="İleri Al (Ctrl+Y)"
               >
-                <Redo2 className="w-3.5 h-3.5 text-[#6C5CE7] dark:text-[#6C5CE7]" />
+                <Redo2 className="w-3.5 h-3.5 text-[#FF6B1A] dark:text-[#FF6B1A]" />
                 <span className="hidden xs:inline">İleri Al</span>
               </button>
 
@@ -6509,11 +6509,11 @@ export default function App() {
               <button
                 onClick={() => setShowGrid(!showGrid)}
                 className={`flex items-center space-x-1.5 px-2 py-1 sm:px-3 sm:py-1 rounded-lg transition cursor-pointer font-bold text-[11px] shadow-sm ${
-                  showGrid ? 'bg-[#252528] dark:bg-[#252528]/60 border border-[#6C5CE7] dark:border-[#6C5CE7]/50 text-[#6C5CE7] dark:text-[#6C5CE7]' : 'bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)]'
+                  showGrid ? 'bg-[#252528] dark:bg-[#252528]/60 border border-[#FF6B1A] dark:border-[#FF6B1A]/50 text-[#FF6B1A] dark:text-[#FF6B1A]' : 'bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)]'
                 }`}
                 title="Kılavuz Çizgileri"
               >
-                <Grid className="w-3.5 h-3.5 text-[#6C5CE7]" />
+                <Grid className="w-3.5 h-3.5 text-[#FF6B1A]" />
                 <span className="hidden xs:inline">Kılavuz</span>
               </button>
 
@@ -6521,11 +6521,11 @@ export default function App() {
               <button
                 onClick={() => setShowSafeMargins(!showSafeMargins)}
                 className={`flex items-center space-x-1.5 px-2 py-1 sm:px-3 sm:py-1 rounded-lg transition cursor-pointer font-bold text-[11px] shadow-sm ${
-                  showSafeMargins ? 'bg-[#252528] dark:bg-[#252528]/60 border border-[#6C5CE7] dark:border-[#6C5CE7]/50 text-[#6C5CE7] dark:text-[#6C5CE7]' : 'bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)]'
+                  showSafeMargins ? 'bg-[#252528] dark:bg-[#252528]/60 border border-[#FF6B1A] dark:border-[#FF6B1A]/50 text-[#FF6B1A] dark:text-[#FF6B1A]' : 'bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)]'
                 }`}
                 title="Güvenli Baskı Alanı"
               >
-                <Info className="w-3.5 h-3.5 text-[#6C5CE7]" />
+                <Info className="w-3.5 h-3.5 text-[#FF6B1A]" />
                 <span className="hidden xs:inline">Güvenli Alan</span>
               </button>
             </div>
@@ -6571,7 +6571,7 @@ export default function App() {
                     {/* Header with Page Info */}
                     <div className="flex items-center justify-between w-full px-2">
                       <span className="text-[11px] font-extrabold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider flex items-center space-x-1">
-                        <span className="w-2 h-2 rounded-full bg-[#6C5CE7] dark:bg-[#6C5CE7] animate-pulse"></span>
+                        <span className="w-2 h-2 rounded-full bg-[#FF6B1A] dark:bg-[#FF6B1A] animate-pulse"></span>
                         <span>{idx + 1}. Sayfa: {page.name || 'İsimsiz Sayfa'}</span>
                       </span>
                       {isActive && (
@@ -6590,14 +6590,14 @@ export default function App() {
                                 className={`text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center space-x-1 transition-all duration-200 cursor-pointer ${
                                   playingVideoRegionId === p1VideoReg.id
                                     ? 'bg-red-500 hover:bg-red-600 text-white'
-                                    : 'bg-gradient-to-r from-[#6C5CE7] to-[#34C759] hover:opacity-90 text-white shadow'
+                                    : 'bg-gradient-to-r from-[#FF6B1A] to-[#34C759] hover:opacity-90 text-white shadow'
                                 }`}
                               >
                                 <span>{playingVideoRegionId === p1VideoReg.id ? '⏸ Durdur' : '▶ Videoyu Oynat'}</span>
                               </button>
                             );
                           })()}
-                          <span className="text-[10px] bg-[#6C5CE7] text-[rgba(255,255,255,0.95)] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                          <span className="text-[10px] bg-[#FF6B1A] text-[rgba(255,255,255,0.95)] font-bold px-2 py-0.5 rounded-full shadow-sm">
                             Aktif Düzenleme
                           </span>
                         </div>
@@ -6608,7 +6608,7 @@ export default function App() {
                     <div 
                       className={`relative w-full p-1 bg-[#252528] dark:bg-[#252528]/50 border rounded-[16px] transition duration-200 ${
                         isActive 
-                          ? 'border-[#6C5CE7] ring-4 ring-[#6C5CE7] dark:ring-[#6C5CE7]/30 shadow-[0_30px_60px_-15px_rgba(67,56,202,0.15)] dark:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)]' 
+                          ? 'border-[#FF6B1A] ring-4 ring-[#FF6B1A] dark:ring-[#FF6B1A]/30 shadow-[0_30px_60px_-15px_rgba(67,56,202,0.15)] dark:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)]' 
                           : 'border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08),0_4px_8px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.12),0_10px_20px_-8px_rgba(0,0,0,0.06)]'
                       }`}
                       style={{ aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}` }}
@@ -6704,7 +6704,7 @@ export default function App() {
                                   className={`text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center space-x-1 transition-all duration-200 cursor-pointer ${
                                     playingVideoRegionId === p2VideoReg.id
                                       ? 'bg-red-500 hover:bg-red-600 text-white'
-                                      : 'bg-gradient-to-r from-[#6C5CE7] to-[#34C759] hover:opacity-90 text-white shadow'
+                                      : 'bg-gradient-to-r from-[#FF6B1A] to-[#34C759] hover:opacity-90 text-white shadow'
                                   }`}
                                 >
                                   <span>{playingVideoRegionId === p2VideoReg.id ? '⏸ Durdur' : '▶ Videoyu Oynat'}</span>
@@ -6848,7 +6848,7 @@ export default function App() {
               }}
               className={`p-1.5 rounded-full transition cursor-pointer ${
                 zoomMode === 'fit'
-                  ? 'bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#6C5CE7] dark:text-[#6C5CE7] font-bold'
+                  ? 'bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#FF6B1A] dark:text-[#FF6B1A] font-bold'
                   : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:bg-[#252528] dark:hover:bg-[#2C2C2E] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
               }`}
               title="Ekrana Sığdır"
@@ -6872,7 +6872,7 @@ export default function App() {
               <div className="flex items-center justify-between">
                 <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider block">SAYFALAR</span>
                 {generatedPages.length > 0 && (
-                  <span className="text-[9.5px] font-extrabold text-[#6C5CE7] dark:text-[#6C5CE7] bg-[#252528] dark:bg-[#2C2C2E]/30 px-2 py-0.5 rounded-full">
+                  <span className="text-[9.5px] font-extrabold text-[#FF6B1A] dark:text-[#FF6B1A] bg-[#252528] dark:bg-[#2C2C2E]/30 px-2 py-0.5 rounded-full">
                     {generatedPages.length} Sayfa Hazır
                   </span>
                 )}
@@ -6901,7 +6901,7 @@ export default function App() {
                         }}
                         className={`group p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between relative overflow-hidden ${
                           isActive
-                            ? 'bg-[#252528]/50 dark:bg-[#252528]/60 border-[#6C5CE7] dark:border-[#6C5CE7]/50 shadow-sm ring-1 ring-[#6C5CE7] dark:ring-[#6C5CE7]/50'
+                            ? 'bg-[#252528]/50 dark:bg-[#252528]/60 border-[#FF6B1A] dark:border-[#FF6B1A]/50 shadow-sm ring-1 ring-[#FF6B1A] dark:ring-[#FF6B1A]/50'
                             : 'bg-[#1D1D1F]/50 dark:bg-[#1D1D1F] border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)] hover:bg-[#252528]/50 dark:hover:bg-[#3A3A3C]/50 hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)]'
                         }`}
                       >
@@ -6909,7 +6909,7 @@ export default function App() {
                           {/* Mini Number Badge */}
                           <div className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 shadow-sm transition-colors ${
                             isActive
-                              ? 'bg-[#6C5CE7] dark:bg-[#6C5CE7] text-[rgba(255,255,255,0.95)]'
+                              ? 'bg-[#FF6B1A] dark:bg-[#FF6B1A] text-[rgba(255,255,255,0.95)]'
                               : 'bg-[#2C2C2E] dark:bg-[#3A3A3C] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)]'
                           }`}>
                             {idx + 1}
@@ -6944,7 +6944,7 @@ export default function App() {
                               // Directly call the single high-res exporter
                               exportSingleHighResPage(page, idx);
                             }}
-                            className="p-1.5 rounded-lg bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:text-[#6C5CE7] dark:hover:text-[#6C5CE7] hover:border-[#6C5CE7] dark:hover:border-[#6C5CE7]/50 hover:bg-[#252528]/50 dark:hover:bg-[#252528]/60 transition cursor-pointer shadow-sm group-hover:scale-105"
+                            className="p-1.5 rounded-lg bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:text-[#FF6B1A] dark:hover:text-[#FF6B1A] hover:border-[#FF6B1A] dark:hover:border-[#FF6B1A]/50 hover:bg-[#252528]/50 dark:hover:bg-[#252528]/60 transition cursor-pointer shadow-sm group-hover:scale-105"
                             title="Sadece bu sayfayı yüksek çözünürlükte indir"
                           >
                             <Download className="w-3.5 h-3.5" />
@@ -6976,7 +6976,7 @@ export default function App() {
                   onClick={() => setExportFormat('png')}
                   className={`py-2 rounded-[12px] text-xs font-medium border transition-all cursor-pointer ${
                     exportFormat === 'png'
-                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 text-[#6C5CE7] dark:text-[#6C5CE7]'
+                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 text-[#FF6B1A] dark:text-[#FF6B1A]'
                       : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80'
                   }`}
                 >
@@ -6986,7 +6986,7 @@ export default function App() {
                   onClick={() => setExportFormat('jpeg')}
                   className={`py-2 rounded-[12px] text-xs font-medium border transition-all cursor-pointer ${
                     exportFormat === 'jpeg'
-                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 text-[#6C5CE7] dark:text-[#6C5CE7]'
+                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 text-[#FF6B1A] dark:text-[#FF6B1A]'
                       : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80'
                   }`}
                 >
@@ -7013,7 +7013,7 @@ export default function App() {
                       onClick={() => setExportScale(sc.val)}
                       className={`py-1.5 rounded-[10px] text-[10px] border transition-all cursor-pointer ${
                         exportScale === sc.val
-                          ? 'bg-[#252528] border-[rgba(255,255,255,0.08)] dark:bg-[#6C5CE7] dark:border-[#6C5CE7] text-[rgba(255,255,255,0.95)] font-medium'
+                          ? 'bg-[#252528] border-[rgba(255,255,255,0.08)] dark:bg-[#FF6B1A] dark:border-[#FF6B1A] text-[rgba(255,255,255,0.95)] font-medium'
                           : 'bg-[#1D1D1F] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80'
                       }`}
                     >
@@ -7029,7 +7029,7 @@ export default function App() {
               <button
                 onClick={exportHighResGraphic}
                 disabled={isExporting || isExportingZip}
-                className="w-full flex items-center justify-center space-x-2 py-3 rounded-[14px] bg-[#1D1D1F] hover:bg-[#252528] dark:bg-[#6C5CE7] dark:hover:bg-[#6C5CE7] text-[rgba(255,255,255,0.95)] text-[13px] font-medium shadow-[0_4px_14px_rgba(0,0,0,0.1)] dark:shadow-[rgba(108,92,231,0.2)]/20 transition-all cursor-pointer disabled:opacity-50"
+                className="w-full flex items-center justify-center space-x-2 py-3 rounded-[14px] bg-[#1D1D1F] hover:bg-[#252528] dark:bg-[#FF6B1A] dark:hover:bg-[#FF6B1A] text-[rgba(255,255,255,0.95)] text-[13px] font-medium shadow-[0_4px_14px_rgba(0,0,0,0.1)] dark:shadow-[rgba(255,107,26,0.2)]/20 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isExporting ? (
                   <>
@@ -7084,7 +7084,7 @@ export default function App() {
         {/* Floating Export Progress Toast */}
         {(isExporting || isExportingZip) && exportStatusText && (
           <div className="fixed bottom-6 right-6 z-50 bg-[#1D1D1F]/95 backdrop-blur-md border border-white/20 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center space-x-3.5 max-w-md animate-fade-in pointer-events-none">
-            <div className="w-5 h-5 rounded-full border-2 border-[#6C5CE7] border-t-transparent animate-spin shrink-0" />
+            <div className="w-5 h-5 rounded-full border-2 border-[#FF6B1A] border-t-transparent animate-spin shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-bold text-white truncate">Dışa Aktarılıyor...</p>
               <p className="text-[11px] text-white/80 mt-0.5">{exportStatusText}</p>
@@ -7099,7 +7099,7 @@ export default function App() {
         <button
           onClick={() => setMobileView('editor')}
           className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
-            mobileView === 'editor' ? 'text-[#6C5CE7] font-bold bg-[#6C5CE7]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
+            mobileView === 'editor' ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
           }`}
         >
           <Sliders className="w-4 h-4" />
@@ -7109,7 +7109,7 @@ export default function App() {
         <button
           onClick={() => setMobileView('canvas')}
           className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
-            mobileView === 'canvas' ? 'text-[#6C5CE7] font-bold bg-[#6C5CE7]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
+            mobileView === 'canvas' ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
           }`}
         >
           <Sparkles className="w-4 h-4" />
@@ -7119,7 +7119,7 @@ export default function App() {
         <button
           onClick={() => setMobileView('export')}
           className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
-            mobileView === 'export' ? 'text-[#6C5CE7] font-bold bg-[#6C5CE7]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
+            mobileView === 'export' ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
           }`}
         >
           <Download className="w-4 h-4" />
@@ -7152,7 +7152,7 @@ export default function App() {
                       <HelpCircle className="w-4 h-4" />
                     </span>
                   ) : confirmDialog.type === 'info' ? (
-                    <span className="p-1.5 bg-[#6C5CE7]/10 text-[#6C5CE7] rounded-lg">
+                    <span className="p-1.5 bg-[#FF6B1A]/10 text-[#FF6B1A] rounded-lg">
                       <Info className="w-4 h-4" />
                     </span>
                   ) : (
@@ -7184,7 +7184,7 @@ export default function App() {
                     confirmDialog.type === 'warning'
                       ? 'bg-[#FF9F0A] hover:bg-[#FF9F0A]'
                       : confirmDialog.type === 'info'
-                      ? 'bg-[#6C5CE7] hover:bg-[#6C5CE7]'
+                      ? 'bg-[#FF6B1A] hover:bg-[#FF6B1A]'
                       : 'bg-[#FF453A] hover:bg-[#FF453A]'
                   }`}
                 >
@@ -7208,7 +7208,7 @@ export default function App() {
             >
               <div className="flex justify-between items-start border-b border-[rgba(255,255,255,0.08)]/50 dark:border-[rgba(255,255,255,0.08)] pb-4 mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-[#6C5CE7]/10 text-[#6C5CE7] dark:text-[#6C5CE7] rounded-xl">
+                  <div className="p-2 bg-[#FF6B1A]/10 text-[#FF6B1A] dark:text-[#FF6B1A] rounded-xl">
                     <Smartphone className="w-5 h-5" />
                   </div>
                   <div>
@@ -7230,10 +7230,10 @@ export default function App() {
               </div>
 
               {/* IOS SAVE INSTRUCTION ALERT */}
-              <div className="bg-gradient-to-r from-[#252528] to-[#1D1D1F] border border-[#6C5CE7]/20 rounded-xl p-4 mb-4 text-xs space-y-2 leading-relaxed text-left">
-                <span className="font-bold text-[#6C5CE7] block uppercase tracking-wider text-[10px]">⚠️ Albüme Fotoğraf Olarak Kaydetme Adımları:</span>
+              <div className="bg-gradient-to-r from-[#252528] to-[#1D1D1F] border border-[#FF6B1A]/20 rounded-xl p-4 mb-4 text-xs space-y-2 leading-relaxed text-left">
+                <span className="font-bold text-[#FF6B1A] block uppercase tracking-wider text-[10px]">⚠️ Albüme Fotoğraf Olarak Kaydetme Adımları:</span>
                 <ol className="list-decimal list-inside space-y-1.5 text-[rgba(255,255,255,0.72)]">
-                  <li>Aşağıdaki görsellerden kaydetmek istediğinizin üzerine <strong className="text-[rgba(255,255,255,0.95)] bg-[#6C5CE7]/20 px-1 py-0.5 rounded">basılı tutun (uzun basın)</strong>.</li>
+                  <li>Aşağıdaki görsellerden kaydetmek istediğinizin üzerine <strong className="text-[rgba(255,255,255,0.95)] bg-[#FF6B1A]/20 px-1 py-0.5 rounded">basılı tutun (uzun basın)</strong>.</li>
                   <li>Açılan menüden <strong className="text-[rgba(255,255,255,0.95)]">"Fotoğraflara Ekle"</strong> veya <strong className="text-[rgba(255,255,255,0.95)]">"Görüntüyü Kaydet"</strong> seçeneğini seçin.</li>
                   <li>Görsel anında telefonunuzun fotoğraf albümüne eklenecektir. Her sayfa için bu işlemi tekrarlayın.</li>
                 </ol>
@@ -7256,7 +7256,7 @@ export default function App() {
                       />
                       <div className="absolute inset-0 bg-black/45 opacity-100 flex items-center justify-center transition pointer-events-none">
                         <span className="text-[10px] text-[rgba(255,255,255,0.95)] font-extrabold bg-[#1D1D1F]/80 px-2 py-1 rounded-full border border-[rgba(255,255,255,0.08)]/80 flex items-center space-x-1.5">
-                          <Smartphone className="w-3 h-3 text-[#6C5CE7] animate-pulse" />
+                          <Smartphone className="w-3 h-3 text-[#FF6B1A] animate-pulse" />
                           <span>Görsele Basılı Tutun</span>
                         </span>
                       </div>
@@ -7269,7 +7269,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIosExportImages(null)}
-                  className="px-5 py-2 rounded-xl bg-[#6C5CE7] hover:bg-[#6C5CE7] text-[rgba(255,255,255,0.95)] text-xs font-extrabold cursor-pointer transition shadow-lg shadow-[rgba(108,92,231,0.2)]/10"
+                  className="px-5 py-2 rounded-xl bg-[#FF6B1A] hover:bg-[#FF6B1A] text-[rgba(255,255,255,0.95)] text-xs font-extrabold cursor-pointer transition shadow-lg shadow-[rgba(255,107,26,0.2)]/10"
                 >
                   Tamam, Kapat
                 </button>

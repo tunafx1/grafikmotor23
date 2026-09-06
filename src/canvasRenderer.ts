@@ -581,7 +581,7 @@ async function renderTemplateFrame(
               ctx.drawImage(img, -finalDrawWidth / 2, -finalDrawHeight / 2, finalDrawWidth, finalDrawHeight);
               
               // Draw dashed outline around the entire unclipped image bounds
-              ctx.strokeStyle = options?.highlightColor || '#6C5CE7';
+              ctx.strokeStyle = options?.highlightColor || '#FF6B1A';
               ctx.lineWidth = 1.5;
               ctx.setLineDash([4, 4]);
               ctx.strokeRect(-finalDrawWidth / 2, -finalDrawHeight / 2, finalDrawWidth, finalDrawHeight);
@@ -648,8 +648,8 @@ async function renderTemplateFrame(
         if (!textStyleCopy.isCustomColor) {
           if (textStyleCopy.color === '#0F172A' || textStyleCopy.color === '#000000' || textStyleCopy.color === '#111827' || textStyleCopy.color === 'rgba(255,255,255,0.95)') {
             textStyleCopy.color = textColor;
-          } else if (textStyleCopy.color === '#6C5CE7' || textStyleCopy.color === '#6C5CE7') {
-            textStyleCopy.color = primaryColor || '#6C5CE7';
+          } else if (textStyleCopy.color === '#6C5CE7' || textStyleCopy.color === '#FF6B1A') {
+            textStyleCopy.color = primaryColor || '#FF6B1A';
           }
         }
 
@@ -815,7 +815,7 @@ async function renderTemplateFrame(
     ctx.save();
     ctx.scale(scale, scale);
 
-    const activeHighlight = options?.highlightColor || '#6C5CE7';
+    const activeHighlight = options?.highlightColor || '#FF6B1A';
 
     // Draw outline and handles ONLY for the currently selected region
     for (const reg of template.regions) {
@@ -897,10 +897,10 @@ async function renderTemplateFrame(
   if (options?.showGrid) {
     ctx.save();
     ctx.scale(scale, scale);
-    const activeHighlight = options?.paletteOverrides?.accent || '#6C5CE7';
+    const activeHighlight = options?.paletteOverrides?.accent || '#FF6B1A';
     ctx.strokeStyle = activeHighlight.startsWith('#') 
       ? `${activeHighlight}26` // Hex transparency 15%
-      : 'rgba(79, 70, 229, 0.15)';
+      : 'rgba(255, 107, 26, 0.15)';
     ctx.lineWidth = 1;
 
     // Draw grid lines

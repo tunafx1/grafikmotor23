@@ -4,14 +4,14 @@
   "description": "Kullanıcı tanımlı şablonlarla otomatik, yüksek çözünürlüklü ve özelleştirilebilir grafik tasarım üretim platformu.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ea580c",
-  "theme_color": "#ea580c",
+  "background_color": "#FF6B1A",
+  "theme_color": "#FF6B1A",
   "orientation": "any",
   "icons": [
     {
-      "src": "/logo.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/grafik_motoru_icon_512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any"
     }
   ]

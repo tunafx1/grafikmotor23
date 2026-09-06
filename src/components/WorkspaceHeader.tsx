@@ -1,4 +1,4 @@
-import { Layers, ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, LogOut, Check, Loader2, HardDrive } from 'lucide-react';
+import { ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, LogOut, Check, Loader2, HardDrive } from 'lucide-react';
 
 type Props = {
   templateName: string; isDark: boolean; onTheme: () => void;
@@ -9,7 +9,12 @@ type Props = {
 
 export function WorkspaceHeader(p: Props) {
   return <header id="app-header" className="workspace-header">
-    <div className="workspace-brand"><div className="workspace-mark"><Layers size={22}/></div><span>grafik<span className="brand-light">motoru</span><small>TASARIM STÜDYOSU</small></span></div>
+    <div className="workspace-brand">
+      <div className="workspace-mark">
+        <img src="/grafik_motoru_icon_512.png" alt="Grafik Motoru" className="workspace-logo-img" />
+      </div>
+      <span>grafik<span className="brand-light">motoru</span><small>TASARIM STÜDYOSU</small></span>
+    </div>
     <div className="workspace-breadcrumb"><span>Çalışmalarım</span><ChevronRight size={14}/><strong title={p.templateName}>{p.templateName}</strong></div>
     <div className="workspace-header-actions">
       <span className="workspace-save-status" role="status">

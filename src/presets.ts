@@ -8,11 +8,11 @@ export const TEMPLATE_PRESETS: DesignTemplate[] = [
     height: 1080,
     backgroundColor: '#111113',
     palette: {
-      primary: '#6C5CE7',
-      accent: '#FF9F0A',
+      primary: '#FF6B1A',
+      accent: '#FFA26B',
       text: 'rgba(255,255,255,0.95)',
       bg: '#111113',
-      boldHighlight: '#FF9F0A'
+      boldHighlight: '#FFA26B'
     },
     regions: [
       {
@@ -23,9 +23,9 @@ export const TEMPLATE_PRESETS: DesignTemplate[] = [
         y: 80,
         width: 320,
         height: 50,
-        backgroundColor: 'rgba(108, 92, 231, 0.15)',
+        backgroundColor: 'rgba(255, 107, 26, 0.15)',
         opacity: 1,
-        borderColor: '#6C5CE7',
+        borderColor: '#FF6B1A',
         borderWidth: 1,
         borderRadius: 25,
         isDynamic: true,
@@ -34,7 +34,7 @@ export const TEMPLATE_PRESETS: DesignTemplate[] = [
         textStyle: {
           fontFamily: 'Inter',
           fontSize: 16,
-          color: '#6C5CE7',
+          color: '#FF6B1A',
           fontWeight: 'bold',
           lineHeight: 1.2,
           align: 'center',

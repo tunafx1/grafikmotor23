@@ -175,7 +175,7 @@ export async function getCloudTemplates(): Promise<DesignTemplate[]> {
       const pages = Array.isArray(data.pages) ? data.pages.map(mapTemplatePage) : null;
 
       const palette = data.palette || {
-        primary: data.primaryColor || '#6C5CE7',
+        primary: data.primaryColor || '#FF6B1A',
         accent: data.accentColor || '#FF9F0A',
         text: data.textColor || 'rgba(255,255,255,0.95)',
         bg: '#1D1D1F'
@@ -232,13 +232,13 @@ export async function saveCloudTemplate(template: DesignTemplate): Promise<void>
       pages: Array.isArray(template.pages) ? template.pages.map(mapTemplatePage) : null,
       aiSystemPrompt: template.aiSystemPrompt || null,
       palette: {
-        primary: template.palette.primary || '#6C5CE7',
+        primary: template.palette.primary || '#FF6B1A',
         accent: template.palette.accent || '#FF9F0A',
         text: template.palette.text || 'rgba(255,255,255,0.95)',
         bg: template.palette.bg || '#1D1D1F',
         boldHighlight: template.palette.boldHighlight || null
       },
-      primaryColor: template.palette.primary || '#6C5CE7',
+      primaryColor: template.palette.primary || '#FF6B1A',
       accentColor: template.palette.accent || '#FF9F0A',
       textColor: template.palette.text || 'rgba(255,255,255,0.95)',
       userId: user.uid,
