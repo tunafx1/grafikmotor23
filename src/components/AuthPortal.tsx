@@ -706,7 +706,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                     {tab === 'login' && (
                       <form onSubmit={handleLoginSubmit} className="ap-form">
                         <div className="ap-input-group">
-                          <label htmlFor="login-email">E-posta Adresi veya Kullanıcı Adı</label>
+                          <label htmlFor="login-email">E-posta Adresi</label>
                           <div className="ap-input-field">
                             <input 
                               id="login-email"
