@@ -1,3 +1,5 @@
+import { createExportAsset, safeFileName } from './utils/exportAssets';
+import { storeVideo, getVideoUrl, replaceVideoUrls } from './lib/mediaStore';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -54,26 +56,44 @@ import {
   Lock,
   Unlock,
   Smartphone,
-  RefreshCw
+  RefreshCw,
+  Moon,
+  Sun,
+  Wrench,
+  Video,
+  Music,
+  ExternalLink,
+  Film,
+  Copy,
+  Play,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
-import JSZip from 'jszip';
+// JSZip is dynamically imported when needed for better performance
 
-import { DesignTemplate, TextStyle, Region, FixedElement, GraphicData, TemplatePage } from './types';
+import { DesignTemplate, TextStyle, Region, FixedElement, GraphicData, TemplatePage, SequenceMediaItem } from './types';
 import { TEMPLATE_PRESETS } from './presets';
 import { renderTemplateToCanvas } from './canvasRenderer';
+import { isMediaVideo, extractVideoSnapshot, createSequenceMediaItem } from './utils/mediaUtils';
+import { WorkspaceHeader } from './components/WorkspaceHeader';
+import { TemplateThumbnail } from './components/TemplateThumbnail';
+import { useProjectPages } from './hooks/useProjectPages';
+import { storage } from './lib/storage';
+import './workspace.css';
+import { CanvasVideoOverlay } from './components/CanvasVideoOverlay';
 
 const INITIAL_FALLBACK_TEMPLATE: DesignTemplate = {
   id: 'default-template-1',
   name: 'Yeni Özel Şablon #1',
   width: 1080,
   height: 1080,
-  backgroundColor: '#FAFAFA',
+  backgroundColor: '#1D1D1F',
   palette: {
-    primary: '#4F46E5',
-    accent: '#F59E0B',
-    text: '#0F172A',
-    bg: '#FAFAFA'
+    primary: '#6C5CE7',
+    accent: '#FF9F0A',
+    text: '#F5F5F7',
+    bg: '#1D1D1F'
   },
   regions: [
     {
@@ -94,7 +114,7 @@ const INITIAL_FALLBACK_TEMPLATE: DesignTemplate = {
       textStyle: {
         fontFamily: 'Space Grotesk',
         fontSize: 48,
-        color: '#0F172A',
+        color: '#F5F5F7',
         fontWeight: 'bold',
         lineHeight: 1.2,
         align: 'center'
@@ -132,7 +152,6 @@ export function StaticPageCanvas({
   const localCanvasRef = useRef<HTMLCanvasElement | null>(null);
 
   useEffect(() => {
-    let isMounted = true;
     const canvas = localCanvasRef.current;
     if (!canvas || isActive) return;
 
@@ -171,19 +190,19 @@ export function StaticPageCanvas({
 
     render();
 
-    return () => {
-      isMounted = false;
-    };
-  }, [template, page, activeTab, paletteOverrides, isActive, width, height]);
+  }, [template, page, activeTab, paletteOverrides, isActive, width, height, highlightColor]);
 
-  if (isActive) {
-    return null;
-  }
+  const hasVideoInStatic = useMemo(() => {
+    const images = activeTab === 'phase1' ? {} : page.dynamicImages || {};
+    return Object.values(images).some((img: any) => img?.isVideo);
+  }, [page, activeTab]);
+
+  if (isActive) return null;
 
   return (
     <div 
       onClick={onClick}
-      className="absolute inset-0 cursor-pointer hover:ring-4 hover:ring-indigo-450 rounded-lg transition duration-200 overflow-hidden bg-white select-none"
+      className="absolute inset-0 cursor-pointer hover:ring-4 hover:ring-[#6C5CE7] rounded-lg transition duration-200 overflow-hidden bg-[#252528] select-none"
     >
       <canvas
         ref={localCanvasRef}
@@ -191,8 +210,14 @@ export function StaticPageCanvas({
         height={height}
         className="w-full h-full block"
       />
-      <div className="absolute inset-0 bg-slate-900/10 hover:bg-transparent transition flex items-center justify-center opacity-0 hover:opacity-100 duration-200">
-        <span className="bg-slate-900/90 text-white text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-full shadow-lg select-none">
+      {hasVideoInStatic && (
+        <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-white text-[9px] font-bold flex items-center gap-1 shadow-md pointer-events-none z-10">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+          <span>MP4</span>
+        </div>
+      )}
+      <div className="absolute inset-0 bg-[#1D1D1F]/10 hover:bg-transparent transition flex items-center justify-center opacity-0 hover:opacity-100 duration-200">
+        <span className="bg-[#1D1D1F]/90 text-[rgba(255,255,255,0.95)] text-[10px] sm:text-xs font-bold px-3 py-1.5 rounded-full shadow-lg select-none">
           Düzenlemek için Seç
         </span>
       </div>
@@ -213,7 +238,7 @@ export function InfoTooltip({ text }: { text: string }) {
         }}
         onMouseEnter={() => setIsOpen(true)}
         onMouseLeave={() => setIsOpen(false)}
-        className="w-4 h-4 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-800 flex items-center justify-center text-[10px] font-extrabold border border-slate-200 cursor-pointer transition focus:outline-none"
+        className="w-4 h-4 rounded-full bg-[#252528] hover:bg-[#2C2C2E] text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] flex items-center justify-center text-[10px] font-extrabold border border-[rgba(255,255,255,0.08)] cursor-pointer transition focus:outline-none"
         title="Bilgi Al"
       >
         i
@@ -225,7 +250,7 @@ export function InfoTooltip({ text }: { text: string }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 5 }}
             transition={{ duration: 0.15 }}
-            className="absolute z-50 left-1/2 -translate-x-1/2 bottom-6 w-56 p-2.5 bg-slate-900 text-white text-[10px] leading-normal rounded-lg shadow-xl font-medium text-center pointer-events-none"
+            className="absolute z-50 left-1/2 -translate-x-1/2 bottom-6 w-56 p-2.5 bg-[#1D1D1F] text-[rgba(255,255,255,0.95)] text-[10px] leading-normal rounded-lg shadow-xl font-medium text-center pointer-events-none"
           >
             <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900" />
             {text}
@@ -322,9 +347,9 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           y: Math.floor(t.height * 0.15),
           width: Math.floor(t.width * 0.42),
           height: Math.floor(t.height * 0.65),
-          backgroundColor: '#F1F5F9',
+          backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#4F46E5',
+          borderColor: t.palette?.primary || '#6C5CE7',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -338,9 +363,9 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           y: Math.floor(t.height * 0.15),
           width: Math.floor(t.width * 0.42),
           height: Math.floor(t.height * 0.65),
-          backgroundColor: '#F1F5F9',
+          backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#4F46E5',
+          borderColor: t.palette?.primary || '#6C5CE7',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -365,7 +390,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           textStyle: {
             fontFamily: 'Space Grotesk',
             fontSize: Math.max(16, Math.floor(t.height * 0.035)),
-            color: t.palette?.text || '#0F172A',
+            color: t.palette?.text || '#1D1D1F',
             fontWeight: 'bold',
             lineHeight: 1.3,
             align: 'center'
@@ -389,9 +414,9 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           y: Math.floor(t.height * 0.15),
           width: Math.floor(t.width * 0.28),
           height: Math.floor(t.height * 0.55),
-          backgroundColor: '#F1F5F9',
+          backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#4F46E5',
+          borderColor: t.palette?.primary || '#6C5CE7',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -405,9 +430,9 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           y: Math.floor(t.height * 0.15),
           width: Math.floor(t.width * 0.28),
           height: Math.floor(t.height * 0.55),
-          backgroundColor: '#F1F5F9',
+          backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#4F46E5',
+          borderColor: t.palette?.primary || '#6C5CE7',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -421,9 +446,9 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           y: Math.floor(t.height * 0.15),
           width: Math.floor(t.width * 0.28),
           height: Math.floor(t.height * 0.55),
-          backgroundColor: '#F1F5F9',
+          backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#4F46E5',
+          borderColor: t.palette?.primary || '#6C5CE7',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -448,7 +473,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           textStyle: {
             fontFamily: 'Space Grotesk',
             fontSize: Math.max(16, Math.floor(t.height * 0.035)),
-            color: t.palette?.text || '#0F172A',
+            color: t.palette?.text || '#1D1D1F',
             fontWeight: 'bold',
             lineHeight: 1.3,
             align: 'center'
@@ -472,9 +497,9 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           y: Math.floor(t.height * 0.15),
           width: Math.floor(t.width * 0.9),
           height: Math.floor(t.height * 0.65),
-          backgroundColor: '#F1F5F9',
+          backgroundColor: '#252528',
           opacity: 1,
-          borderColor: t.palette?.primary || '#4F46E5',
+          borderColor: t.palette?.primary || '#6C5CE7',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -499,7 +524,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           textStyle: {
             fontFamily: 'Space Grotesk',
             fontSize: Math.max(16, Math.floor(t.height * 0.035)),
-            color: t.palette?.text || '#0F172A',
+            color: t.palette?.text || '#1D1D1F',
             fontWeight: 'bold',
             lineHeight: 1.3,
             align: 'center'
@@ -610,11 +635,29 @@ export function getMappedTextsForPage(
   return mapped;
 }
 
+
+
+
 export default function App() {
+  // --- DARK MODE STATE ---
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    return storage.getItem('theme') === 'dark';
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+      storage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      storage.setItem('theme', 'light');
+    }
+  }, [isDarkMode]);
+
   // --- STATE MANAGEMENT ---
   const [templates, setTemplatesState] = useState<DesignTemplate[]>(() => {
     // 1. Try to load complete list (v2) first
-    const savedV2 = localStorage.getItem('active_templates_v2');
+    const savedV2 = storage.getItem('active_templates_v2');
     if (savedV2) {
       try {
         const parsed = JSON.parse(savedV2);
@@ -627,7 +670,7 @@ export default function App() {
     }
 
     // 2. Fallback to v1 (custom_templates)
-    const savedV1 = localStorage.getItem('custom_templates');
+    const savedV1 = storage.getItem('custom_templates');
     if (savedV1) {
       try {
         const parsed = JSON.parse(savedV1);
@@ -640,7 +683,7 @@ export default function App() {
     }
 
     // 3. Absolute fallback
-    return [INITIAL_FALLBACK_TEMPLATE];
+    return structuredClone(TEMPLATE_PRESETS);
   });
 
   // --- CANVAS DRAGGING & TOUCH REPOSITIONING STATES ---
@@ -652,61 +695,45 @@ export default function App() {
     startY: number;
     mouseStartX: number;
     mouseStartY: number;
-    mode?: 'drag' | 'resize';
+    mode?: 'drag' | 'resize' | 'image-pan';
     resizeHandle?: 'TL' | 'TR' | 'BL' | 'BR';
     startWidth?: number;
     startHeight?: number;
   } | null>(null);
 
-  // --- UNDO / REDO HISTORY STATES ---
-  const [undoStack, setUndoStack] = useState<DesignTemplate[][]>([]);
-  const [redoStack, setRedoStack] = useState<DesignTemplate[][]>([]);
-  const templatesBeforeDragRef = useRef<DesignTemplate[] | null>(null);
-
-  // Custom setTemplates wrapper to record design history
-  const setTemplates = (
-    value: DesignTemplate[] | ((prev: DesignTemplate[]) => DesignTemplate[])
-  ) => {
-    setTemplatesState(prev => {
-      const next = typeof value === 'function' ? value(prev) : value;
-      if (next !== prev) {
-        // Only push to undo stack if we are NOT actively dragging or resizing on canvas.
-        // Dragging & resizing is grouped into a single undo step on mouse/touch release (pointerUp).
-        if (!dragStartRef.current) {
-          setUndoStack(u => {
-            const updated = [...u, prev];
-            if (updated.length > 50) updated.shift();
-            return updated;
-          });
-          setRedoStack([]); // Clear redo stack on any new modification
-        }
-      }
-      return next;
-    });
-  };
-
-  const handleUndo = () => {
-    if (undoStack.length === 0) return;
-    const previous = undoStack[undoStack.length - 1];
-    setUndoStack(u => u.slice(0, -1));
-    setRedoStack(r => [...r, templates]);
-    setTemplatesState(previous);
-    
-    localStorage.setItem('active_templates_v2', JSON.stringify(previous));
-    const customs = previous.filter(t => !TEMPLATE_PRESETS.some(p => p.id === t.id));
-    localStorage.setItem('custom_templates', JSON.stringify(customs));
-  };
-
-  const handleRedo = () => {
-    if (redoStack.length === 0) return;
-    const next = redoStack[redoStack.length - 1];
-    setRedoStack(r => r.slice(0, -1));
-    setUndoStack(u => [...u, templates]);
+  type ProjectSnapshot = { templates: DesignTemplate[]; graphicData: Record<string, GraphicData>; pages: any[]; templateId: string };
+  const [undoStack, setUndoStack] = useState<ProjectSnapshot[]>([]);
+  const [redoStack, setRedoStack] = useState<ProjectSnapshot[]>([]);
+  const historyRef = useRef<ProjectSnapshot | null>(null);
+  const restoringHistory = useRef(false);
+  const templatesRef = useRef(templates);
+  templatesRef.current = templates;
+  const setTemplates = (value: React.SetStateAction<DesignTemplate[]>) => {
+    const next = typeof value === 'function' ? value(templatesRef.current) : value;
+    templatesRef.current = next;
     setTemplatesState(next);
-
-    localStorage.setItem('active_templates_v2', JSON.stringify(next));
-    const customs = next.filter(t => !TEMPLATE_PRESETS.some(p => p.id === t.id));
-    localStorage.setItem('custom_templates', JSON.stringify(customs));
+  };
+  const restoreSnapshot = (snapshot: ProjectSnapshot) => {
+    restoringHistory.current = true;
+    storage.setItem('project_dirty', 'true');
+    templatesRef.current = snapshot.templates;
+    setTemplatesState(snapshot.templates);
+    setGraphicData(snapshot.graphicData);
+    setGeneratedPages(snapshot.pages);
+    setSelectedNodeId(null);
+    setEditingImageRegionId(null);
+  };
+  const handleUndo = () => {
+    if (!undoStack.length || !historyRef.current) return;
+    setRedoStack(r => [...r, historyRef.current!]);
+    setUndoStack(u => u.slice(0, -1));
+    restoreSnapshot(undoStack[undoStack.length - 1]);
+  };
+  const handleRedo = () => {
+    if (!redoStack.length || !historyRef.current) return;
+    setUndoStack(u => [...u, historyRef.current!]);
+    setRedoStack(r => r.slice(0, -1));
+    restoreSnapshot(redoStack[redoStack.length - 1]);
   };
 
   // Keyboard shortcut listener for Undo/Redo
@@ -738,10 +765,12 @@ export default function App() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [undoStack, redoStack, templates]);
+  });
 
   const [currentTemplateId, setCurrentTemplateId] = useState<string>(() => {
-    const savedV2 = localStorage.getItem('active_templates_v2');
+    const remembered = storage.getItem('active_template_id');
+    if (templates.some(t => t.id === remembered)) return remembered!;
+    const savedV2 = storage.getItem('active_templates_v2');
     if (savedV2) {
       try {
         const parsed = JSON.parse(savedV2);
@@ -750,7 +779,7 @@ export default function App() {
         }
       } catch (e) {}
     }
-    const savedV1 = localStorage.getItem('custom_templates');
+    const savedV1 = storage.getItem('custom_templates');
     if (savedV1) {
       try {
         const parsed = JSON.parse(savedV1);
@@ -759,25 +788,25 @@ export default function App() {
         }
       } catch (e) {}
     }
-    return INITIAL_FALLBACK_TEMPLATE.id;
+    return TEMPLATE_PRESETS[0].id;
   });
   const [user, setUser] = useState<User | null>(null);
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'syncing' | 'synced' | 'error' | 'offline'>('idle');
   const [firestoreQuotaExceeded, setFirestoreQuotaExceededState] = useState<boolean>(() => {
-    return localStorage.getItem('firestore_quota_exceeded') === 'true';
+    return storage.getItem('firestore_quota_exceeded') === 'true';
   });
 
   const setFirestoreQuotaExceeded = (value: boolean) => {
     setFirestoreQuotaExceededState(value);
     if (value) {
-      localStorage.setItem('firestore_quota_exceeded', 'true');
+      storage.setItem('firestore_quota_exceeded', 'true');
     } else {
-      localStorage.removeItem('firestore_quota_exceeded');
+      storage.removeItem('firestore_quota_exceeded');
     }
   };
   const [iosExportImages, setIosExportImages] = useState<{ url: string; name: string }[] | null>(null);
   const isLoadedRef = useRef<boolean>(false);
-  const [isAppLoaded, setIsAppLoaded] = useState<boolean>(false);
+  const [isAppLoaded, setIsAppLoaded] = useState<boolean>(true);
   const lastSavedProjectRef = useRef<string>('');
   
   // Template Catalog Inline Edit States
@@ -797,14 +826,161 @@ export default function App() {
     type?: 'danger' | 'warning' | 'info';
   } | null>(null);
 
+  // --- ARAÇLAR & YOUTUBE MEDYA İNDİRİCİ STATE & HANDLERS ---
+  const [isToolsModalOpen, setIsToolsModalOpen] = useState<boolean>(false);
+  const [ytUrl, setYtUrl] = useState<string>('');
+  const [ytInfo, setYtInfo] = useState<{
+    videoId: string;
+    title: string;
+    author: string;
+    thumbnail: string;
+    maxThumbnail?: string;
+  } | null>(null);
+  const [ytLoading, setYtLoading] = useState<boolean>(false);
+  const [ytError, setYtError] = useState<string | null>(null);
+  const [ytFormat, setYtFormat] = useState<'mp4' | 'mp3'>('mp4');
+  const [ytDownloading, setYtDownloading] = useState<boolean>(false);
+  const [ytDownloadResult, setYtDownloadResult] = useState<{
+    downloadUrl: string;
+    quality: string;
+  } | null>(null);
+  const [recentDownloads, setRecentDownloads] = useState<Array<{
+    title: string;
+    format: string;
+    date: string;
+    url: string;
+    thumbnail: string;
+  }>>(() => {
+    try {
+      const saved = storage.getItem('yt_recent_downloads');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const handleFetchYtInfo = async (overrideUrl?: string) => {
+    const targetUrl = (overrideUrl !== undefined ? overrideUrl : ytUrl).trim();
+    if (!targetUrl) {
+      setYtError('Lütfen geçerli bir YouTube video adresi girin.');
+      setYtInfo(null);
+      return;
+    }
+
+    setYtLoading(true);
+    setYtError(null);
+    setYtDownloadResult(null);
+
+    try {
+      const res = await fetch('/api/yt-info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: targetUrl })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setYtInfo({
+          videoId: data.videoId,
+          title: data.title,
+          author: data.author,
+          thumbnail: data.thumbnail,
+          maxThumbnail: data.maxThumbnail
+        });
+      } else {
+        setYtError(data.error || 'Video bilgileri alınamadı.');
+        setYtInfo(null);
+      }
+    } catch (err: any) {
+      setYtError('Sunucuya bağlanırken bir hata oluştu: ' + (err.message || String(err)));
+      setYtInfo(null);
+    } finally {
+      setYtLoading(false);
+    }
+  };
+
+  const handleStartYtDownload = async () => {
+    if (!ytUrl.trim()) {
+      setYtError('Lütfen geçerli bir YouTube video adresi girin.');
+      return;
+    }
+
+    setYtDownloading(true);
+    setYtError(null);
+    setYtDownloadResult(null);
+
+    try {
+      const res = await fetch('/api/yt-download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: ytUrl.trim(),
+          format: ytFormat,
+          title: ytInfo?.title || 'youtube-media'
+        })
+      });
+
+      const data = await res.json();
+      if (data.success && data.downloadUrl) {
+        setYtDownloadResult({
+          downloadUrl: data.downloadUrl,
+          quality: data.quality
+        });
+
+        // Trigger native direct browser file download
+        const a = document.createElement('a');
+        a.href = data.downloadUrl;
+        a.download = `${ytInfo?.title || 'youtube-media'}.${ytFormat}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        // Save to recent downloads
+        const newItem = {
+          title: ytInfo?.title || 'YouTube Medya',
+          format: ytFormat.toUpperCase(),
+          date: new Date().toLocaleDateString('tr-TR', { hour: '2-digit', minute: '2-digit' }),
+          url: data.downloadUrl,
+          thumbnail: ytInfo?.thumbnail || `https://i.ytimg.com/vi/${data.videoId}/hqdefault.jpg`
+        };
+        setRecentDownloads(prev => {
+          const updated = [newItem, ...prev.filter(i => i.url !== newItem.url)].slice(0, 8);
+          storage.setItem('yt_recent_downloads', JSON.stringify(updated));
+          return updated;
+        });
+
+      } else {
+        setYtError(data.error || 'İndirme başlatılamadı.');
+      }
+    } catch (err: any) {
+      setYtError('İndirme sırasında hata oluştu: ' + (err.message || String(err)));
+    } finally {
+      setYtDownloading(false);
+    }
+  };
+
+  const handleClearYtHistory = () => {
+    setRecentDownloads([]);
+    storage.removeItem('yt_recent_downloads');
+  };
+
   const currentTemplate = useMemo(() => {
-    const raw = templates.find(t => t.id === currentTemplateId) || templates[0];
+    const raw = templates.find(t => t.id === currentTemplateId) || templates[0] || INITIAL_FALLBACK_TEMPLATE;
     return ensureMultiPageSupport(raw);
   }, [templates, currentTemplateId]);
 
+  useEffect(() => { storage.setItem('active_template_id', currentTemplateId); }, [currentTemplateId]);
+  useEffect(() => {
+    setActivePageIndex(0);
+    setActiveGeneratedPageIndex(0);
+    setSelectedNodeId(null);
+    setEditingImageRegionId(null);
+    setPlayingVideoRegionId(null);
+  }, [currentTemplateId]);
+
   // Active production data
   const [graphicData, setGraphicData] = useState<Record<string, GraphicData>>(() => {
-    const savedLocal = localStorage.getItem('active_graphic_data');
+    const savedLocal = storage.getItem('active_graphic_data');
     if (savedLocal) {
       try {
         const parsed = JSON.parse(savedLocal);
@@ -817,7 +993,7 @@ export default function App() {
     }
     // Generate initial dynamic data for all templates
     const initial: Record<string, GraphicData> = {};
-    const defaultTemplates = [INITIAL_FALLBACK_TEMPLATE];
+    const defaultTemplates = templates;
     defaultTemplates.forEach(t => {
       const texts: Record<string, string> = {};
       const images: Record<string, any> = {};
@@ -881,41 +1057,64 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'presets' | 'phase1' | 'phase2'>('phase2');
 
   const handleTabChange = (targetTab: 'presets' | 'phase1' | 'phase2') => {
-    if (activeTab === 'phase1' && targetTab !== 'phase1') {
-      if (!isCloudSynced && isValidConfig && user && user.uid) {
-        setConfirmDialog({
-          isOpen: true,
-          title: 'Kaydedilmemiş Değişiklikler',
-          message: 'Şablon üzerinde yaptığınız değişiklikler henüz buluta kaydedilmedi. Kaydetmeden çıkmak istediğinize emin misiniz?',
-          type: 'warning',
-          confirmText: 'Kaydetmeden Çık',
-          cancelText: 'Vazgeç',
-          onConfirm: () => {
-            setConfirmDialog(null);
-            setActiveTab(targetTab);
-          }
-        });
-        return;
-      }
-    }
     setActiveTab(targetTab);
   };
 
   // --- MULTI-PAGE TEMPLATE AND COLLAGE AUTOMATION STATES ---
   const [activePageIndex, setActivePageIndex] = useState<number>(0);
-  const [generatedPages, setGeneratedPages] = useState<any[]>(() => {
-    const savedLocal = localStorage.getItem('active_generated_pages');
-    if (savedLocal) {
-      try {
-        const parsed = JSON.parse(savedLocal);
-        if (Array.isArray(parsed)) return parsed;
-      } catch (e) {
-        console.error('Failed to parse active_generated_pages from localStorage', e);
-      }
-    }
-    return [];
-  });
+  const [generatedPages, setGeneratedPages, pagesByTemplate, setPagesByTemplate] = useProjectPages(currentTemplateId);
   const [activeGeneratedPageIndex, setActiveGeneratedPageIndex] = useState<number>(0);
+
+  useEffect(() => {
+    if (isDragging) return;
+    const snapshot = { templates, graphicData, pages: generatedPages, templateId: currentTemplateId };
+    const previous = historyRef.current;
+    if (restoringHistory.current) {
+      restoringHistory.current = false;
+    } else if (previous && previous.templateId !== currentTemplateId) {
+      setUndoStack([]);
+      setRedoStack([]);
+    } else if (previous && (previous.templates !== templates || previous.graphicData !== graphicData || previous.pages !== generatedPages)) {
+      storage.setItem('project_dirty', 'true');
+      setUndoStack(u => [...u, previous].slice(-50));
+      setRedoStack([]);
+    }
+    historyRef.current = snapshot;
+  }, [templates, graphicData, generatedPages, currentTemplateId, isDragging]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const ids = new Set<string>();
+    const collect = (node: any) => {
+      if (!node || typeof node !== 'object') return;
+      if (node.mediaId) ids.add(node.mediaId);
+      Object.values(node).forEach(collect);
+    };
+    collect(graphicData);
+    collect(generatedPages);
+    if (!ids.size) return;
+    Promise.all([...ids].map(async id => [id, await getVideoUrl(id)] as const)).then(entries => {
+      if (cancelled) return;
+      const urls = new Map(entries.filter((entry): entry is readonly [string, string] => !!entry[1]));
+      const nextData = replaceVideoUrls(graphicData, urls);
+      const nextPages = replaceVideoUrls(generatedPages, urls);
+      if (nextData !== graphicData || nextPages !== generatedPages) {
+        restoringHistory.current = true;
+        if (nextData !== graphicData) setGraphicData(nextData);
+        if (nextPages !== generatedPages) setGeneratedPages(nextPages);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [graphicData, generatedPages]);
+
+  // --- IN-CANVAS VIDEO PLAYBACK STATES ---
+  const [playingVideoRegionId, setPlayingVideoRegionId] = useState<string | null>(null);
+  const [isVideoMuted, setIsVideoMuted] = useState<boolean>(false);
+
+  // Auto-reset video playback when switching pages, tabs, or templates
+  useEffect(() => {
+    setPlayingVideoRegionId(null);
+  }, [activeGeneratedPageIndex, activePageIndex, activeTab, currentTemplateId]);
 
   const activePageData = useMemo(() => {
     if (generatedPages.length > 0 && generatedPages[activeGeneratedPageIndex]) {
@@ -931,28 +1130,38 @@ export default function App() {
   }, [generatedPages, activeGeneratedPageIndex, activeGraphicData]);
 
   const activeTemplatePage = useMemo(() => {
-    const pages = currentTemplate.pages || [];
+    const pageWithFallback = ensureMultiPageSupport(currentTemplate);
+    const pages = pageWithFallback.pages || [];
+    const fallbackPage: TemplatePage = {
+      id: 'fallback-page',
+      name: currentTemplate.name || 'Sayfa',
+      regions: currentTemplate.regions || [],
+      fixedElements: currentTemplate.fixedElements || []
+    };
     if (activeTab === 'phase1') {
-      return pages[activePageIndex] || pages[0];
+      return pages[activePageIndex] || pages[0] || fallbackPage;
     } else {
-      const pageId = activePageData.templatePageId;
-      return pages.find(p => p.id === pageId) || pages[0];
+      const pageId = activePageData?.templatePageId;
+      return pages.find(p => p.id === pageId) || pages[0] || fallbackPage;
     }
-  }, [currentTemplate, activeTab, activePageIndex, activePageData.templatePageId]);
+  }, [currentTemplate, activeTab, activePageIndex, activePageData?.templatePageId]);
 
   const editingTemplate = useMemo(() => {
-    return {
-      ...currentTemplate,
-      backgroundImageUrl: activeTemplatePage?.backgroundImageUrl ?? currentTemplate.backgroundImageUrl,
-      regions: activeTemplatePage.regions,
-      fixedElements: activeTemplatePage.fixedElements
+    const page = activeTab === 'phase1' ? activeTemplatePage : activePageData;
+    return {...currentTemplate,
+      backgroundImageUrl: page.backgroundImageUrl ?? activeTemplatePage.backgroundImageUrl ?? currentTemplate.backgroundImageUrl,
+      regions: page.regions ?? activeTemplatePage.regions ?? currentTemplate.regions,
+      fixedElements: page.fixedElements ?? activeTemplatePage.fixedElements ?? currentTemplate.fixedElements,
     };
-  }, [currentTemplate, activeTemplatePage]);
+  }, [currentTemplate, activeTemplatePage, activeTab, activePageData]);
 
   const [showGrid, setShowGrid] = useState<boolean>(false);
   const [showSafeMargins, setShowSafeMargins] = useState<boolean>(false);
   const [exportFormat, setExportFormat] = useState<'png' | 'jpeg'>('png');
   const [exportScale, setExportScale] = useState<number>(1.5); // 1.5x, 2x for DPI
+  const [exportFiles, setExportFiles] = useState<{url:string; name:string; type:string}[]>([]);
+  const exportUrls = useRef<string[]>([]);
+  useEffect(() => () => exportUrls.current.forEach(url => URL.revokeObjectURL(url)), []);
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [dragActive, setDragActive] = useState<Record<string, boolean>>({});
 
@@ -965,6 +1174,7 @@ export default function App() {
   const [isAiAnalyzing, setIsAiAnalyzing] = useState<boolean>(false);
   const [aiProgress, setAiProgress] = useState<number>(0);
   const [isExportingZip, setIsExportingZip] = useState<boolean>(false);
+  const [exportStatusText, setExportStatusText] = useState<string | null>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -1000,22 +1210,37 @@ export default function App() {
   };
 
   // --- MOBILE RESPONSIVE PANEL STATE ---
+  const [exportPanelOpen, setExportPanelOpen] = useState(true);
+  const [storageError, setStorageError] = useState<string | null>(null);
+  useEffect(() => {
+    const onError = () => setStorageError('Tarayıcı depolaması dolu veya kullanılamıyor. Son değişiklikler kaydedilemedi.');
+    window.addEventListener('workspace-storage-error', onError);
+    return () => window.removeEventListener('workspace-storage-error', onError);
+  }, []);
   const [mobileView, setMobileView] = useState<'editor' | 'canvas' | 'export'>('canvas');
   const [expandedImageSettings, setExpandedImageSettings] = useState<Record<string, boolean>>({});
 
   // --- GLOBAL HIGHLIGHT/ACCENT (VURGU) COLOR STATE ---
   const [vurguColor, setVurguColor] = useState<string>(() => {
-    return localStorage.getItem('vurgu_color') || '#4F46E5';
+    return storage.getItem('vurgu_color') || '#6C5CE7';
   });
 
   const handleVurguColorChange = (color: string) => {
     setVurguColor(color);
-    localStorage.setItem('vurgu_color', color);
+    storage.setItem('vurgu_color', color);
   };
 
   // --- CANVAS ZOOM & PAN STATES ---
   const [zoomMode, setZoomMode] = useState<'fit' | 'custom'>('fit');
-  const [zoomScale, setZoomScale] = useState<number>(0.5);
+  const [zoomScale, setZoomScale] = useState<number>(1);
+  const [canvasWidth, setCanvasWidth] = useState(480);
+  useEffect(() => {
+    const viewport = document.getElementById('canvas-viewport');
+    if (!viewport) return;
+    const observer = new ResizeObserver(([entry]) => setCanvasWidth(Math.max(160, entry.contentRect.width - 48)));
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [isAppLoaded, mobileView]);
   const [panOffset, setPanOffset] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const panStartRef = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
@@ -1052,211 +1277,48 @@ export default function App() {
         editingImageRegionId
       }
     );
-  }, [editingTemplate, activeTab, activePageData, activeGraphicData.paletteOverrides, showGrid, showSafeMargins, selectedNodeId, vurguColor, editingImageRegionId]);
+  }, [editingTemplate, activeTab, activePageData, activeGraphicData.paletteOverrides, showGrid, showSafeMargins, selectedNodeId, vurguColor, editingImageRegionId, isAppLoaded, mobileView]);
 
   // --- FIREBASE CLOUD STORAGE INTEGRATION & SYNCING ---
   const lastSavedRef = useRef<string>('');
 
   const syncAndLoadUserData = async (uid: string) => {
     if (!isValidConfig) return;
-    
-    if (firestoreQuotaExceeded || localStorage.getItem('firestore_quota_exceeded') === 'true') {
-      console.warn('Bypassing Firestore sync due to active quota limits. Loading from localStorage instead.');
-      setCloudStatus('offline');
-      
-      let localTemplates: DesignTemplate[] = [];
-      const savedV2 = localStorage.getItem('active_templates_v2') || localStorage.getItem('custom_templates');
-      if (savedV2) {
-        try {
-          const parsed = JSON.parse(savedV2);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setTemplatesState(parsed);
-            localTemplates = parsed;
-          }
-        } catch (e) {
-          console.error('Failed to parse local templates in offline mode:', e);
-        }
-      }
-      
-      // Initialize refs even in offline mode to support future edits and auto-save attempts
-      const fallbackTemplates = localTemplates.length > 0 ? localTemplates : [INITIAL_FALLBACK_TEMPLATE];
-      const customOnly = fallbackTemplates.filter(t => !TEMPLATE_PRESETS.some(p => p.id === t.id));
-      lastSavedRef.current = JSON.stringify(customOnly);
-      lastSavedProjectRef.current = JSON.stringify({
-        currentTemplateId: currentTemplateId || fallbackTemplates[0]?.id || '',
-        graphicData: graphicData || {},
-        generatedPages: generatedPages || []
-      });
-      return;
-    }
-
+    if (firestoreQuotaExceeded) { setCloudStatus('offline'); return; }
+    const beforeLoad = historyRef.current;
     setCloudStatus('syncing');
     try {
-      // Load deleted template IDs from localStorage to enforce local deletions even when offline transitions happen
-      const deletedIds = JSON.parse(localStorage.getItem('deleted_template_ids') || '[]');
-      const deletedIdsSet = new Set<string>(deletedIds);
-
-      // 1. First, load existing local templates from localStorage to prevent wiping out unsynced custom templates!
-      let localTemplates: DesignTemplate[] = [];
-      const savedV2 = localStorage.getItem('active_templates_v2') || localStorage.getItem('custom_templates');
-      if (savedV2) {
-        try {
-          const parsed = JSON.parse(savedV2);
-          if (Array.isArray(parsed)) {
-            localTemplates = parsed.filter(t => !deletedIdsSet.has(t.id));
-          }
-        } catch (e) {
-          console.error('Failed to parse local templates in syncAndLoadUserData:', e);
-        }
+      const saved = await getUserGraphicProject(uid);
+      // A background read must never overwrite work changed on this device.
+      if (storage.getItem('project_dirty') === 'true' || historyRef.current !== beforeLoad) {
+        setIsCloudSynced(false);
+        setCloudStatus('idle');
+        return;
       }
-
-      // 2. Fetch cloud templates and active project in parallel for high performance!
-      const [cloudTemplates, savedProject] = await Promise.all([
-        getCloudTemplates().then(res => res || []),
-        getUserGraphicProject(uid).catch(err => {
-          console.error('Error fetching user graphic project:', err);
-          return null;
-        })
-      ]);
-
-      // Handle delayed deletions for any cloud templates that are in deletedIds list
-      for (const ct of cloudTemplates) {
-        if (deletedIdsSet.has(ct.id)) {
-          console.log(`Processing offline/delayed deletion for cloud template: ${ct.name} (${ct.id})`);
-          deleteCloudTemplate(ct.id).then(() => {
-            const currentDeleted = JSON.parse(localStorage.getItem('deleted_template_ids') || '[]');
-            const updatedDeleted = currentDeleted.filter((id: string) => id !== ct.id);
-            localStorage.setItem('deleted_template_ids', JSON.stringify(updatedDeleted));
-          }).catch(err => {
-            console.error(`Failed to execute delayed cloud deletion for ${ct.id}:`, err);
-          });
-        }
-      }
-
-      // 3. Create a map of custom templates to merge cloud and potentially guest templates securely.
-      const templatesMap = new Map<string, DesignTemplate>();
-
-      // Filter cloudTemplates to exclude deleted ones
-      const activeCloudTemplates = cloudTemplates.filter(ct => !deletedIdsSet.has(ct.id));
-
-      // Decide if we should import local guest templates (only once per user session initialization)
-      const importFlagKey = `guest_templates_imported_${uid}`;
-      const guestTemplatesImported = localStorage.getItem(importFlagKey) === 'true';
-
-      if (!guestTemplatesImported) {
-        // First load: seed with local custom templates to merge existing guest designs into the cloud account
-        localTemplates.forEach(t => {
-          if (!TEMPLATE_PRESETS.some(p => p.id === t.id)) {
-            templatesMap.set(t.id, t);
-          }
-        });
-
-        // Merge cloud templates (cloud takes priority)
-        activeCloudTemplates.forEach(t => {
-          if (!TEMPLATE_PRESETS.some(p => p.id === t.id)) {
-            templatesMap.set(t.id, t);
-          }
-        });
-
-        // Save imported custom templates immediately to the cloud to sync them up!
-        const mergedCustomOnly = Array.from(templatesMap.values());
-        for (const template of mergedCustomOnly) {
-          await saveCloudTemplate(template).catch(err => console.error('Failed to auto-save imported guest template:', err));
-        }
-
-        localStorage.setItem(importFlagKey, 'true');
-      } else {
-        // Subsequent loads / other devices: Cloud templates are the absolute, ultimate source of truth!
-        // We do NOT load or merge local templates from localStorage to prevent resurrection of deleted templates!
-        activeCloudTemplates.forEach(t => {
-          if (!TEMPLATE_PRESETS.some(p => p.id === t.id)) {
-            templatesMap.set(t.id, t);
-          }
-        });
-      }
-
-      // C. If there is a saved project, merge its templates overrides as well (only for templates that already exist in templatesMap, preventing resurrected deleted templates)
-      if (savedProject && savedProject.templates && savedProject.templates.length > 0) {
-        savedProject.templates.forEach((savedT: any) => {
-          if (!TEMPLATE_PRESETS.some(p => p.id === savedT.id)) {
-            const existing = templatesMap.get(savedT.id);
-            if (existing) {
-              templatesMap.set(savedT.id, { ...existing, ...savedT });
-            }
-          }
-        });
-      }
-
-      // D. Combine presets and custom merged templates
-      const mergedCustomTemplates = Array.from(templatesMap.values());
-      let finalTemplates = [...TEMPLATE_PRESETS, ...mergedCustomTemplates];
-
-      if (finalTemplates.length === 0) {
-        finalTemplates = [INITIAL_FALLBACK_TEMPLATE];
-      }
-
-      // 4. Update project states
-      if (savedProject) {
-        if (savedProject.graphicData) {
-          setGraphicData(savedProject.graphicData);
-        }
-        if (savedProject.generatedPages) {
-          setGeneratedPages(savedProject.generatedPages);
-        }
-        if (savedProject.currentTemplateId) {
-          if (finalTemplates.some(t => t.id === savedProject.currentTemplateId)) {
-            setCurrentTemplateId(savedProject.currentTemplateId);
-          } else {
-            setCurrentTemplateId(finalTemplates[0].id);
-          }
-        }
-      } else {
-        // If no saved project exists, initialize currentTemplateId to first available template
-        setCurrentTemplateId(finalTemplates[0].id);
-      }
-
-      // ALWAYS initialize the project and template refs securely to allow background auto-syncs for new/empty projects
-      lastSavedProjectRef.current = JSON.stringify({
-        currentTemplateId: savedProject?.currentTemplateId || finalTemplates[0]?.id || '',
-        graphicData: savedProject?.graphicData || {},
-        generatedPages: savedProject?.generatedPages || []
-      });
-
-      // 5. Update the state and local storage once atomically!
-      setTemplatesState(finalTemplates);
-      saveTemplatesToLocalStorage(finalTemplates);
-
-      // Clear undo/redo history stacks after syncing user cloud database
+      if (!saved) { setIsCloudSynced(false); setCloudStatus('idle'); return; }
+      const legacyTemplates = Array.isArray(saved.templates) && saved.templates.length ? [] : await getCloudTemplates();
+      if (historyRef.current !== beforeLoad || auth.currentUser?.uid !== uid) return;
+      const nextTemplates = Array.isArray(saved.templates) && saved.templates.length
+        ? saved.templates : [...TEMPLATE_PRESETS, ...legacyTemplates];
+      const nextId = nextTemplates.some(t => t.id === saved.currentTemplateId) ? saved.currentTemplateId : nextTemplates[0].id;
+      const nextData = saved.graphicData || {};
+      const nextPages = saved.pagesByTemplate || {[nextId]:saved.generatedPages || []};
+      restoringHistory.current = true;
+      setTemplatesState(nextTemplates);
+      setGraphicData(nextData);
+      setPagesByTemplate(nextPages);
+      setCurrentTemplateId(nextId);
       setUndoStack([]);
       setRedoStack([]);
-
-      // 6. Initialize the auto-save ref immediately with the final custom templates
-      const customOnly = finalTemplates.filter(t => !TEMPLATE_PRESETS.some(p => p.id === t.id));
-      lastSavedRef.current = JSON.stringify(customOnly);
-
+      lastSavedRef.current = JSON.stringify(nextTemplates);
+      lastSavedProjectRef.current = JSON.stringify({graphicData:nextData, pagesByTemplate:nextPages});
+      storage.setItem('project_dirty', 'false');
+      setIsCloudSynced(true);
       setCloudStatus('synced');
-    } catch (err: any) {
-      console.error('Error in syncAndLoadUserData:', err);
-      const errMsg = err?.message || String(err);
-      if (errMsg.toLowerCase().includes('quota') || 
-          errMsg.toLowerCase().includes('exhausted') || 
-          errMsg.toLowerCase().includes('permission')) {
-        setFirestoreQuotaExceeded(true);
-      }
+    } catch (error) {
+      console.error('Cloud load failed:', error);
       setCloudStatus('error');
-      
-      // Fallback: load whatever templates we have locally in localStorage if any
-      const savedV2 = localStorage.getItem('active_templates_v2');
-      if (savedV2) {
-        try {
-          const parsed = JSON.parse(savedV2);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setTemplatesState(parsed);
-          }
-        } catch (e) {
-          console.error('Failed to parse active_templates_v2 from localStorage:', e);
-        }
-      }
+      setIsCloudSynced(false);
     }
   };
 
@@ -1304,135 +1366,44 @@ export default function App() {
 
   const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
 
-  // Manual save function that sends local changes directly to the Firestore cloud database
+  // Save a complete user-owned snapshot in one document. Loading never writes or deletes remote data.
   const saveDataToCloud = async (
     specificTemplates?: DesignTemplate[] | any,
     specificTemplateId?: string,
     specificGraphicData?: Record<string, GraphicData> | any,
     specificGeneratedPages?: any[]
   ) => {
-    if (!isValidConfig || !user || !user.uid) return;
-
+    if (!isValidConfig || !user?.uid || cloudStatus === 'syncing') return;
+    const templatesToSave = Array.isArray(specificTemplates) ? specificTemplates : templates;
+    const id = typeof specificTemplateId === 'string' ? specificTemplateId : currentTemplateId;
+    const data = specificGraphicData && !('nativeEvent' in specificGraphicData) ? specificGraphicData : graphicData;
+    const allPages = {...pagesByTemplate, [id]:Array.isArray(specificGeneratedPages) ? specificGeneratedPages : generatedPages};
+    const savedTemplates = JSON.stringify(templatesToSave);
+    const savedProject = JSON.stringify({graphicData:data, pagesByTemplate:allPages});
+    const beforeSave = historyRef.current;
     setCloudStatus('syncing');
     try {
-      // Guard against React Event objects being passed as parameters when used directly in onClick
-      const templatesToUse = Array.isArray(specificTemplates) ? specificTemplates : templates;
-      const templateIdToUse = typeof specificTemplateId === 'string' ? specificTemplateId : currentTemplateId;
-      const graphicDataToUse = (specificGraphicData && typeof specificGraphicData === 'object' && !('nativeEvent' in specificGraphicData)) ? specificGraphicData : graphicData;
-      const generatedPagesToUse = Array.isArray(specificGeneratedPages) ? specificGeneratedPages : generatedPages;
-
-      const customTemplates = templatesToUse.filter(t => !TEMPLATE_PRESETS.some(p => p.id === t.id));
-      const currentSerializedTemplates = JSON.stringify(customTemplates);
-      const currentSerializedProject = JSON.stringify({
-        currentTemplateId: templateIdToUse,
-        graphicData: graphicDataToUse,
-        generatedPages: generatedPagesToUse
-      });
-
-      // 1. Fetch current cloud templates to handle deleted ones securely
-      const cloudTemplates = await getCloudTemplates().then(res => res || []);
-      const currentCustomIds = new Set(customTemplates.map(t => t.id));
-
-      for (const ct of cloudTemplates) {
-        if (!currentCustomIds.has(ct.id)) {
-          console.log(`Deleting removed template from Firestore: ${ct.name} (${ct.id})`);
-          await deleteCloudTemplate(ct.id);
-        }
-      }
-
-      // 2. Save active custom templates
-      for (const template of customTemplates) {
-        await saveCloudTemplate(template);
-      }
-
-      // 3. Save active graphic project
-      await saveUserGraphicProject(user.uid, templateIdToUse, graphicDataToUse, generatedPagesToUse);
-
-      // 4. Update saved refs to block duplicate background saving
-      lastSavedRef.current = currentSerializedTemplates;
-      lastSavedProjectRef.current = currentSerializedProject;
-
-      setIsCloudSynced(true);
+      await saveUserGraphicProject(user.uid, id, data, allPages[id], templatesToSave, allPages);
+      lastSavedRef.current = savedTemplates;
+      lastSavedProjectRef.current = savedProject;
+      const unchanged = historyRef.current === beforeSave;
+      storage.setItem('project_dirty', unchanged ? 'false' : 'true');
+      setIsCloudSynced(unchanged);
       setCloudStatus('synced');
-      setFirestoreQuotaExceeded(false); // Reset quota limit warning on success!
-    } catch (err: any) {
-      console.error('Error saving data to cloud:', err);
+    } catch (error) {
+      console.error('Cloud save failed:', error);
       setCloudStatus('error');
-      const errMsg = err?.message || String(err);
-      if (errMsg.toLowerCase().includes('quota') || 
-          errMsg.toLowerCase().includes('exhausted') || 
-          errMsg.toLowerCase().includes('permission')) {
-        setFirestoreQuotaExceeded(true);
-      }
+      setIsCloudSynced(false);
+      setConfirmDialog({isOpen:true, title:'Buluta kaydedilemedi', message:'Çalışmanız bu cihazda duruyor. Bağlantınızı ve hesabınızı kontrol edip tekrar deneyin. Büyük medya içeren projeler bulut boyut sınırını aşabilir.', type:'info', onConfirm:() => setConfirmDialog(null)});
     }
   };
-
-  // Monitor state changes to update isCloudSynced state
   useEffect(() => {
-    if (!isValidConfig || !user || !user.uid || !isLoadedRef.current) return;
-
-    const customTemplates = templates.filter(t => !TEMPLATE_PRESETS.some(p => p.id === t.id));
-    const currentSerializedTemplates = JSON.stringify(customTemplates);
-    const currentSerializedProject = JSON.stringify({
-      currentTemplateId,
-      graphicData,
-      generatedPages
-    });
-
-    const templatesChanged = lastSavedRef.current && currentSerializedTemplates !== lastSavedRef.current;
-    const projectChanged = lastSavedProjectRef.current && currentSerializedProject !== lastSavedProjectRef.current;
-
-    if (templatesChanged || projectChanged) {
-      setIsCloudSynced(false);
-    } else {
-      setIsCloudSynced(true);
-    }
-  }, [templates, currentTemplateId, graphicData, generatedPages, user]);
-
-  // Automatically migrate existing image regions that had clipImage set to false/undefined by default
-  useEffect(() => {
-    if (isAppLoaded) {
-      setTemplatesState(prev => {
-        return prev.map(t => {
-          const pages = t.pages?.map(p => ({
-            ...p,
-            regions: p.regions?.map(r => {
-              if (r.type === 'image' && (r.clipImage === false || r.clipImage === undefined)) {
-                return { ...r, clipImage: true };
-              }
-              return r;
-            }) || []
-          })) || [];
-
-          const regions = t.regions?.map(r => {
-            if (r.type === 'image' && (r.clipImage === false || r.clipImage === undefined)) {
-              return { ...r, clipImage: true };
-            }
-            return r;
-          }) || [];
-
-          return { ...t, pages, regions };
-        });
-      });
-
-      setGeneratedPages(prev => {
-        return prev.map(p => {
-          if (p.regions) {
-            return {
-              ...p,
-              regions: p.regions.map((r: any) => {
-                if (r.type === 'image' && (r.clipImage === false || r.clipImage === undefined)) {
-                  return { ...r, clipImage: true };
-                }
-                return r;
-              })
-            };
-          }
-          return p;
-        });
-      });
-    }
-  }, [isAppLoaded]);
+    if (!user?.uid || !isLoadedRef.current) return;
+    setIsCloudSynced(
+      JSON.stringify(templates) === lastSavedRef.current &&
+      JSON.stringify({graphicData, pagesByTemplate}) === lastSavedProjectRef.current
+    );
+  }, [templates, graphicData, pagesByTemplate, user]);
 
   // Automatic background synchronization has been removed in favor of manual saves.
   // Data is only persisted to the cloud when the user explicitly clicks "Buluta Kaydet".
@@ -1440,13 +1411,12 @@ export default function App() {
   const handleGoogleLogin = async () => {
     setCloudStatus('syncing');
     isLoadedRef.current = false;
-    setIsAppLoaded(false);
     try {
       setFirestoreQuotaExceeded(false); // Reset quota limit warning on login to allow retrying sync
       const loggedInUser = await loginWithGoogle();
       if (loggedInUser) {
         setUser(loggedInUser);
-        await syncAndLoadUserData(loggedInUser.uid);
+        // onAuthStateChanged owns the cloud load.
       }
     } catch (err) {
       console.error('Google Login error:', err);
@@ -1462,41 +1432,7 @@ export default function App() {
     setCloudStatus('syncing');
     try {
       await logoutUser();
-      // Reset localStorage and local states
-      localStorage.removeItem('active_templates_v2');
-      localStorage.removeItem('custom_templates');
-      localStorage.removeItem('active_graphic_data');
-      localStorage.removeItem('active_generated_pages');
-      
-      setTemplates([INITIAL_FALLBACK_TEMPLATE]);
-      setGeneratedPages([]);
-      
-      const initial: Record<string, GraphicData> = {};
-      [INITIAL_FALLBACK_TEMPLATE].forEach(t => {
-        const texts: Record<string, string> = {};
-        const images: Record<string, any> = {};
-        t.regions.forEach(r => {
-          if (r.type === 'text') {
-            texts[r.id] = r.placeholderText || '';
-          } else if (r.type === 'image') {
-            images[r.id] = {
-              url: r.placeholderImage || '',
-              scale: 1.0,
-              offsetX: 0,
-              offsetY: 0,
-              rotation: 0
-            };
-          }
-        });
-        initial[t.id] = {
-          templateId: t.id,
-          dynamicTexts: texts,
-          dynamicImages: images,
-          hiddenElements: []
-        };
-      });
-      setGraphicData(initial);
-      setCurrentTemplateId(INITIAL_FALLBACK_TEMPLATE.id);
+      setUser(null);
       setCloudStatus('offline');
     } catch (err) {
       console.error('Logout error:', err);
@@ -1506,23 +1442,33 @@ export default function App() {
 
   // Save custom templates to localStorage
   const saveTemplatesToLocalStorage = (updatedTemplates: DesignTemplate[]) => {
-    localStorage.setItem('active_templates_v2', JSON.stringify(updatedTemplates));
+    storage.setItem('active_templates_v2', JSON.stringify(updatedTemplates));
     const customs = updatedTemplates.filter(t => !TEMPLATE_PRESETS.some(p => p.id === t.id));
-    localStorage.setItem('custom_templates', JSON.stringify(customs));
+    storage.setItem('custom_templates', JSON.stringify(customs));
   };
+
+  useEffect(() => { saveTemplatesToLocalStorage(templates); }, [templates]);
 
   // Instant local storage cache for active graphic project to prevent data loss on page reloads/exit
   useEffect(() => {
-    if (Object.keys(graphicData).length > 0) {
-      localStorage.setItem('active_graphic_data', JSON.stringify(graphicData));
+    try {
+      if (Object.keys(graphicData).length > 0) {
+        storage.setItem('active_graphic_data', JSON.stringify(graphicData));
+      }
+    } catch (e) {
+      console.warn('LocalStorage active_graphic_data save skipped (quota limit):', e);
     }
   }, [graphicData]);
 
   useEffect(() => {
-    if (generatedPages.length > 0) {
-      localStorage.setItem('active_generated_pages', JSON.stringify(generatedPages));
-    } else {
-      localStorage.removeItem('active_generated_pages');
+    try {
+      if (generatedPages.length > 0) {
+        storage.setItem('active_generated_pages', JSON.stringify(generatedPages));
+      } else {
+        storage.removeItem('active_generated_pages');
+      }
+    } catch (e) {
+      console.warn('LocalStorage active_generated_pages save skipped (quota limit):', e);
     }
   }, [generatedPages]);
 
@@ -1621,12 +1567,7 @@ export default function App() {
 
     // 2. Fallback/sync update graphicData
     setGraphicData(prev => {
-      const current = prev[currentTemplateId] || {
-        templateId: currentTemplateId,
-        dynamicTexts: {},
-        dynamicImages: {},
-        hiddenElements: []
-      };
+      const current = prev[currentTemplateId] || activeGraphicData;
       return {
         ...prev,
         [currentTemplateId]: {
@@ -1640,7 +1581,7 @@ export default function App() {
     });
   };
 
-  const updateActiveImageProp = (regionId: string, prop: 'url' | 'scale' | 'offsetX' | 'offsetY' | 'rotation', value: any) => {
+  const updateActiveImageProp = (regionId: string, prop: keyof GraphicData['dynamicImages'][string], value: any) => {
     // 1. Update generatedPages if active
     if (generatedPages.length > 0) {
       setGeneratedPages(prev => prev.map((p, idx) => {
@@ -1669,12 +1610,7 @@ export default function App() {
 
     // 2. Fallback/sync update graphicData
     setGraphicData(prev => {
-      const current = prev[currentTemplateId] || {
-        templateId: currentTemplateId,
-        dynamicTexts: {},
-        dynamicImages: {},
-        hiddenElements: []
-      };
+      const current = prev[currentTemplateId] || activeGraphicData;
       const imgData = current.dynamicImages[regionId] || {
         url: '',
         scale: 1.0,
@@ -1718,12 +1654,7 @@ export default function App() {
 
     // 2. Fallback/sync update graphicData
     setGraphicData(prev => {
-      const current = prev[currentTemplateId] || {
-        templateId: currentTemplateId,
-        dynamicTexts: {},
-        dynamicImages: {},
-        hiddenElements: []
-      };
+      const current = prev[currentTemplateId] || activeGraphicData;
       const hidden = current.hiddenElements || [];
       const updatedHidden = hidden.includes(elementId)
         ? hidden.filter(id => id !== elementId)
@@ -1784,46 +1715,46 @@ export default function App() {
         title: `**${niche}** Zamanın Ötesinde`,
         subtitle: `*Yeni Sezon* Kreasyonları`,
         description: `Sürdürülebilir üretim süreçleri ve *özel kumaş dokularıyla* tasarlanan, tarzınızı yansıtan parçalar şimdi yayında.`,
-        primaryColor: "#7C2D12",
-        accentColor: "#D97706",
-        textColor: "#292524",
-        bgColor: "#FAF8F5"
+        primaryColor: "#FF453A",
+        accentColor: "#FF9F0A",
+        textColor: "rgba(255,255,255,0.95)",
+        bgColor: "#252528"
       },
       tech: {
         title: `Yapay Zeka ve **${niche}** Entegrasyonu`,
         subtitle: `*Yenilikçi* Dijital Çözümler`,
         description: `Maksimum hız, yüksek verimlilik ve *modern yazılım standartlarıyla* iş akışlarınızı geleceğe entegre edin.`,
-        primaryColor: "#0891B2",
-        accentColor: "#2563EB",
-        textColor: "#F3F4F6",
-        bgColor: "#090D16"
+        primaryColor: "#6C5CE7",
+        accentColor: "#6C5CE7",
+        textColor: "rgba(255,255,255,0.95)",
+        bgColor: "#1D1D1F"
       },
       food: {
         title: `Tazelikten Gelen **${niche}** Lezzeti`,
         subtitle: `*Gurme* Gastronomi Keyfi`,
         description: `Yerel üreticilerden doğrudan temin edilen taze malzemeler ve *şefimizin özel dokunuşuyla* eşsiz bir deneyim.`,
-        primaryColor: "#15803D",
-        accentColor: "#EA580C",
-        textColor: "#1C1917",
-        bgColor: "#FDFDFB"
+        primaryColor: "#34C759",
+        accentColor: "#FF453A",
+        textColor: "rgba(255,255,255,0.95)",
+        bgColor: "#252528"
       },
       education: {
         title: `**${niche}** ile Geleceğinizi Kurun`,
         subtitle: `*Gelişmiş* Eğitim Metotları`,
         description: `Uzman eğitmen kadrosu, modern konu başlıkları ve *birebir mentorluk desteğiyle* kariyerinizde yeni bir dönem.`,
-        primaryColor: "#4F46E5",
-        accentColor: "#10B981",
-        textColor: "#0F172A",
-        bgColor: "#F8FAFC"
+        primaryColor: "#6C5CE7",
+        accentColor: "#34C759",
+        textColor: "#1D1D1F",
+        bgColor: "#1D1D1F"
       },
       minimalist: {
         title: `Az Çoktur: **${niche}** Dünyası`,
         subtitle: `*Yalın ve Dengeli* Çizgiler`,
         description: `Gereksiz detaylardan arınmış, *tamamen işlevselliğe odaklanmış* estetik ve modern bir felsefe.`,
-        primaryColor: "#111827",
-        accentColor: "#6B7280",
-        textColor: "#1F2937",
-        bgColor: "#FFFFFF"
+        primaryColor: "#1D1D1F",
+        accentColor: "rgba(255,255,255,0.72)",
+        textColor: "#252528",
+        bgColor: "#252528"
       }
     };
 
@@ -1831,7 +1762,6 @@ export default function App() {
   };
 
   const runAiCollageAnalysis = async (uploadedImages: string[], briefTextOverride?: string) => {
-    if (uploadedImages.length === 0) return;
     setIsAiAnalyzing(true);
     setAiSuccessMessage(null);
     setAiProgress(5);
@@ -1851,16 +1781,29 @@ export default function App() {
     }, 150);
 
     try {
-      // Compress the first image down to ultra lightweight size to speed up the transit and processing
-      const compressedFirstImage = await compressDataUrl(uploadedImages[0], 320, 320, 0.55);
+      // Compress up to 3 images for rich multimodal analysis
+      const compressedImages: string[] = [];
+      if (uploadedImages && uploadedImages.length > 0) {
+        for (const imgUrl of uploadedImages.slice(0, 3)) {
+          if (imgUrl) {
+            try {
+              const comp = await compressDataUrl(imgUrl, 360, 360, 0.6);
+              compressedImages.push(comp);
+            } catch (compErr) {
+              console.warn('Image compression warning:', compErr);
+            }
+          }
+        }
+      }
 
       const response = await fetch('/api/analyze-collage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          images: [compressedFirstImage], // Send the high-speed compressed image to reduce payload size and prevent network Entity Too Large errors
+          images: compressedImages,
           systemPrompt: currentTemplate.aiSystemPrompt || '',
-          userPrompt: targetBrief
+          userPrompt: targetBrief,
+          templateName: currentTemplate.name || ''
         })
       });
 
@@ -1893,6 +1836,8 @@ export default function App() {
         data = {
           success: true,
           isFallback: true,
+          reason: data?.reason || 'network_or_api_error',
+          error: data?.error || 'Sunucu yanıt veremedi, yerel şablon uygulandı.',
           title: fallbackData.title,
           subtitle: fallbackData.subtitle,
           description: fallbackData.description,
@@ -1901,6 +1846,17 @@ export default function App() {
           textColor: fallbackData.textColor,
           bgColor: fallbackData.bgColor
         };
+      }
+
+      if (data?.isFallback) {
+        const fallbackNote = data.reason === 'missing_api_key'
+          ? 'GEMINI_API_KEY eksik. Yerel hazır şablon kullanılıyor.'
+          : data.reason === 'quota_exceeded'
+          ? 'Gemini API kotası aşıldı. Yerel hazır şablon kullanılıyor.'
+          : data.reason === 'invalid_api_key'
+          ? 'Gemini API anahtarı geçersiz. Yerel hazır şablon kullanılıyor.'
+          : `AI servisi yanıt vermedi (${data.reason || 'hata'}). Yerel hazır şablon kullanılıyor.`;
+        console.warn(`[AI Engine Notice] ${fallbackNote}`, data.error || '');
       }
 
       if (data.success) {
@@ -1955,11 +1911,19 @@ export default function App() {
         if (data.textColor) applyPaletteOverride('text', data.textColor);
         if (data.bgColor) applyPaletteOverride('bg', data.bgColor);
 
-        setAiSuccessMessage(data.isFallback
-          ? 'Kreatif yerel tasarım motoru ile başlıklar ve renk paleti başarıyla uyarlandı!'
-          : 'Yapay Zeka görseli otomatik algıladı, başlık ve açıklamayı başarıyla üretti!'
-        );
-        setTimeout(() => setAiSuccessMessage(null), 5000);
+        if (data.isFallback) {
+          const bannerMsg = data.reason === 'missing_api_key'
+            ? 'Yapay zekâ bağlantısı kurulmamış. Örnek içerik uygulandı; metinleri düzenleyebilirsiniz.'
+            : data.reason === 'quota_exceeded'
+            ? '⚠️ Gemini API kotası dolduğu için hazır tasarım şablonu uygulandı.'
+            : data.reason === 'invalid_api_key'
+            ? '⚠️ Gemini API anahtarı geçersiz olduğu için hazır tasarım şablonu uygulandı.'
+            : 'Hazır kreatif şablon uygulandı.';
+          setAiSuccessMessage(bannerMsg);
+        } else {
+          setAiSuccessMessage('✨ Yapay Zeka görseli başarıyla analiz etti, başlık ve renkleri üretti!');
+        }
+        setTimeout(() => setAiSuccessMessage(null), 6000);
       } else {
         alert('Görsel analiz edilirken bir hata oluştu.');
       }
@@ -2158,8 +2122,22 @@ export default function App() {
     setAiSuccessMessage(`Görseller başarıyla boş resim çerçevelerinin içine yerleştirildi.`);
   };
 
-  const generateMultiPageSequence = (imageUrls: string[]) => {
-    if (imageUrls.length === 0) return;
+  const generateMultiPageSequence = (mediaItems: (SequenceMediaItem | string)[]) => {
+    if (mediaItems.length === 0) return;
+
+    // Normalize items into SequenceMediaItem
+    const normalizedItems: SequenceMediaItem[] = mediaItems.map((item, idx) => {
+      if (typeof item === 'string') {
+        const isVid = isMediaVideo(item);
+        return {
+          id: `media-${idx}-${Date.now()}`,
+          type: isVid ? 'video' : 'image',
+          url: item,
+          thumbnailUrl: item
+        };
+      }
+      return item;
+    });
 
     const pageWithFallback = ensureMultiPageSupport(currentTemplate);
     const availablePages = pageWithFallback.pages || [];
@@ -2178,14 +2156,19 @@ export default function App() {
 
     const newGeneratedPages: any[] = [];
 
-    // --- PAGE 1: COVER PAGE (Always 1 photo) ---
+    // --- PAGE 1: COVER PAGE ---
+    const firstItem = normalizedItems[0];
     const coverTexts = { ...activeGraphicData.dynamicTexts };
     const coverImages: any = {};
 
     const coverImgRegions = coverPageDef.regions.filter(r => isTemplateImageFrame(r));
     if (coverImgRegions.length > 0) {
       coverImages[coverImgRegions[0].id] = {
-        url: imageUrls[0],
+        url: firstItem.thumbnailUrl || firstItem.url,
+        videoUrl: firstItem.type === 'video' ? firstItem.url : undefined,
+        isVideo: firstItem.type === 'video',
+        mediaId: firstItem.mediaId,
+        duration: firstItem.duration,
         scale: 1.0,
         offsetX: 0,
         offsetY: 0,
@@ -2196,40 +2179,76 @@ export default function App() {
     newGeneratedPages.push({
       id: `generated-cover-${Date.now()}`,
       templatePageId: coverPageDef.id,
-      name: coverPageDef.name || 'Kapak Sayfası',
+      name: firstItem.type === 'video' ? 'Kapak Sayfası (Video)' : (coverPageDef.name || 'Kapak Sayfası'),
       dynamicTexts: coverTexts,
       dynamicImages: coverImages,
       hiddenElements: []
     });
 
-    // --- COLLAGE PAGES ---
-    const remainingImages = imageUrls.slice(1);
+    // --- REMAINING MEDIA (Collage & Video Pages) ---
+    const remainingItems = normalizedItems.slice(1);
     
-    if (remainingImages.length > 0) {
-      let imgIdx = 0;
+    if (remainingItems.length > 0) {
+      let itemIdx = 0;
       let pageCount = 1;
 
-      while (imgIdx < remainingImages.length) {
-        const imagesLeft = remainingImages.length - imgIdx;
+      while (itemIdx < remainingItems.length) {
+        const currentItem = remainingItems[itemIdx];
 
-        // "eğer ki tüm fotoğrafları kolaja yerleştirdin ve elinde tek bir fotoğraf kaldı ise onu tekli şablona koyacaksın."
-        if (imagesLeft === 1) {
+        // If the item is a VIDEO, assign to a dedicated 1-image/video page so it remains full aspect ratio!
+        if (currentItem.type === 'video') {
           const pageImages: any = {};
           const pageTexts = { ...activeGraphicData.dynamicTexts };
           const imageRegions = oneImagePageDef.regions.filter(r => isTemplateImageFrame(r));
 
           if (imageRegions.length > 0) {
             pageImages[imageRegions[0].id] = {
-              url: remainingImages[imgIdx],
+              url: currentItem.thumbnailUrl || currentItem.url,
+              videoUrl: currentItem.url,
+              mediaId: currentItem.mediaId,
+              isVideo: true,
+              duration: currentItem.duration,
               scale: 1.0,
               offsetX: 0,
               offsetY: 0,
               rotation: 0
             };
-            imgIdx++;
-          } else {
-            imgIdx++; // Fallback progress
           }
+          itemIdx++;
+
+          newGeneratedPages.push({
+            id: `generated-video-${oneImagePageDef.id}-${pageCount}-${Date.now()}`,
+            templatePageId: oneImagePageDef.id,
+            name: `${pageCount + 1}. Sayfa (Video)`,
+            dynamicTexts: pageTexts,
+            dynamicImages: pageImages,
+            hiddenElements: []
+          });
+          pageCount++;
+          continue;
+        }
+
+        // If current item is an IMAGE:
+        // Check if next item is also an IMAGE for 2-image collage
+        const itemsLeft = remainingItems.length - itemIdx;
+        const nextItem = itemsLeft > 1 ? remainingItems[itemIdx + 1] : null;
+
+        if (itemsLeft === 1 || (nextItem && nextItem.type === 'video')) {
+          // Only 1 image left OR the next item is a video -> put into 1-image page
+          const pageImages: any = {};
+          const pageTexts = { ...activeGraphicData.dynamicTexts };
+          const imageRegions = oneImagePageDef.regions.filter(r => isTemplateImageFrame(r));
+
+          if (imageRegions.length > 0) {
+            pageImages[imageRegions[0].id] = {
+              url: currentItem.thumbnailUrl || currentItem.url,
+              scale: 1.0,
+              offsetX: 0,
+              offsetY: 0,
+              rotation: 0
+            };
+          }
+          itemIdx++;
 
           newGeneratedPages.push({
             id: `generated-collage-${oneImagePageDef.id}-${pageCount}-${Date.now()}`,
@@ -2241,30 +2260,30 @@ export default function App() {
           });
           pageCount++;
         } else {
-          // "geri kalan fotoğrafları 2li kolaj"
+          // 2 images in sequence -> place into 2-image collage
           const pageImages: any = {};
           const pageTexts = { ...activeGraphicData.dynamicTexts };
           const imageRegions = twoImagePageDef.regions.filter(r => isTemplateImageFrame(r));
 
           let processedCount = 0;
           for (let i = 0; i < imageRegions.length; i++) {
-            if (i >= 2) break; // Ensure we only put up to 2 images on this 2-image collage
-            if (imgIdx < remainingImages.length) {
-              const imgUrl = remainingImages[imgIdx];
+            if (i >= 2) break;
+            if (itemIdx < remainingItems.length && remainingItems[itemIdx].type === 'image') {
+              const imgItem = remainingItems[itemIdx];
               pageImages[imageRegions[i].id] = {
-                url: imgUrl,
+                url: imgItem.thumbnailUrl || imgItem.url,
                 scale: 1.0,
                 offsetX: 0,
                 offsetY: 0,
                 rotation: 0
               };
-              imgIdx++;
+              itemIdx++;
               processedCount++;
             }
           }
 
-          if (processedCount === 0 && imgIdx < remainingImages.length) {
-            imgIdx += Math.min(2, remainingImages.length - imgIdx); // Safety step to avoid infinite loop
+          if (processedCount === 0 && itemIdx < remainingItems.length) {
+            itemIdx++;
           }
 
           newGeneratedPages.push({
@@ -2282,38 +2301,44 @@ export default function App() {
 
     setGeneratedPages(newGeneratedPages);
     setActiveGeneratedPageIndex(0);
-    setAiSuccessMessage(`Başarıyla ${newGeneratedPages.length} sayfa otomatik üretildi! Görseller fotoğraf sayısına göre ve şablon sayfa türlerine göre yerleştirildi.`);
+    setAiSuccessMessage(`Başarıyla ${newGeneratedPages.length} sayfa otomatik üretildi! Fotoğraflar ve MP4 videolar uygun şablon sayfalarına yerleştirildi.`);
   };
 
-  const handleMultiImageFiles = async (files: FileList | File[]) => {
-    let fileList = Array.from(files).filter(f => f.type.startsWith('image/'));
-    if (fileList.length === 0) return;
+  const handleMultiMediaFiles = async (files: FileList | File[]) => {
+    if (isAiLoading) return;
+    let fileList = Array.from(files).filter(f => f.type.startsWith('image/') || isMediaVideo(f));
+    if (fileList.length === 0) {
+      alert('Lütfen resim veya MP4 video dosyaları seçin!');
+      return;
+    }
 
     if (fileList.length > 25) {
-      alert('Maksimum 25 adet fotoğraf yükleyebilirsiniz. İlk 25 fotoğrafınız işleme alınacaktır.');
+      alert('Maksimum 25 adet dosya yükleyebilirsiniz. İlk 25 dosyanız işleme alınacaktır.');
       fileList = fileList.slice(0, 25);
     }
 
+    setIsAiLoading(true);
     try {
-      const readPromises = fileList.map(file => {
-        return compressImage(file, 1200, 1200, 0.85);
-      });
+      const mediaItems: SequenceMediaItem[] = [];
+      for (const file of fileList) {
+        const item = await createSequenceMediaItem(file);
+        mediaItems.push(item);
+      }
 
-      const imageUrls = await Promise.all(readPromises);
-      fillEmptyImageFramesWithWizard(imageUrls);
+      generateMultiPageSequence(mediaItems);
     } catch (err) {
-      console.error('Fotoğraflar işlenirken hata oluştu:', err);
+      console.error('Medyalar işlenirken hata oluştu:', err);
+      alert('Dosyalar işlenirken bir hata oluştu.');
+    } finally {
+      setIsAiLoading(false);
     }
   };
 
+  const handleMultiImageFiles = handleMultiMediaFiles;
+
   const applyPaletteOverride = (key: 'primary' | 'accent' | 'text' | 'bg' | 'boldHighlight', color: string) => {
     setGraphicData(prev => {
-      const current = prev[currentTemplateId] || {
-        templateId: currentTemplateId,
-        dynamicTexts: {},
-        dynamicImages: {},
-        hiddenElements: []
-      };
+      const current = prev[currentTemplateId] || activeGraphicData;
       const overrides = current.paletteOverrides || {};
       return {
         ...prev,
@@ -2330,12 +2355,7 @@ export default function App() {
 
   const resetPaletteOverrides = () => {
     setGraphicData(prev => {
-      const current = prev[currentTemplateId] || {
-        templateId: currentTemplateId,
-        dynamicTexts: {},
-        dynamicImages: {},
-        hiddenElements: []
-      };
+      const current = prev[currentTemplateId] || activeGraphicData;
       return {
         ...prev,
         [currentTemplateId]: {
@@ -2382,11 +2402,11 @@ export default function App() {
   const resetTemplatePalette = () => {
     const preset = TEMPLATE_PRESETS.find(p => p.id === currentTemplateId);
     const defaultPalette = preset?.palette || {
-      primary: '#4F46E5',
-      accent: '#F59E0B',
-      text: '#0F172A',
-      bg: '#F8FAFC',
-      boldHighlight: '#4F46E5'
+      primary: '#6C5CE7',
+      accent: '#FF9F0A',
+      text: '#1D1D1F',
+      bg: '#1D1D1F',
+      boldHighlight: '#6C5CE7'
     };
 
     setTemplates(prev => {
@@ -2408,12 +2428,18 @@ export default function App() {
   };
 
   const handleRegionPropertyChange = (regionId: string, prop: keyof Region, value: any) => {
+    if (activeTab !== 'phase1' && generatedPages.length) {
+      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {...page,
+        regions: (page.regions ?? editingTemplate.regions).map(node => node.id === regionId ? {...node, [prop]: value} : node)
+      } : page));
+      return;
+    }
     setTemplates(prev => {
       const updated = prev.map(t => {
         if (t.id === currentTemplateId) {
           const pageWithFallback = ensureMultiPageSupport(t);
           const updatedPages = pageWithFallback.pages!.map((p, idx) => {
-            if (idx === activePageIndex) {
+            if (p.id === activeTemplatePage.id) {
               return {
                 ...p,
                 regions: p.regions.map(r => r.id === regionId ? { ...r, [prop]: value } : r)
@@ -2436,12 +2462,18 @@ export default function App() {
   };
 
   const handleRegionPropertiesChange = (regionId: string, updates: Partial<Region>) => {
+    if (activeTab !== 'phase1' && generatedPages.length) {
+      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {...page,
+        regions: (page.regions ?? editingTemplate.regions).map(node => node.id === regionId ? {...node, ...updates} : node)
+      } : page));
+      return;
+    }
     setTemplates(prev => {
       const updated = prev.map(t => {
         if (t.id === currentTemplateId) {
           const pageWithFallback = ensureMultiPageSupport(t);
           const updatedPages = pageWithFallback.pages!.map((p, idx) => {
-            if (idx === activePageIndex) {
+            if (p.id === activeTemplatePage.id) {
               return {
                 ...p,
                 regions: p.regions.map(r => r.id === regionId ? { ...r, ...updates } : r)
@@ -2469,7 +2501,7 @@ export default function App() {
         if (t.id === currentTemplateId) {
           const pageWithFallback = ensureMultiPageSupport(t);
           const updatedPages = pageWithFallback.pages!.map((p, idx) => {
-            if (idx === activePageIndex) {
+            if (p.id === activeTemplatePage.id) {
               return {
                 ...p,
                 fixedElements: p.fixedElements.map(el => el.id === elementId ? { ...el, ...updates } : el)
@@ -2492,12 +2524,18 @@ export default function App() {
   };
 
   const handleRegionTextStyleChange = (regionId: string, prop: keyof TextStyle, value: any) => {
+    if (activeTab !== 'phase1' && generatedPages.length) {
+      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {...page,
+        regions: (page.regions ?? editingTemplate.regions).map(node => node.id === regionId ? {...node, textStyle: {...node.textStyle, [prop]: value}} : node)
+      } : page));
+      return;
+    }
     setTemplates(prev => {
       const updated = prev.map(t => {
         if (t.id === currentTemplateId) {
           const pageWithFallback = ensureMultiPageSupport(t);
           const updatedPages = pageWithFallback.pages!.map((p, idx) => {
-            if (idx === activePageIndex) {
+            if (p.id === activeTemplatePage.id) {
               return {
                 ...p,
                 regions: p.regions.map(r => {
@@ -2532,12 +2570,18 @@ export default function App() {
   };
 
   const handleFixedElementPropertyChange = (elementId: string, prop: keyof FixedElement, value: any) => {
+    if (activeTab !== 'phase1' && generatedPages.length) {
+      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {...page,
+        fixedElements: (page.fixedElements ?? editingTemplate.fixedElements).map(node => node.id === elementId ? {...node, [prop]: value} : node)
+      } : page));
+      return;
+    }
     setTemplates(prev => {
       const updated = prev.map(t => {
         if (t.id === currentTemplateId) {
           const pageWithFallback = ensureMultiPageSupport(t);
           const updatedPages = pageWithFallback.pages!.map((p, idx) => {
-            if (idx === activePageIndex) {
+            if (p.id === activeTemplatePage.id) {
               return {
                 ...p,
                 fixedElements: p.fixedElements.map(el => el.id === elementId ? { ...el, [prop]: value } : el)
@@ -2560,12 +2604,18 @@ export default function App() {
   };
 
   const handleFixedElementTextStyleChange = (elementId: string, prop: keyof TextStyle, value: any) => {
+    if (activeTab !== 'phase1' && generatedPages.length) {
+      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {...page,
+        fixedElements: (page.fixedElements ?? editingTemplate.fixedElements).map(node => node.id === elementId ? {...node, textStyle: {...node.textStyle, [prop]: value}} : node)
+      } : page));
+      return;
+    }
     setTemplates(prev => {
       const updated = prev.map(t => {
         if (t.id === currentTemplateId) {
           const pageWithFallback = ensureMultiPageSupport(t);
           const updatedPages = pageWithFallback.pages!.map((p, idx) => {
-            if (idx === activePageIndex) {
+            if (p.id === activeTemplatePage.id) {
               return {
                 ...p,
                 fixedElements: p.fixedElements.map(el => {
@@ -2662,12 +2712,12 @@ export default function App() {
       name: `Yeni Özel Şablon #${templates.length + 1}`,
       width: 1080,
       height: 1080,
-      backgroundColor: '#FAFAFA',
+      backgroundColor: '#1D1D1F',
       palette: {
-        primary: '#4F46E5',
-        accent: '#F59E0B',
-        text: '#0F172A',
-        bg: '#FAFAFA'
+        primary: '#6C5CE7',
+        accent: '#FF9F0A',
+        text: '#F5F5F7',
+        bg: '#1D1D1F'
       },
       regions: [
         {
@@ -2688,7 +2738,7 @@ export default function App() {
           textStyle: {
             fontFamily: 'Space Grotesk',
             fontSize: 48,
-            color: '#0F172A',
+            color: '#F5F5F7',
             fontWeight: 'bold',
             lineHeight: 1.2,
             align: 'center'
@@ -2702,9 +2752,9 @@ export default function App() {
           y: 500,
           width: 500,
           height: 450,
-          backgroundColor: '#E2E8F0',
+          backgroundColor: 'rgba(255,255,255,0.08)',
           opacity: 1,
-          borderColor: '#4F46E5',
+          borderColor: '#6C5CE7',
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
@@ -2724,7 +2774,7 @@ export default function App() {
           textStyle: {
             fontFamily: 'Inter',
             fontSize: 18,
-            color: '#4F46E5',
+            color: '#6C5CE7',
             fontWeight: 'bold',
             lineHeight: 1,
             align: 'center',
@@ -2761,19 +2811,19 @@ export default function App() {
         saveTemplatesToLocalStorage(updated);
 
         // Add to deleted_template_ids list to handle offline/other-device synchronizations
-        const deletedIds = JSON.parse(localStorage.getItem('deleted_template_ids') || '[]');
+        const deletedIds = JSON.parse(storage.getItem('deleted_template_ids') || '[]');
         if (!deletedIds.includes(id)) {
           deletedIds.push(id);
-          localStorage.setItem('deleted_template_ids', JSON.stringify(deletedIds));
+          storage.setItem('deleted_template_ids', JSON.stringify(deletedIds));
         }
 
         // Delete from Firestore if it was a custom template saved to cloud
         if (isValidConfig && !firestoreQuotaExceeded) {
           deleteCloudTemplate(id).then(() => {
             // Remove from deletion queue on successful deletion
-            const currentDeleted = JSON.parse(localStorage.getItem('deleted_template_ids') || '[]');
+            const currentDeleted = JSON.parse(storage.getItem('deleted_template_ids') || '[]');
             const updatedDeleted = currentDeleted.filter((item: string) => item !== id);
-            localStorage.setItem('deleted_template_ids', JSON.stringify(updatedDeleted));
+            storage.setItem('deleted_template_ids', JSON.stringify(updatedDeleted));
           }).catch(err => {
             console.error('Failed to delete cloud template:', err);
           });
@@ -2847,7 +2897,7 @@ export default function App() {
         textStyle: {
           fontFamily: 'Space Grotesk',
           fontSize: 48,
-          color: currentTemplate.palette?.text || '#0F172A',
+          color: currentTemplate.palette?.text || '#1D1D1F',
           fontWeight: 'bold',
           lineHeight: 1.2,
           align: 'center'
@@ -2861,9 +2911,9 @@ export default function App() {
         y: Math.floor(currentTemplate.height * 0.4),
         width: Math.floor(currentTemplate.width * 0.8),
         height: Math.floor(currentTemplate.height * 0.5),
-        backgroundColor: '#F1F5F9',
+        backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#4F46E5',
+        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2878,9 +2928,9 @@ export default function App() {
         y: Math.floor(currentTemplate.height * 0.15),
         width: Math.floor(currentTemplate.width * 0.8),
         height: Math.floor(currentTemplate.height * 0.55),
-        backgroundColor: '#F1F5F9',
+        backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#4F46E5',
+        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2905,7 +2955,7 @@ export default function App() {
         textStyle: {
           fontFamily: 'Inter',
           fontSize: 20,
-          color: currentTemplate.palette?.text || '#0F172A',
+          color: currentTemplate.palette?.text || '#1D1D1F',
           fontWeight: 'normal',
           lineHeight: 1.4,
           align: 'center'
@@ -2920,9 +2970,9 @@ export default function App() {
         y: Math.floor(currentTemplate.height * 0.15),
         width: Math.floor(currentTemplate.width * 0.42),
         height: Math.floor(currentTemplate.height * 0.55),
-        backgroundColor: '#F1F5F9',
+        backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#4F46E5',
+        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2936,9 +2986,9 @@ export default function App() {
         y: Math.floor(currentTemplate.height * 0.15),
         width: Math.floor(currentTemplate.width * 0.42),
         height: Math.floor(currentTemplate.height * 0.55),
-        backgroundColor: '#F1F5F9',
+        backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#4F46E5',
+        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2963,7 +3013,7 @@ export default function App() {
         textStyle: {
           fontFamily: 'Inter',
           fontSize: 20,
-          color: currentTemplate.palette?.text || '#0F172A',
+          color: currentTemplate.palette?.text || '#1D1D1F',
           fontWeight: 'normal',
           lineHeight: 1.4,
           align: 'center'
@@ -2978,9 +3028,9 @@ export default function App() {
         y: Math.floor(currentTemplate.height * 0.15),
         width: Math.floor(currentTemplate.width * 0.28),
         height: Math.floor(currentTemplate.height * 0.55),
-        backgroundColor: '#F1F5F9',
+        backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#4F46E5',
+        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -2994,9 +3044,9 @@ export default function App() {
         y: Math.floor(currentTemplate.height * 0.15),
         width: Math.floor(currentTemplate.width * 0.28),
         height: Math.floor(currentTemplate.height * 0.55),
-        backgroundColor: '#F1F5F9',
+        backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#4F46E5',
+        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -3010,9 +3060,9 @@ export default function App() {
         y: Math.floor(currentTemplate.height * 0.15),
         width: Math.floor(currentTemplate.width * 0.28),
         height: Math.floor(currentTemplate.height * 0.55),
-        backgroundColor: '#F1F5F9',
+        backgroundColor: '#252528',
         opacity: 1,
-        borderColor: currentTemplate.palette?.primary || '#4F46E5',
+        borderColor: currentTemplate.palette?.primary || '#6C5CE7',
         borderWidth: 2,
         borderRadius: 16,
         isDynamic: true,
@@ -3037,7 +3087,7 @@ export default function App() {
         textStyle: {
           fontFamily: 'Inter',
           fontSize: 18,
-          color: currentTemplate.palette?.text || '#0F172A',
+          color: currentTemplate.palette?.text || '#1D1D1F',
           fontWeight: 'normal',
           lineHeight: 1.4,
           align: 'center'
@@ -3064,7 +3114,7 @@ export default function App() {
         textStyle: {
           fontFamily: 'Space Grotesk',
           fontSize: 36,
-          color: currentTemplate.palette?.text || '#0F172A',
+          color: currentTemplate.palette?.text || '#1D1D1F',
           fontWeight: 'bold',
           lineHeight: 1.2,
           align: 'center'
@@ -3211,7 +3261,7 @@ export default function App() {
       textStyle: {
         fontFamily: defaultRole === 'title' ? 'Space Grotesk' : 'Inter',
         fontSize: defaultRole === 'title' ? 36 : defaultRole === 'subtitle' ? 24 : 18,
-        color: '#0F172A',
+        color: '#1D1D1F',
         fontWeight: defaultRole === 'title' ? 'bold' : 'normal',
         lineHeight: 1.4,
         align: 'left'
@@ -3224,9 +3274,9 @@ export default function App() {
       y: 400,
       width: 300,
       height: 300,
-      backgroundColor: '#E2E8F0',
+      backgroundColor: 'rgba(255,255,255,0.08)',
       opacity: 1,
-      borderColor: '#4F46E5',
+      borderColor: '#6C5CE7',
       borderWidth: 2,
       borderRadius: 12,
       isDynamic: true,
@@ -3412,7 +3462,7 @@ export default function App() {
       textStyle: {
         fontFamily: 'Space Grotesk',
         fontSize: 18,
-        color: '#4F46E5',
+        color: '#6C5CE7',
         fontWeight: 'bold',
         lineHeight: 1,
         align: 'left'
@@ -3430,7 +3480,7 @@ export default function App() {
       textStyle: {
         fontFamily: 'JetBrains Mono',
         fontSize: 14,
-        color: '#475569',
+        color: 'rgba(255,255,255,0.72)',
         fontWeight: '500',
         lineHeight: 1,
         align: 'left'
@@ -3444,7 +3494,7 @@ export default function App() {
       width: 100,
       height: 4,
       shapeType: 'rect',
-      backgroundColor: '#F59E0B'
+      backgroundColor: '#FF9F0A'
     };
 
     setTemplates(prev => {
@@ -3513,28 +3563,28 @@ export default function App() {
         const customs = templates.filter(t => !TEMPLATE_PRESETS.some(p => p.id === t.id));
         
         // Add all custom templates to deleted_template_ids list
-        const deletedIds = JSON.parse(localStorage.getItem('deleted_template_ids') || '[]');
+        const deletedIds = JSON.parse(storage.getItem('deleted_template_ids') || '[]');
         customs.forEach(t => {
           if (!deletedIds.includes(t.id)) {
             deletedIds.push(t.id);
           }
         });
-        localStorage.setItem('deleted_template_ids', JSON.stringify(deletedIds));
+        storage.setItem('deleted_template_ids', JSON.stringify(deletedIds));
 
         if (isValidConfig && !firestoreQuotaExceeded) {
           customs.forEach(t => {
             deleteCloudTemplate(t.id).then(() => {
               // Remove from deletion queue on successful deletion
-              const currentDeleted = JSON.parse(localStorage.getItem('deleted_template_ids') || '[]');
+              const currentDeleted = JSON.parse(storage.getItem('deleted_template_ids') || '[]');
               const updatedDeleted = currentDeleted.filter((id: string) => id !== t.id);
-              localStorage.setItem('deleted_template_ids', JSON.stringify(updatedDeleted));
+              storage.setItem('deleted_template_ids', JSON.stringify(updatedDeleted));
             }).catch(err => {
               console.error('Failed to delete cloud template during reset:', err);
             });
           });
         }
-        localStorage.removeItem('custom_templates');
-        localStorage.removeItem('active_templates_v2');
+        storage.removeItem('custom_templates');
+        storage.removeItem('active_templates_v2');
         setTemplates([INITIAL_FALLBACK_TEMPLATE]);
         setCurrentTemplateId(INITIAL_FALLBACK_TEMPLATE.id);
         setSelectedNodeId(null);
@@ -3616,7 +3666,7 @@ export default function App() {
     if (!canvas) return;
 
     // Capture the state snapshot BEFORE dragging begins so we can revert to it on Undo
-    templatesBeforeDragRef.current = templates;
+
 
     const rect = canvas.getBoundingClientRect();
     let clientX = 0;
@@ -3842,8 +3892,45 @@ export default function App() {
 
     if (dragStartRef.current.mode === 'image-pan') {
       const ref = dragStartRef.current;
-      const newOffsetX = Math.round(ref.startX + dx);
-      const newOffsetY = Math.round(ref.startY + dy);
+      let newOffsetX = Math.round(ref.startX + dx);
+      let newOffsetY = Math.round(ref.startY + dy);
+
+      // Görselin pan (kaydırma) sınırlarını hesaplama ve clamp işlemi (bölge dışına çıkmayı önleme)
+      const region = editingTemplate.regions.find(r => r.id === ref.elementId);
+      const imgData = activePageData.dynamicImages[ref.elementId];
+      if (region && imgData && imgData.url) {
+        const img = new Image();
+        img.src = imgData.url; // Tarayıcı önbelleğinden hızlıca gelir
+        if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
+          const imgRatio = img.naturalWidth / img.naturalHeight;
+          const regRatio = region.width / region.height;
+          let drawWidth, drawHeight;
+          
+          // Cover mantığıyla çizim boyutlarını hesapla
+          if (imgRatio > regRatio) {
+            drawHeight = region.height;
+            drawWidth = region.height * imgRatio;
+          } else {
+            drawWidth = region.width;
+            drawHeight = region.width / imgRatio;
+          }
+          
+          const scaleFactor = imgData.scale || 1.0;
+          const finalDrawWidth = drawWidth * scaleFactor;
+          const finalDrawHeight = drawHeight * scaleFactor;
+
+          // Kayabilecek maksimum offset miktarları
+          const maxOffsetX = Math.max(0, (finalDrawWidth - region.width) / 2);
+          const maxOffsetY = Math.max(0, (finalDrawHeight - region.height) / 2);
+
+          // Sınırları uygulama
+          if (newOffsetX > maxOffsetX) newOffsetX = Math.round(maxOffsetX);
+          if (newOffsetX < -maxOffsetX) newOffsetX = Math.round(-maxOffsetX);
+          if (newOffsetY > maxOffsetY) newOffsetY = Math.round(maxOffsetY);
+          if (newOffsetY < -maxOffsetY) newOffsetY = Math.round(-maxOffsetY);
+        }
+      }
+
       updateActiveImageProp(ref.elementId, 'offsetX', newOffsetX);
       updateActiveImageProp(ref.elementId, 'offsetY', newOffsetY);
     } else if (dragStartRef.current.mode === 'resize' && dragStartRef.current.resizeHandle) {
@@ -3904,23 +3991,8 @@ export default function App() {
   };
 
   const handleCanvasPointerUp = () => {
-    if (dragStartRef.current && templatesBeforeDragRef.current) {
-      // Push history state if something actually moved/resized
-      const currentSnapshotStr = JSON.stringify(templates);
-      const beforeSnapshotStr = JSON.stringify(templatesBeforeDragRef.current);
-      if (currentSnapshotStr !== beforeSnapshotStr) {
-        const prevSnapshot = templatesBeforeDragRef.current;
-        setUndoStack(u => {
-          const updated = [...u, prevSnapshot];
-          if (updated.length > 50) updated.shift();
-          return updated;
-        });
-        setRedoStack([]); // Clear redo
-      }
-    }
-    setIsDragging(false);
     dragStartRef.current = null;
-    templatesBeforeDragRef.current = null;
+    setIsDragging(false);
   };
 
   const handleCanvasDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -4087,15 +4159,35 @@ export default function App() {
     }
   };
 
-  const handleImageFile = (file: File, regionId: string) => {
+  const handleImageFile = async (file: File, regionId: string) => {
+    if (isMediaVideo(file)) {
+      try {
+        const { thumbnailUrl, duration } = await extractVideoSnapshot(file);
+        const stored = await storeVideo(file);
+        const videoBlobUrl = stored.url;
+        updateActiveImageProp(regionId, 'mediaId', stored.id);
+        updateActiveImageProp(regionId, 'url', thumbnailUrl);
+        updateActiveImageProp(regionId, 'videoUrl', videoBlobUrl);
+        updateActiveImageProp(regionId, 'isVideo', true);
+        updateActiveImageProp(regionId, 'duration', duration);
+      } catch (err) {
+        console.warn('Video karesi çıkarılamadı:', err);
+        setConfirmDialog({isOpen: true, title: 'Video yüklenemedi', message: 'Bu video tarayıcıda açılamadı. MP4 veya WebM biçiminde başka bir dosya deneyin.', type: 'info', onConfirm: () => setConfirmDialog(null)});
+      }
+      return;
+    }
     if (!file.type.startsWith('image/')) {
-      alert('Lütfen yalnızca bir resim dosyası seçin!');
+      alert('Lütfen bir resim veya MP4 video dosyası seçin!');
       return;
     }
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result) {
         updateActiveImageProp(regionId, 'url', event.target.result as string);
+        updateActiveImageProp(regionId, 'mediaId', undefined);
+        updateActiveImageProp(regionId, 'isVideo', false);
+        updateActiveImageProp(regionId, 'videoUrl', undefined);
+        updateActiveImageProp(regionId, 'duration', undefined);
       }
     };
     reader.readAsDataURL(file);
@@ -4106,10 +4198,38 @@ export default function App() {
     setIsAiLoading(true);
     setAiSuccessMessage(null);
     try {
+      // Find any active image on current template to enable visual intelligence
+      let activeImageBase64: string | null = null;
+      const dynamicImgs = activeGraphicData?.dynamicImages || {};
+      for (const regId of Object.keys(dynamicImgs)) {
+        const item = dynamicImgs[regId];
+        if (item && item.url && item.url.startsWith('data:image')) {
+          try {
+            activeImageBase64 = await compressDataUrl(item.url, 360, 360, 0.6);
+            break;
+          } catch (e) {}
+        }
+      }
+      if (!activeImageBase64) {
+        const imgRegion = editingTemplate.regions.find(r => r.type === 'image' && r.placeholderImage?.startsWith('data:image'));
+        if (imgRegion && imgRegion.placeholderImage) {
+          try {
+            activeImageBase64 = await compressDataUrl(imgRegion.placeholderImage, 360, 360, 0.6);
+          } catch (e) {}
+        }
+      }
+
       const response = await fetch('/api/generate-content', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ niche: aiNiche, styleType: aiStyle })
+        body: JSON.stringify({
+          niche: aiNiche,
+          styleType: aiStyle,
+          systemPrompt: currentTemplate.aiSystemPrompt || editingTemplate.aiSystemPrompt || '',
+          templateName: editingTemplate.name || currentTemplate.name || '',
+          targetBrief: aiCollageBrief || '',
+          image: activeImageBase64
+        })
       });
 
       let data;
@@ -4126,7 +4246,10 @@ export default function App() {
         data = {
           success: true,
           isFallback: true,
+          reason: data?.reason || 'network_or_api_error',
+          error: data?.error || 'Sunucu yanıt veremedi, yerel şablon uygulandı.',
           title: fallbackData.title,
+          subtitle: fallbackData.subtitle || '',
           description: fallbackData.description,
           primaryColor: fallbackData.primaryColor,
           accentColor: fallbackData.accentColor,
@@ -4135,38 +4258,70 @@ export default function App() {
         };
       }
 
+      if (data?.isFallback) {
+        const fallbackNote = data.reason === 'missing_api_key'
+          ? 'GEMINI_API_KEY eksik. Yerel hazır şablon kullanılıyor.'
+          : data.reason === 'quota_exceeded'
+          ? 'Gemini API kotası aşıldı. Yerel hazır şablon kullanılıyor.'
+          : data.reason === 'invalid_api_key'
+          ? 'Gemini API anahtarı geçersiz. Yerel hazır şablon kullanılıyor.'
+          : `AI servisi yanıt vermedi (${data.reason || 'hata'}). Yerel hazır şablon kullanılıyor.`;
+        console.warn(`[AI Engine Notice] ${fallbackNote}`, data.error || '');
+      }
+
       if (data.success) {
-        // Find title region and desc region using ID or textRole
-        const titleRegion = editingTemplate.regions.find(r => r.type === 'text' && (r.id.includes('title') || r.textRole === 'title'));
-        const descRegion = editingTemplate.regions.find(r => r.type === 'text' && (r.id.includes('desc') || r.textRole === 'description'));
+        // Map title, subtitle, and description across all text regions in the template
+        const mappedTexts = getMappedTextsForPage(editingTemplate.regions, {
+          title: data.title || '',
+          subtitle: data.subtitle || '',
+          description: data.description || ''
+        });
 
-        if (titleRegion) {
-          updateActiveText(titleRegion.id, data.title);
-        } else {
-          // fallback update first metin
-          const firstTxt = editingTemplate.regions.find(r => r.type === 'text');
-          if (firstTxt) updateActiveText(firstTxt.id, data.title);
-        }
+        // Update all mapped regions on the active template
+        Object.entries(mappedTexts).forEach(([regionId, textValue]) => {
+          updateActiveText(regionId, textValue);
+        });
 
-        if (descRegion) {
-          updateActiveText(descRegion.id, data.description);
-        } else {
-          const secondTxt = editingTemplate.regions.filter(r => r.type === 'text')[1];
-          if (secondTxt) updateActiveText(secondTxt.id, data.description);
-        }
+        // Also update graphicData so values persist across page navigation and cloud saves
+        setGraphicData(prev => {
+          const current = prev[currentTemplateId] || {
+            templateId: currentTemplateId,
+            dynamicTexts: {},
+            dynamicImages: {},
+            hiddenElements: []
+          };
+          return {
+            ...prev,
+            [currentTemplateId]: {
+              ...current,
+              dynamicTexts: {
+                ...current.dynamicTexts,
+                ...mappedTexts
+              }
+            }
+          };
+        });
 
         // Apply color overrides
-        applyPaletteOverride('primary', data.primaryColor);
-        applyPaletteOverride('accent', data.accentColor);
-        applyPaletteOverride('text', data.textColor);
-        applyPaletteOverride('bg', data.bgColor);
+        if (data.primaryColor) applyPaletteOverride('primary', data.primaryColor);
+        if (data.accentColor) applyPaletteOverride('accent', data.accentColor);
+        if (data.textColor) applyPaletteOverride('text', data.textColor);
+        if (data.bgColor) applyPaletteOverride('bg', data.bgColor);
 
-        setAiSuccessMessage(data.isFallback 
-          ? 'Kreatif yerel tasarım motoru ile kampanya içerikleri ve renkler başarıyla uyarlandı!' 
-          : 'Yapay Zeka içeriği ve renk paleti başarıyla üretildi!'
-        );
+        if (data.isFallback) {
+          const bannerMsg = data.reason === 'missing_api_key'
+            ? 'Yapay zekâ bağlantısı kurulmamış. Örnek içerik uygulandı; metinleri düzenleyebilirsiniz.'
+            : data.reason === 'quota_exceeded'
+            ? '⚠️ Gemini API kotası dolduğu için hazır tasarım şablonu uygulandı.'
+            : data.reason === 'invalid_api_key'
+            ? '⚠️ Gemini API anahtarı geçersiz olduğu için hazır tasarım şablonu uygulandı.'
+            : 'Hazır kreatif şablon uygulandı.';
+          setAiSuccessMessage(bannerMsg);
+        } else {
+          setAiSuccessMessage('✨ Yapay Zeka şablon kurumsal diline tam uyumlu içerik ve renkleri üretti!');
+        }
 
-        setTimeout(() => setAiSuccessMessage(null), 5000);
+        setTimeout(() => setAiSuccessMessage(null), 6000);
       } else {
         alert('Yapay zeka ile içerik üretilirken hata oluştu.');
       }
@@ -4206,735 +4361,123 @@ export default function App() {
     }
   };
 
-  // --- OFF-SCREEN HIGH-RES RENDER & DOWNLOADING ---
-  const exportSingleHighResPage = async (pageData: any, index: number) => {
-    setIsExporting(true);
+  // All export paths use the same page resolver and renderer.
+  const publishExport = (blob: Blob, name: string) => {
+    const url = URL.createObjectURL(blob);
+    exportUrls.current.push(url);
+    setExportFiles(prev => [...prev, {url, name, type:blob.type}]);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+  const resetExportResults = () => {
+    exportUrls.current.forEach(url => URL.revokeObjectURL(url));
+    exportUrls.current = [];
+    setExportFiles([]);
+  };
+  const exportPages = async (pages: any[], asZip = false) => {
+    if (isExporting || isExportingZip) return;
+    resetExportResults();
+    setIsExporting(!asZip);
+    setIsExportingZip(asZip);
     try {
-      const mimeType = exportFormat === 'png' ? 'image/png' : 'image/jpeg';
-      const fileExt = exportFormat === 'png' ? 'png' : 'jpg';
-
-      const templatePageId = pageData.templatePageId;
-      const matchedPage = currentTemplate.pages?.find(p => p.id === templatePageId) || currentTemplate.pages?.[0] || currentTemplate;
-
-      const pageTemplate = {
-        ...currentTemplate,
-        regions: matchedPage.regions,
-        fixedElements: matchedPage.fixedElements
-      };
-
-      const offscreenCanvas = document.createElement('canvas');
-      const targetWidth = currentTemplate.width * exportScale;
-      const targetHeight = currentTemplate.height * exportScale;
-
-      offscreenCanvas.width = targetWidth;
-      offscreenCanvas.height = targetHeight;
-
-      await renderTemplateToCanvas(
-        offscreenCanvas,
-        pageTemplate,
-        pageData.dynamicTexts,
-        pageData.dynamicImages,
-        {
-          paletteOverrides: activeGraphicData.paletteOverrides,
-          hiddenElements: pageData.hiddenElements || [],
-          showGrid: false,
-          showSafeMargins: false,
-          scale: exportScale,
-          highlightColor: vurguColor
-        }
-      );
-
-      const dataUrl = offscreenCanvas.toDataURL(mimeType, exportFormat === 'jpeg' ? 0.95 : undefined);
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-      if (isIOS) {
-        const pageName = index === 0 ? 'Kapak Sayfası' : `${index}. Sayfa`;
-        setIosExportImages([{ url: dataUrl, name: pageName }]);
-        setIsExporting(false);
-        return;
+      const zip = asZip ? new (await import('jszip')).default() : null;
+      for (const [index, page] of pages.entries()) {
+        setExportStatusText(`${index + 1} / ${pages.length} sayfa hazırlanıyor…`);
+        const {blob, extension} = await createExportAsset(currentTemplate, page, {
+          format:exportFormat, scale:exportScale, highlightColor:vurguColor,
+          paletteOverrides:activeGraphicData.paletteOverrides,
+          onProgress: percent => setExportStatusText(`${index + 1}. sayfa · %${percent}`),
+        });
+        const name = `${safeFileName(currentTemplate.name)}_${index + 1}.${extension}`;
+        if (zip) zip.file(name, blob);
+        else publishExport(blob, name);
       }
-
-      const link = document.createElement('a');
-      const pageName = index === 0 ? 'kapak' : `sayfa_${index}`;
-      link.download = `${currentTemplate.name.replace(/\s+/g, '_').toLowerCase()}_${pageName}_${Date.now()}.${fileExt}`;
-      link.href = dataUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      console.error('Sayfa indirilirken hata:', err);
-      alert('Sayfa yüksek çözünürlüklü üretilirken hata oluştu.');
+      if (zip) publishExport(await zip.generateAsync({type:'blob'}), `${safeFileName(currentTemplate.name)}.zip`);
+    } catch (error) {
+      setConfirmDialog({isOpen:true, title:'Dışa aktarma tamamlanamadı',
+        message:error instanceof Error ? error.message : 'Dosya hazırlanırken bir hata oluştu. Tekrar deneyin.',
+        type:'info', onConfirm:() => setConfirmDialog(null)});
     } finally {
       setIsExporting(false);
-    }
-  };
-
-  const exportHighResGraphic = async () => {
-    setIsExporting(true);
-    try {
-      const mimeType = exportFormat === 'png' ? 'image/png' : 'image/jpeg';
-      const fileExt = exportFormat === 'png' ? 'png' : 'jpg';
-
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-      // If we have generated multiple pages, let's export all of them sequentially!
-      if (generatedPages.length > 0) {
-        if (isIOS) {
-          const iosImages = [];
-          for (let i = 0; i < generatedPages.length; i++) {
-            const pageData = generatedPages[i];
-            const templatePageId = pageData.templatePageId;
-            const matchedPage = currentTemplate.pages?.find(p => p.id === templatePageId) || currentTemplate.pages?.[0] || currentTemplate;
-
-            const pageTemplate = {
-              ...currentTemplate,
-              regions: matchedPage.regions,
-              fixedElements: matchedPage.fixedElements
-            };
-
-            const offscreenCanvas = document.createElement('canvas');
-            const targetWidth = currentTemplate.width * exportScale;
-            const targetHeight = currentTemplate.height * exportScale;
-
-            offscreenCanvas.width = targetWidth;
-            offscreenCanvas.height = targetHeight;
-
-            await renderTemplateToCanvas(
-              offscreenCanvas,
-              pageTemplate,
-              pageData.dynamicTexts,
-              pageData.dynamicImages,
-              {
-                paletteOverrides: activeGraphicData.paletteOverrides,
-                hiddenElements: pageData.hiddenElements || [],
-                showGrid: false,
-                showSafeMargins: false,
-                scale: exportScale,
-                highlightColor: vurguColor
-              }
-            );
-
-            const dataUrl = offscreenCanvas.toDataURL(mimeType, exportFormat === 'jpeg' ? 0.95 : undefined);
-            const pageName = i === 0 ? 'Kapak Sayfası' : `Sayfa ${i}`;
-            iosImages.push({ url: dataUrl, name: pageName });
-          }
-          setIosExportImages(iosImages);
-          setIsExporting(false);
-          return;
-        }
-
-        for (let i = 0; i < generatedPages.length; i++) {
-          const pageData = generatedPages[i];
-          const templatePageId = pageData.templatePageId;
-          const matchedPage = currentTemplate.pages?.find(p => p.id === templatePageId) || currentTemplate.pages?.[0] || currentTemplate;
-
-          const pageTemplate = {
-            ...currentTemplate,
-            regions: matchedPage.regions,
-            fixedElements: matchedPage.fixedElements
-          };
-
-          const offscreenCanvas = document.createElement('canvas');
-          const targetWidth = currentTemplate.width * exportScale;
-          const targetHeight = currentTemplate.height * exportScale;
-
-          offscreenCanvas.width = targetWidth;
-          offscreenCanvas.height = targetHeight;
-
-          await renderTemplateToCanvas(
-            offscreenCanvas,
-            pageTemplate,
-            pageData.dynamicTexts,
-            pageData.dynamicImages,
-            {
-              paletteOverrides: activeGraphicData.paletteOverrides,
-              hiddenElements: pageData.hiddenElements || [],
-              showGrid: false,
-              showSafeMargins: false,
-              scale: exportScale,
-              highlightColor: vurguColor
-            }
-          );
-
-          const dataUrl = offscreenCanvas.toDataURL(mimeType, exportFormat === 'jpeg' ? 0.95 : undefined);
-          const link = document.createElement('a');
-          const pageName = i === 0 ? 'kapak' : `sayfa_${i}`;
-          link.download = `${currentTemplate.name.replace(/\s+/g, '_').toLowerCase()}_${pageName}_${Date.now()}.${fileExt}`;
-          link.href = dataUrl;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          // Wait briefly to let the browser queue multiple downloads properly
-          await new Promise(resolve => setTimeout(resolve, 300));
-        }
-      } else {
-        // Single page default export
-        const offscreenCanvas = document.createElement('canvas');
-        const targetWidth = currentTemplate.width * exportScale;
-        const targetHeight = currentTemplate.height * exportScale;
-
-        offscreenCanvas.width = targetWidth;
-        offscreenCanvas.height = targetHeight;
-
-        await renderTemplateToCanvas(
-          offscreenCanvas,
-          editingTemplate,
-          activeTab === 'phase1' ? {} : activePageData.dynamicTexts,
-          activeTab === 'phase1' ? {} : activePageData.dynamicImages,
-          {
-            paletteOverrides: activeGraphicData.paletteOverrides,
-            hiddenElements: activeTab === 'phase1' ? [] : activePageData.hiddenElements,
-            showGrid: false,
-            showSafeMargins: false,
-            scale: exportScale,
-            highlightColor: vurguColor
-          }
-        );
-
-        const dataUrl = offscreenCanvas.toDataURL(mimeType, exportFormat === 'jpeg' ? 0.95 : undefined);
-        const link = document.createElement('a');
-        link.download = `${currentTemplate.name.replace(/\s+/g, '_').toLowerCase()}_grafik_${Date.now()}.${fileExt}`;
-        link.href = dataUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-      }
-    } catch (err) {
-      console.error('High resolution export failed', err);
-      alert('Yüksek çözünürlüklü grafik üretilirken bir sorun oluştu.');
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  const exportHighResZip = async () => {
-    if (generatedPages.length === 0) {
-      alert('Sadece çoklu şablon sayfaları üretildikten sonra ZIP olarak indirebilirsiniz!');
-      return;
-    }
-
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || 
-                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-
-    if (isIOS) {
-      setIsExportingZip(true);
-      try {
-        const mimeType = exportFormat === 'png' ? 'image/png' : 'image/jpeg';
-        const iosImages = [];
-
-        for (let i = 0; i < generatedPages.length; i++) {
-          const pageData = generatedPages[i];
-          const templatePageId = pageData.templatePageId;
-          const matchedPage = currentTemplate.pages?.find(p => p.id === templatePageId) || currentTemplate.pages?.[0] || currentTemplate;
-
-          const pageTemplate = {
-            ...currentTemplate,
-            regions: matchedPage.regions,
-            fixedElements: matchedPage.fixedElements
-          };
-
-          const offscreenCanvas = document.createElement('canvas');
-          const targetWidth = currentTemplate.width * exportScale;
-          const targetHeight = currentTemplate.height * exportScale;
-
-          offscreenCanvas.width = targetWidth;
-          offscreenCanvas.height = targetHeight;
-
-          await renderTemplateToCanvas(
-            offscreenCanvas,
-            pageTemplate,
-            pageData.dynamicTexts,
-            pageData.dynamicImages,
-            {
-              paletteOverrides: activeGraphicData.paletteOverrides,
-              hiddenElements: pageData.hiddenElements || [],
-              showGrid: false,
-              showSafeMargins: false,
-              scale: exportScale,
-              highlightColor: vurguColor
-            }
-          );
-
-          const dataUrl = offscreenCanvas.toDataURL(mimeType, exportFormat === 'jpeg' ? 0.95 : undefined);
-          const pageName = i === 0 ? 'Kapak Sayfası' : `Sayfa ${i}`;
-          iosImages.push({ url: dataUrl, name: pageName });
-        }
-        setIosExportImages(iosImages);
-      } catch (err) {
-        console.error('iOS high res export failed', err);
-        alert('Görseller hazırlanırken bir sorun oluştu.');
-      } finally {
-        setIsExportingZip(false);
-      }
-      return;
-    }
-
-    setIsExportingZip(true);
-    try {
-      const zip = new JSZip();
-      const mimeType = exportFormat === 'png' ? 'image/png' : 'image/jpeg';
-      const fileExt = exportFormat === 'png' ? 'png' : 'jpg';
-
-      for (let i = 0; i < generatedPages.length; i++) {
-        const pageData = generatedPages[i];
-        const templatePageId = pageData.templatePageId;
-        const matchedPage = currentTemplate.pages?.find(p => p.id === templatePageId) || currentTemplate.pages?.[0] || currentTemplate;
-
-        const pageTemplate = {
-          ...currentTemplate,
-          regions: matchedPage.regions,
-          fixedElements: matchedPage.fixedElements
-        };
-
-        const offscreenCanvas = document.createElement('canvas');
-        const targetWidth = currentTemplate.width * exportScale;
-        const targetHeight = currentTemplate.height * exportScale;
-
-        offscreenCanvas.width = targetWidth;
-        offscreenCanvas.height = targetHeight;
-
-        await renderTemplateToCanvas(
-          offscreenCanvas,
-          pageTemplate,
-          pageData.dynamicTexts,
-          pageData.dynamicImages,
-          {
-            paletteOverrides: activeGraphicData.paletteOverrides,
-            hiddenElements: pageData.hiddenElements || [],
-            showGrid: false,
-            showSafeMargins: false,
-            scale: exportScale,
-            highlightColor: vurguColor
-          }
-        );
-
-        const dataUrl = offscreenCanvas.toDataURL(mimeType, exportFormat === 'jpeg' ? 0.95 : undefined);
-        const base64Data = dataUrl.split(',')[1];
-        const pageName = i === 0 ? 'kapak' : `sayfa_${i}`;
-        const fileName = `${currentTemplate.name.replace(/\s+/g, '_').toLowerCase()}_${pageName}.${fileExt}`;
-        zip.file(fileName, base64Data, { base64: true });
-      }
-
-      const content = await zip.generateAsync({ type: 'blob' });
-      const link = document.createElement('a');
-      link.download = `${currentTemplate.name.replace(/\s+/g, '_').toLowerCase()}_tum_sayfalar_${Date.now()}.zip`;
-      link.href = URL.createObjectURL(content);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (err) {
-      console.error('ZIP export failed', err);
-      alert('ZIP dosyası oluşturulurken bir hata oluştu.');
-    } finally {
       setIsExportingZip(false);
+      setExportStatusText(null);
     }
   };
+  const exportSingleHighResPage = (page: any, _index: number) => exportPages([page]);
+  const exportHighResGraphic = () => {
+    if (activeTab === 'phase1') return exportPages([{
+      templatePageId:activeTemplatePage.id, regions:editingTemplate.regions,
+      fixedElements:editingTemplate.fixedElements, backgroundImageUrl:editingTemplate.backgroundImageUrl,
+      dynamicTexts:{}, dynamicImages:{},
+    }]);
+    return exportPages(generatedPages.length ? generatedPages : [activePageData]);
+  };
+  const exportHighResZip = () => exportPages(generatedPages.length ? generatedPages : [activePageData], true);
 
   // --- PALETTE PRESETS ---
   const PALETTE_PRESETS = [
-    { name: 'Kozmik Mürekkep', primary: '#4F46E5', accent: '#F59E0B', text: '#0F172A', bg: '#F8FAFC' },
-    { name: 'Doğal Toprak', primary: '#854D0E', accent: '#B45309', text: '#451A03', bg: '#FAF7F2' },
-    { name: 'Sanal Neon', primary: '#06B6D4', accent: '#3B82F6', text: '#F3F4F6', bg: '#0B0F19' },
-    { name: 'Minimalist Kömür', primary: '#111827', accent: '#6B7280', text: '#1F2937', bg: '#FFFFFF' },
-    { name: 'Canlı Nar', primary: '#DC2626', accent: '#F59E0B', text: '#111827', bg: '#FEF2F2' },
-    { name: 'Sakin Orman', primary: '#0D9488', accent: '#D97706', text: '#0F172A', bg: '#F0FDFA' }
+    { name: 'Kozmik Mürekkep', primary: '#A394F5', accent: '#F2BE6A', text: '#F5F3FF', bg: '#202033' },
+    { name: 'Doğal Toprak', primary: '#FF9F0A', accent: '#FF9F0A', text: 'rgba(255,255,255,0.72)', bg: '#252528' },
+    { name: 'Sanal Neon', primary: '#6C5CE7', accent: '#6C5CE7', text: 'rgba(255,255,255,0.95)', bg: '#1D1D1F' },
+    { name: 'Minimalist Kömür', primary: '#A6ABB8', accent: '#D9DCE4', text: '#F5F5F7', bg: '#252528' },
+    { name: 'Canlı Nar', primary: '#FF453A', accent: '#FF9F0A', text: '#F5F5F7', bg: '#252528' },
+    { name: 'Sakin Orman', primary: '#34C759', accent: '#FF9F0A', text: '#F5F5F7', bg: '#252528' }
   ];
 
   if (!isAppLoaded) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col items-center justify-center relative overflow-hidden">
-        {/* Background Decorative Blobs */}
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] aspect-square rounded-full bg-orange-600/5 blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] aspect-square rounded-full bg-indigo-600/5 blur-[150px] pointer-events-none" />
-        
-        <div className="flex flex-col items-center space-y-6 z-10 max-w-sm text-center px-6">
-          {/* Animated Application Icon (Fills and rotates) */}
-          <div className="relative w-24 h-24">
-            {/* Pulsing ring */}
-            <div className="absolute inset-0 rounded-3xl bg-orange-500/20 animate-ping" />
-            
-            {/* Spinning gradient border */}
-            <div className="absolute -inset-1.5 rounded-[22px] bg-gradient-to-r from-orange-500 via-amber-500 to-indigo-500 animate-spin opacity-80" />
-            
-            {/* Inner Logo */}
-            <div className="absolute inset-0 bg-slate-900 rounded-[20px] flex items-center justify-center overflow-hidden border border-slate-800">
-              <svg viewBox="0 0 100 100" className="w-14 h-14 text-white animate-pulse" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="logoLoadingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style={{ stopColor: '#f97316', stopOpacity: 1 }} />
-                    <stop offset="100%" style={{ stopColor: '#ea580c', stopOpacity: 1 }} />
-                  </linearGradient>
-                </defs>
-                <path d="M40 35 H65 V45 H50 V55 H65 V65 H40 C34 65 30 61 30 55 V45 C30 39 34 35 40 35Z" fill="url(#logoLoadingGrad)" />
-                <path d="M72 28 L74 32 L78 34 L74 36 L72 40 L70 36 L66 34 L70 32 Z" fill="white" />
-              </svg>
-            </div>
+      <div className="min-h-screen bg-[#1D1D1F] flex flex-col items-center justify-center relative overflow-hidden font-sans">
+        <div className="flex flex-col items-center z-10">
+          <div className="w-12 h-12 rounded-[14px] bg-[#1d1d1f] flex items-center justify-center text-[rgba(255,255,255,0.95)] font-extrabold text-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] mb-6">
+            G
           </div>
-          
-          <div className="space-y-2">
-            <h3 className="text-xl font-extrabold tracking-tight text-white">Verileriniz Eşitleniyor</h3>
-            <p className="text-xs text-slate-400 font-mono tracking-wide leading-relaxed">
-              Bulut sunucusuna bağlanılıyor, şablonlarınız ve kreatif tasarımlarınız yükleniyor...
-            </p>
+          <div className="w-[140px] h-[3px] bg-black/5 rounded-full overflow-hidden relative mb-3">
+            <div className="absolute left-0 top-0 bottom-0 w-[30%] bg-[#1d1d1f] rounded-full animate-[loading-bar_1.8s_infinite_ease-in-out]" style={{ animation: 'loading-bar 1.8s infinite ease-in-out' }} />
           </div>
-          
-          {/* Spinner bar */}
-          <div className="w-48 h-1 bg-slate-800 rounded-full overflow-hidden">
-            <div className="h-full bg-gradient-to-r from-orange-500 to-amber-500 rounded-full w-2/3 animate-[loading_1.5s_infinite_ease-in-out]" style={{ animation: 'loading-bar 1.5s infinite ease-in-out' }} />
-          </div>
+          <p className="text-[13px] font-medium text-[rgba(255,255,255,0.72)] tracking-tight animate-[pulse_2s_infinite_ease-in-out]">
+            {user ? 'Verileriniz eşitleniyor...' : 'Uygulama hazırlanıyor...'}
+          </p>
         </div>
-        
         <style>{`
           @keyframes loading-bar {
             0% { transform: translateX(-100%); }
-            50% { transform: translateX(50%); }
-            100% { transform: translateX(200%); }
+            100% { transform: translateX(350%); }
           }
         `}</style>
       </div>
     );
   }
 
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-orange-500 selection:text-white relative overflow-hidden">
-        {/* Background Decorative Blobs */}
-        <div className="absolute top-[-20%] left-[-10%] w-[50%] aspect-square rounded-full bg-orange-600/10 blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[60%] aspect-square rounded-full bg-indigo-600/10 blur-[150px] pointer-events-none" />
-        
-        {/* Header / Brand */}
-        <header className="max-w-7xl mx-auto w-full px-6 pt-[calc(env(safe-area-inset-top,0px)+1.5rem)] pb-6 flex items-center justify-between z-10">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 shrink-0">
-              <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md" xmlns="http://www.w3.org/2000/svg">
-                <defs>
-                  <linearGradient id="landingLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" style={{ stopColor: '#f97316', stopOpacity: 1 }} />
-                    <stop offset="100%" style={{ stopColor: '#ea580c', stopOpacity: 1 }} />
-                  </linearGradient>
-                </defs>
-                <rect x="15" y="15" width="70" height="70" rx="16" fill="url(#landingLogoGrad)" />
-                <path d="M40 35 H65 V45 H50 V55 H65 V65 H40 C34 65 30 61 30 55 V45 C30 39 34 35 40 35Z" fill="white" />
-                <path d="M72 28 L74 32 L78 34 L74 36 L72 40 L70 36 L66 34 L70 32 Z" fill="white" />
-              </svg>
-            </div>
-            <span className="text-lg font-extrabold tracking-wider bg-gradient-to-r from-orange-500 to-amber-400 bg-clip-text text-transparent">
-              GRAFİK MOTORU
-            </span>
-          </div>
-          <div className="text-xs text-slate-400 font-mono">v1.5.0</div>
-        </header>
-
-        {/* Main content split */}
-        <main className="max-w-7xl mx-auto w-full px-6 py-12 md:py-20 flex flex-col lg:flex-row items-center justify-between gap-12 z-10 flex-1">
-          {/* Left info column */}
-          <div className="max-w-xl text-left space-y-6 lg:space-y-8">
-            <div className="inline-flex items-center gap-2 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-4 py-1.5 text-xs text-indigo-400 font-semibold shadow-inner">
-              <span className="flex h-2 w-2 rounded-full bg-indigo-500 animate-pulse" />
-              AI Destekli Şablon Otomasyonu
-            </div>
-            
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
-              Sosyal medya şablonlarınız <br />
-              <span className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 bg-clip-text text-transparent">
-                zamanınızı almasın.
-              </span>
-            </h1>
-            
-            <p className="text-base sm:text-lg text-slate-350 leading-relaxed font-normal">
-              Yapay zeka gücüyle dakikalar içinde yüzlerce profesyonel varyasyon üretin, düzenleyin ve indirin. Markanız için akıllı şablon otomasyonu ile pikselleri canlandırın.
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-              <div className="flex items-start gap-3 bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 p-4 rounded-xl">
-                <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-lg shrink-0">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-sm">Ultra Hızlı Üretim</h3>
-                  <p className="text-xs text-slate-400 mt-1">Tek bir tıkla tüm sayfaları ve alternatif tasarımları oluşturun.</p>
-                </div>
-              </div>
-
-              <div className="flex items-start gap-3 bg-slate-900/40 backdrop-blur-sm border border-slate-800/80 p-4 rounded-xl">
-                <div className="p-2 bg-purple-500/10 text-purple-400 rounded-lg shrink-0">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-bold text-white text-sm">Bulut Senkronizasyonu</h3>
-                  <p className="text-xs text-slate-400 mt-1">Tasarımlarınız tüm cihazlarınız arasında anında senkronize olur.</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right login card */}
-          <div className="w-full max-w-md bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 p-8 sm:p-10 rounded-3xl shadow-[0_0_50px_rgba(99,102,241,0.15)] space-y-8 relative">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-            
-            <div className="text-center space-y-2">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20">
-                <svg viewBox="0 0 100 100" className="w-10 h-10 text-white" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M40 35 H65 V45 H50 V55 H65 V65 H40 C34 65 30 61 30 55 V45 C30 39 34 35 40 35Z" fill="currentColor" />
-                  <path d="M72 28 L74 32 L78 34 L74 36 L72 40 L70 36 L66 34 L70 32 Z" fill="currentColor" />
-                </svg>
-              </div>
-              <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Hoş Geldiniz</h2>
-              <p className="text-sm text-slate-400">Tasarım evrenine katılmak için oturum açın</p>
-            </div>
-
-            <div className="space-y-4">
-              <button
-                onClick={handleGoogleLogin}
-                className="w-full flex items-center justify-center gap-3 bg-white hover:bg-slate-100 text-slate-900 font-extrabold py-3.5 px-6 rounded-xl shadow-lg transition hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-              >
-                <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
-                </svg>
-                <span>Google ile Giriş Yap</span>
-              </button>
-            </div>
-
-            <div className="pt-4 border-t border-slate-800/80 text-center">
-              <p className="text-xs text-slate-500 font-mono">
-                Bulut tabanlı, kesintisiz veri eşitleme
-              </p>
-            </div>
-          </div>
-        </main>
-
-        {/* Footer */}
-        <footer className="max-w-7xl mx-auto w-full px-6 py-6 text-center text-xs text-slate-500 z-10 border-t border-slate-800/50">
-          © 2026 Grafik Motoru. By Tunafx. Tüm Hakları Saklıdır.
-        </footer>
-      </div>
-    );
-  }
 
   return (
-    <div id="graphics-engine-app" className="h-[100dvh] bg-[#080b12] text-slate-200 font-sans flex flex-col selection:bg-indigo-500 selection:text-white overflow-hidden relative">
-      <style>{`
-        :root {
-          --vurgu-color: ${vurguColor};
-          --vurgu-color-hover: ${vurguColor}dd;
-          --vurgu-color-light: ${vurguColor}12;
-          --vurgu-color-border: ${vurguColor}33;
-        }
-
-        /* Map Tailwind classes dynamically to the user's custom color */
-        .bg-indigo-600, .bg-indigo-500 {
-          background-color: var(--vurgu-color) !important;
-        }
-        .hover\:bg-indigo-700:hover, .hover\:bg-indigo-600:hover {
-          background-color: var(--vurgu-color-hover) !important;
-        }
-        .text-indigo-600, .text-indigo-500, .text-indigo-700 {
-          color: var(--vurgu-color) !important;
-        }
-        .border-indigo-600, .border-indigo-500 {
-          border-color: var(--vurgu-color) !important;
-        }
-        .border-indigo-100 {
-          border-color: var(--vurgu-color-border) !important;
-        }
-        .bg-indigo-50 {
-          background-color: var(--vurgu-color-light) !important;
-        }
-        .focus\:border-indigo-500:focus {
-          border-color: var(--vurgu-color) !important;
-        }
-        .focus\:ring-indigo-100:focus {
-          --tw-ring-color: var(--vurgu-color-border) !important;
-        }
-        .ring-indigo-100 {
-          --tw-ring-color: var(--vurgu-color-border) !important;
-        }
-        .accent-indigo-600 {
-          accent-color: var(--vurgu-color) !important;
-        }
-        
-        /* Custom Selection and highlighters */
-        ::selection {
-          background-color: var(--vurgu-color) !important;
-          color: white !important;
-        }
-        .selection\:bg-indigo-500::selection {
-          background-color: var(--vurgu-color) !important;
-          color: white !important;
-        }
-        .border-indigo-500 {
-          border-color: var(--vurgu-color) !important;
-        }
-        .hover\:border-indigo-500:hover {
-          border-color: var(--vurgu-color) !important;
-        }
-        .hover\:text-indigo-600:hover {
-          color: var(--vurgu-color) !important;
-        }
-        .from-indigo-500 {
-          --tw-gradient-from: var(--vurgu-color) !important;
-        }
-        .to-indigo-500 {
-          --tw-gradient-to: var(--vurgu-color) !important;
-        }
-        .shadow-indigo-600\/25 {
-          --tw-shadow-color: var(--vurgu-color-border) !important;
-        }
-        .shadow-indigo-500\/20 {
-          --tw-shadow-color: var(--vurgu-color-border) !important;
-        }
-        .bg-indigo-100 {
-          background-color: var(--vurgu-color-light) !important;
-        }
-        .text-indigo-600 {
-          color: var(--vurgu-color) !important;
-        }
-      `}</style>
-      
-      {/* HEADER BAR */}
-      <header id="app-header" className="bg-slate-950/95 backdrop-blur-xl border-b border-slate-800/80 px-3 pt-[calc(env(safe-area-inset-top,0px)+10px)] pb-3 sm:px-5 sm:py-3 flex items-center justify-between shrink-0 z-30" style={{ boxShadow: '0 1px 0 rgba(99,102,241,0.12), 0 4px 24px rgba(0,0,0,0.5)' }}>
-        <div className="flex items-center space-x-2.5 sm:space-x-3">
-          <div className="w-9 h-9 sm:w-11 sm:h-11 shrink-0 select-none">
-            <svg viewBox="0 0 100 100" className="w-full h-full" xmlns="http://www.w3.org/2000/svg" style={{ filter: 'drop-shadow(0 0 10px rgba(249,115,22,0.4))' }}>
-              <defs>
-                <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" style={{ stopColor: '#f97316', stopOpacity: 1 }} />
-                  <stop offset="100%" style={{ stopColor: '#ea580c', stopOpacity: 1 }} />
-                </linearGradient>
-              </defs>
-              <rect x="15" y="15" width="70" height="70" rx="16" fill="url(#logoGrad)" />
-              <path d="M40 35 H65 V45 H50 V55 H65 V65 H40 C34 65 30 61 30 55 V45 C30 39 34 35 40 35Z" fill="white" />
-              <path d="M72 28 L74 32 L78 34 L74 36 L72 40 L70 36 L66 34 L70 32 Z" fill="white" />
-            </svg>
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-xs sm:text-base font-extrabold tracking-wider bg-gradient-to-r from-orange-400 via-amber-300 to-orange-500 bg-clip-text text-transparent truncate">
-              GRAFİK MOTORU
-            </h1>
-            <p className="hidden sm:block text-[10px] text-slate-500 font-semibold tracking-wider uppercase">AI · Piksel Kusursuz Tasarım Platformu</p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0">
-          {/* Undo/Redo */}
-          <div className="hidden sm:flex items-center space-x-0.5 bg-slate-900 border border-slate-800 rounded-lg p-0.5">
-            <button
-              onClick={handleUndo}
-              disabled={undoStack.length === 0}
-              className="p-1.5 rounded-md text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 disabled:opacity-25 disabled:pointer-events-none transition cursor-pointer"
-              title="Geri Al (Ctrl+Z)"
-            >
-              <Undo2 className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={handleRedo}
-              disabled={redoStack.length === 0}
-              className="p-1.5 rounded-md text-slate-400 hover:text-indigo-400 hover:bg-indigo-500/10 disabled:opacity-25 disabled:pointer-events-none transition cursor-pointer"
-              title="İleri Al (Ctrl+Y)"
-            >
-              <Redo2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          {/* Google Login / Profile Interface */}
-          {user && !user.isAnonymous ? (
-            <div className="flex items-center space-x-1.5">
-              {/* Cloud Sync Status */}
-              {cloudStatus === 'syncing' ? (
-                <div className="flex items-center space-x-1 sm:space-x-1.5 px-2.5 py-1.5 rounded-xl bg-slate-900 text-slate-400 border border-slate-800 text-[10px] sm:text-xs font-bold shrink-0 animate-pulse">
-                  <Loader2 className="w-3.5 h-3.5 text-orange-400 animate-spin" />
-                  <span className="hidden md:inline">Eşitleniyor...</span>
-                </div>
-              ) : isCloudSynced ? (
-                <div 
-                  className="flex items-center space-x-1 sm:space-x-1.5 px-2.5 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] sm:text-xs font-bold shrink-0"
-                  title="Tüm tasarımlarınız buluta başarıyla kaydedildi!"
-                >
-                  <Check className="w-3.5 h-3.5" />
-                  <span className="hidden md:inline">Eşitlendi</span>
-                </div>
-              ) : (
-                <button
-                  onClick={saveDataToCloud}
-                  className="flex items-center space-x-1 sm:space-x-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500/90 hover:bg-amber-400 text-slate-950 text-[10px] sm:text-xs font-extrabold shadow-lg shadow-amber-500/20 transition-all duration-200 cursor-pointer shrink-0 animate-pulse hover:scale-[1.02] active:scale-[0.98]"
-                  title="Kaydedilmemiş değişiklikleriniz var!"
-                >
-                  <UploadCloud className="w-3.5 h-3.5" />
-                  <span>Buluta Kaydet</span>
-                </button>
-              )}
-
-              {/* Profile */}
-              <div className="flex items-center space-x-1 sm:space-x-1.5 bg-slate-900 border border-slate-800 rounded-xl p-0.5 sm:p-1 pr-1.5 sm:pr-2 shrink-0">
-                {user.photoURL ? (
-                  <img src={user.photoURL} alt="Profile" className="w-6 h-6 rounded-lg border border-slate-700 shrink-0" referrerPolicy="no-referrer" />
-                ) : (
-                  <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-extrabold flex items-center justify-center text-[10px] shrink-0">
-                    {user.displayName ? user.displayName[0].toUpperCase() : 'U'}
-                  </div>
-                )}
-                <div className="hidden sm:flex flex-col text-left">
-                  <span className="text-[9.5px] font-bold text-slate-300 leading-tight max-w-[80px] sm:max-w-[110px] truncate">
-                    {user.displayName || 'Kullanıcı'}
-                  </span>
-                  <span className="text-[8px] text-slate-500 font-medium leading-none truncate max-w-[80px] sm:max-w-[110px] mt-0.5">
-                    {user.email || ''}
-                  </span>
-                </div>
-                <button
-                  onClick={() => {
-                    setFirestoreQuotaExceeded(false);
-                    syncAndLoadUserData(user.uid);
-                  }}
-                  disabled={cloudStatus === 'syncing'}
-                  className={`p-1 rounded-lg text-slate-500 hover:text-indigo-400 hover:bg-indigo-500/10 transition cursor-pointer ${cloudStatus === 'syncing' ? 'animate-spin text-indigo-400' : ''}`}
-                  title="Yenile / Eşitle"
-                >
-                  <RefreshCw className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
-                  title="Çıkış Yap"
-                >
-                  <LogOut className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              onClick={handleGoogleLogin}
-              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:border-indigo-500/50 text-slate-300 hover:text-indigo-300 shadow-sm transition text-[10px] sm:text-xs font-bold cursor-pointer shrink-0 hover:bg-indigo-500/10"
-              title="Google ile giriş yapın"
-            >
-              <LogIn className="w-3 sm:w-3.5 h-3 sm:h-3.5 text-indigo-400" />
-              <span>Google Giriş</span>
-            </button>
-          )}
-        </div>
-      </header>
-
+    <div id="graphics-engine-app" data-export-open={exportPanelOpen} className="h-[100dvh] bg-[#1D1D1F] dark:bg-[#1D1D1F] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-sans flex flex-col selection:bg-[#6C5CE7] selection:text-[rgba(255,255,255,0.95)] overflow-hidden relative transition-colors duration-300">
+      <WorkspaceHeader
+        templateName={currentTemplate.name}
+        isDark={isDarkMode} onTheme={() => setIsDarkMode(v => !v)}
+        userName={user && !user.isAnonymous ? user.displayName || 'Hesabım' : null}
+        cloudStatus={cloudStatus} isCloudSynced={isCloudSynced}
+        onLogin={handleGoogleLogin} onLogout={handleLogout}
+        onSave={() => saveDataToCloud()} onTools={() => setIsToolsModalOpen(true)}
+        onExport={() => { setMobileView('export'); setExportPanelOpen(v => window.matchMedia('(max-width: 1023px)').matches ? true : !v); }}
+        exportPanelOpen={exportPanelOpen}
+      />
+      {storageError && <div className="workspace-warning" role="alert">{storageError} Çalışmanızı indirin veya buluta kaydedin.</div>}
       {/* CLOUD QUOTA EXCEEDED WARNING BANNER */}
       {firestoreQuotaExceeded && (
-        <div className="bg-amber-500/10 border-b border-amber-500/20 px-4 py-2 sm:px-6 flex items-center justify-between gap-3 text-amber-400 z-40">
+        <div className="bg-[#FF9F0A]/10 dark:bg-[#2C2C2E]/30 border-b border-[#FF9F0A]/20 px-4 py-2 sm:px-6 flex items-center justify-between gap-3 text-[#FF9F0A] z-40 transition-colors">
           <div className="flex items-center gap-2 text-xs sm:text-sm font-medium">
-            <span className="flex h-2 w-2 shrink-0 rounded-full bg-amber-500 animate-pulse" />
+            <span className="flex h-2 w-2 shrink-0 rounded-full bg-[#FF9F0A] animate-pulse" />
             <span>
-              <strong>Yerel Çalışma Modu:</strong> Veritabanı kotası sınırına ulaşıldı. Tasarımlarınız <strong>LocalStorage</strong> ’a kaydediliyor.
+              <strong>Yerel Çalışma Modu (Bulut Kotası Sınırı):</strong> Veritabanı kotası sınırına ulaşıldığı için tasarımlarınız anlık olarak tarayıcınızın <strong>yerel depolama</strong> alanına kaydedilmektedir. Kesintisiz bir şekilde tasarımlarınızı düzenlemeye, görseller yüklemeye ve indirmeye devam edebilirsiniz! Tarayıcı verilerini silmeden önce çalışmanızı yedekleyin.
             </span>
           </div>
           <button 
             onClick={() => setFirestoreQuotaExceeded(false)}
-            className="text-xs font-bold text-amber-400 hover:text-amber-300 px-2 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 transition shrink-0"
+            className="text-xs font-bold text-[#FF9F0A] hover:text-[#FF9F0A] px-2 py-1 rounded bg-[#FF9F0A]/10 hover:bg-[#FF9F0A]/20 transition shrink-0"
           >
             Anladım
           </button>
@@ -4942,70 +4485,39 @@ export default function App() {
       )}
 
       {/* WORKSPACE AREA */}
-      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden bg-[#1D1D1F] dark:bg-[#1D1D1F] transition-colors duration-300">
         
         {/* LEFT COLUMN: EDITOR CONTROL CENTER */}
-        <div id="editor-controls" className={`w-full lg:w-[460px] bg-slate-900 border-r border-slate-800/80 flex flex-col h-full z-20 ${mobileView === 'editor' ? 'flex' : 'hidden lg:flex'}`} style={{ boxShadow: 'inset -1px 0 0 rgba(99,102,241,0.08)' }}>
+        <div id="editor-controls" className={`w-full lg:w-[480px] bg-[#252528] dark:bg-[#252528] lg:rounded-[20px] shadow-[0_4px_12px_rgba(0,0,0,0.02)] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] lg:mb-2 lg:ml-2 flex-1 flex flex-col z-20 shrink-0 overflow-hidden transition-colors duration-300 ${mobileView === 'editor' ? 'flex' : 'hidden lg:flex'}`}>
           
-          {/* TAB SYSTEM */}
-          <div className="flex items-center justify-between border-b border-slate-800/80 bg-slate-950/80 p-2 shrink-0" style={{ backdropFilter: 'blur(12px)' }}>
-            <div className="flex flex-1 space-x-1">
-              <button
-                onClick={() => handleTabChange('phase2')}
-                className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                  activeTab === 'phase2'
-                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25 font-bold'
-                    : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
-                }`}
-              >
-                <Sparkles className={`w-4 h-4 ${activeTab === 'phase2' ? 'text-amber-300' : 'text-amber-500'}`} />
-                <span>Grafik Üret</span>
-              </button>
-
-              <button
-                onClick={() => handleTabChange('presets')}
-                className={`flex-1 flex items-center justify-center space-x-2 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
-                  activeTab === 'presets'
-                    ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-lg shadow-indigo-500/25 font-bold'
-                    : 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
-                }`}
-              >
-                <FolderOpen className={`w-4 h-4 ${activeTab === 'presets' ? 'text-blue-300' : 'text-indigo-400'}`} />
-                <span>Şablonlar ({templates.length})</span>
-              </button>
-            </div>
-
-            <button
-              onClick={() => handleTabChange(activeTab === 'phase1' ? 'phase2' : 'phase1')}
-              title="Şablon Tasarım Modü (Gelişmiş)"
-              className={`ml-2 p-2.5 rounded-xl border transition cursor-pointer shrink-0 ${
-                activeTab === 'phase1'
-                  ? 'bg-gradient-to-br from-indigo-600 to-violet-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25'
-                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:border-slate-600 hover:text-slate-200'
-              }`}
-            >
-              <Settings className="w-4 h-4" />
-            </button>
+          <nav className="workspace-tabs" aria-label="Çalışma modu">
+            {([{id: 'presets', label: 'Şablonlar', icon: LayoutTemplate}, {id: 'phase2', label: 'İçerik', icon: Sparkles}, {id: 'phase1', label: 'Tasarım', icon: Sliders}] as const).map(item => (
+              <button key={item.id} aria-pressed={activeTab === item.id} onClick={() => handleTabChange(item.id)}><item.icon size={16}/>{item.label}</button>
+            ))}
+          </nav>
+          <div className="workspace-panel-heading">
+            <span className="workspace-eyebrow">ÇALIŞMA ALANI</span>
+            <h2>{activeTab === 'presets' ? 'Bir fikirle başla.' : activeTab === 'phase1' ? 'Her detay senin.' : 'İçeriğini oluştur.'}</h2>
+            <p>{activeTab === 'presets' ? 'Bir şablon seç veya kendi tasarımını kur.' : activeTab === 'phase1' ? 'Katmanları, yerleşimi ve renkleri düzenle.' : 'Metin ve medyanı ekle, tasarımına hayat ver.'}</p>
           </div>
-
           {/* TAB SCROLLABLE BODY */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          <div className="workspace-panel-body flex-1 overflow-y-auto p-5 space-y-6">
             
             {/* TAB 1: PRESETS & SELECTION */}
             {activeTab === 'presets' && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="section-header">ŞABLON KATALOĞU</h3>
+                  <h3 className="text-xs font-bold tracking-wider text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase">ŞABLON KATALOĞU</h3>
                   <button
                     onClick={createNewTemplate}
-                    className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold shadow-lg shadow-indigo-500/25 cursor-pointer transition hover:scale-[1.02] active:scale-[0.98]"
+                    className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-[#6C5CE7] hover:bg-[#6C5CE7] text-[rgba(255,255,255,0.95)] text-xs font-bold shadow-sm shadow-[rgba(108,92,231,0.2)]/10 cursor-pointer transition"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Özel Şablon Ekle</span>
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 gap-2.5">
+                <div className="grid grid-cols-1 gap-3">
                   {templates.map(temp => {
                     const isCustom = !TEMPLATE_PRESETS.some(p => p.id === temp.id);
                     const isSelected = temp.id === currentTemplateId;
@@ -5014,72 +4526,75 @@ export default function App() {
                     return (
                       <div
                         key={temp.id}
+                        role="button" tabIndex={0} aria-label={`${temp.name} şablonunu seç`} aria-pressed={isSelected}
+                        onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setCurrentTemplateId(temp.id); setSelectedNodeId(null); } }}
                         onClick={() => {
                           if (!isEditing) {
                             setCurrentTemplateId(temp.id);
                             setSelectedNodeId(null);
                           }
                         }}
-                        className={`group relative p-3.5 rounded-xl border transition cursor-pointer text-left ${
+                        className={`template-card group relative p-4 rounded-xl border transition cursor-pointer text-left ${
                           isSelected
-                            ? 'bg-indigo-500/10 border-indigo-500/40 shadow-lg ring-1 ring-indigo-500/20'
-                            : 'bg-slate-800/60 border-slate-700/60 hover:border-slate-600 hover:bg-slate-800 shadow-sm'
+                            ? 'bg-[#252528]/40 dark:bg-[#252528]/60 border-[#6C5CE7] dark:border-[#6C5CE7]/50 shadow-md ring-1 ring-[#6C5CE7]/10'
+                            : 'bg-[#252528] dark:bg-[#1D1D1F] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/50 shadow-sm'
                         }`}
                       >
+                        {!isEditing && <TemplateThumbnail template={temp} />}
                         {isEditing ? (
                           <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-between border-b border-slate-700 pb-2">
-                              <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">Şablon Düzenle</span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/25">DÜZENLEME MODU</span>
+                            <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] pb-2">
+                              <span className="text-[11px] font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] uppercase tracking-wider">Şablon Düzenle</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#FF9F0A] dark:text-[#FF9F0A] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]">DÜZENLEME MODU</span>
                             </div>
                             
                             <div>
-                              <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Şablon Adı</label>
+                              <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Şablon Adı</label>
                               <input
                                 type="text"
                                 value={editingName}
                                 onChange={(e) => setEditingName(e.target.value)}
-                                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2.5 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-medium"
+                                className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] dark:focus:ring-[#6C5CE7] font-medium"
                                 placeholder="Şablon İsmi"
                               />
                             </div>
                             
                             <div className="grid grid-cols-2 gap-2">
                               <div>
-                                <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Genişlik (px)</label>
+                                <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Genişlik (px)</label>
                                 <input
                                   type="number"
                                   value={editingWidth}
                                   onChange={(e) => setEditingWidth(parseInt(e.target.value) || 0)}
-                                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                                  className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] dark:focus:ring-[#6C5CE7] font-mono"
                                   min={200}
                                   max={3000}
                                 />
                               </div>
                               <div>
-                                <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Yükseklik (px)</label>
+                                <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yükseklik (px)</label>
                                 <input
                                   type="number"
                                   value={editingHeight}
                                   onChange={(e) => setEditingHeight(parseInt(e.target.value) || 0)}
-                                  className="w-full bg-slate-900 border border-slate-600 rounded-lg px-2 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 font-mono"
+                                  className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] dark:focus:ring-[#6C5CE7] font-mono"
                                   min={200}
                                   max={3000}
                                 />
                               </div>
                             </div>
                             
-                            <div className="flex space-x-2 pt-1.5 justify-end border-t border-slate-700">
+                            <div className="flex space-x-2 pt-1.5 justify-end border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]">
                               <button
                                 onClick={() => setEditingTemplateId(null)}
-                                className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-[11px] font-semibold cursor-pointer transition"
+                                className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-[#252528] dark:bg-[#2C2C2E] hover:bg-[#2C2C2E] dark:hover:bg-[#3A3A3C] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] text-[11px] font-semibold cursor-pointer transition"
                               >
                                 <X className="w-3.5 h-3.5" />
                                 <span>İptal</span>
                               </button>
                               <button
                                 onClick={() => saveInlineTemplateEdit(temp.id)}
-                                className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-semibold cursor-pointer transition shadow-sm shadow-emerald-600/20"
+                                className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-[#34C759] hover:bg-[#34C759] text-[rgba(255,255,255,0.95)] text-[11px] font-semibold cursor-pointer transition shadow-sm shadow-[rgba(52,199,89,0.2)]"
                               >
                                 <Check className="w-3.5 h-3.5" />
                                 <span>Kaydet</span>
@@ -5090,41 +4605,42 @@ export default function App() {
                           <>
                             <div className="flex justify-between items-start">
                               <div>
-                                <h4 className="font-bold text-sm text-slate-200 group-hover:text-indigo-300 transition">
+                                <h4 className="font-bold text-sm text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] group-hover:text-[rgba(255,255,255,0.95)] dark:group-hover:text-[#6C5CE7] transition">
                                   {temp.name}
                                 </h4>
-                                <p className="text-xs text-slate-500 mt-1 flex items-center space-x-1.5 font-medium">
+                                <p className="text-xs text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] mt-1 flex items-center space-x-2 font-medium">
                                   <span>{temp.width} × {temp.height} px</span>
-                                  <span className="text-slate-700">•</span>
+                                  <span>•</span>
                                   <span className="font-mono text-[11px]">{temp.regions.length} Alan</span>
-                                  <span className="text-slate-700">•</span>
+                                  <span>•</span>
                                   <span className="font-mono text-[11px]">{temp.fixedElements.length} Sabit</span>
                                 </p>
                               </div>
 
                               <div className="flex items-center space-x-1.5" onClick={(e) => e.stopPropagation()}>
                                 {isCustom ? (
-                                  <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25 font-bold uppercase tracking-wide">
+                                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#FF9F0A] dark:text-[#FF9F0A] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] font-bold">
                                     KULLANICI
                                   </span>
                                 ) : (
-                                  <span className="text-[9px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 font-bold uppercase tracking-wide">
-                                    HAZIR
+                                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#6C5CE7] dark:text-[#6C5CE7] border border-[rgba(255,255,255,0.08)] dark:border-[#6C5CE7] font-bold">
+                                    HAZIR ŞABLON
                                   </span>
                                 )}
                               </div>
                             </div>
 
-                            {/* Action row */}
-                            <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-slate-700/60" onClick={(e) => e.stopPropagation()}>
-                              {/* Left: color swatches */}
+                            {/* Action row at the bottom of the card */}
+                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]" onClick={(e) => e.stopPropagation()}>
+                              {/* Left side: color palette preview */}
                               <div className="flex items-center space-x-1.5">
-                                <span className="w-3.5 h-3.5 rounded-full border-2 border-slate-800 shadow-sm ring-1 ring-slate-700" style={{ backgroundColor: temp.palette.primary }} />
-                                <span className="w-3.5 h-3.5 rounded-full border-2 border-slate-800 shadow-sm ring-1 ring-slate-700" style={{ backgroundColor: temp.palette.accent }} />
-                                <span className="w-3.5 h-3.5 rounded-full border-2 border-slate-800 shadow-sm ring-1 ring-slate-700" style={{ backgroundColor: temp.palette.bg }} />
+                                <span className="w-3 h-3 rounded-full border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shadow-sm" style={{ backgroundColor: temp.palette.primary }} />
+                                <span className="w-3 h-3 rounded-full border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shadow-sm" style={{ backgroundColor: temp.palette.accent }} />
+                                <span className="w-3 h-3 rounded-full border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shadow-sm" style={{ backgroundColor: temp.palette.bg }} />
+                                <span className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium ml-1">Renkler</span>
                               </div>
 
-                              {/* Right: Action buttons */}
+                              {/* Right side: Action buttons */}
                               <div className="flex items-center space-x-1">
                                 <button
                                   onClick={(e) => {
@@ -5133,8 +4649,8 @@ export default function App() {
                                     setSelectedNodeId(null);
                                     setActiveTab('phase1');
                                   }}
-                                  className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-slate-700 hover:bg-indigo-600 hover:text-white text-slate-300 text-[11px] font-semibold transition cursor-pointer"
-                                  title="Şablon Tasarımını Düzenle"
+                                  className="flex items-center space-x-1 px-2 py-1 rounded bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#6C5CE7] dark:hover:bg-[#6C5CE7] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] text-[11px] font-semibold transition cursor-pointer"
+                                  title="Şablon Tasarımı Düzenle"
                                 >
                                   <Sliders className="w-3 h-3" />
                                   <span>Tasarla</span>
@@ -5148,7 +4664,7 @@ export default function App() {
                                     setEditingWidth(temp.width);
                                     setEditingHeight(temp.height);
                                   }}
-                                  className="flex items-center space-x-1 px-2 py-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-[11px] font-semibold transition cursor-pointer"
+                                  className="flex items-center space-x-1 px-2 py-1 rounded bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#2C2C2E] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] text-[11px] font-semibold transition cursor-pointer"
                                   title="İsim ve Boyut Düzenle"
                                 >
                                   <Pencil className="w-3 h-3" />
@@ -5160,7 +4676,7 @@ export default function App() {
                                     e.stopPropagation();
                                     deleteTemplate(temp.id);
                                   }}
-                                  className="p-1.5 rounded-lg bg-slate-700/50 hover:bg-red-500/15 text-slate-500 hover:text-red-400 transition cursor-pointer"
+                                  className="p-1 rounded bg-[#1D1D1F] dark:bg-[#3A3A3C] hover:bg-[#252528] dark:hover:bg-[#2C2C2E]/40 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:text-[#FF453A] dark:hover:text-[#FF453A] transition cursor-pointer border border-transparent hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)]"
                                   title="Şablonu Sil"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -5178,13 +4694,13 @@ export default function App() {
 
             {/* TAB 2: PHASE 1 BLUEPRINT MAKER */}
             {activeTab === 'phase1' && (
-              <div className="space-y-5">
+              <div className="space-y-6">
                 
-                {/* Şablon Tasarım Başlığı */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-800/60 border border-slate-700/60 rounded-xl p-3">
+                {/* Şablon Tasarım Başlığı ve Kapatma Butonu */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-xl p-3 shadow-sm">
                   <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Modül Modu</span>
-                    <span className="text-xs font-bold text-slate-200">Şablon Tasarımı</span>
+                    <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider">Modül Modu</span>
+                    <span className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)]">Şablon Tasarımı</span>
                   </div>
                   <div className="flex items-center space-x-2 self-end sm:self-auto">
                     {isValidConfig && user && user.uid && (
@@ -5194,8 +4710,8 @@ export default function App() {
                         disabled={cloudStatus === 'syncing'}
                         className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                           isCloudSynced
-                            ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/25'
-                            : 'bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-sm shadow-amber-500/20 animate-pulse'
+                            ? 'bg-[#252528] text-[#34C759] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)]'
+                            : 'bg-[#FF9F0A] hover:bg-[#FF9F0A] text-[rgba(255,255,255,0.95)] shadow-sm shadow-[rgba(255,159,10,0.2)] animate-pulse'
                         }`}
                         title={isCloudSynced ? 'Değişiklikleriniz bulutta güvende!' : 'Şablon iç düzenlemelerini buluta kaydetmek için tıklayın.'}
                       >
@@ -5206,7 +4722,7 @@ export default function App() {
                           </>
                         ) : isCloudSynced ? (
                           <>
-                            <Check className="w-3.5 h-3.5 text-emerald-500 font-extrabold" />
+                            <Check className="w-3.5 h-3.5 text-[#34C759] font-extrabold" />
                             <span>Eşitlendi</span>
                           </>
                         ) : (
@@ -5222,7 +4738,7 @@ export default function App() {
                       onClick={() => {
                         handleTabChange('phase2');
                       }}
-                      className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-bold cursor-pointer transition"
+                      className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-[#2C2C2E] dark:bg-[#2C2C2E] hover:bg-[#303033] dark:hover:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-xs font-bold cursor-pointer transition"
                     >
                       <Check className="w-3.5 h-3.5" />
                       <span>Geri Dön</span>
@@ -5231,13 +4747,13 @@ export default function App() {
                 </div>
                 
                 {/* Şablon Sayfaları Seçici */}
-                <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 space-y-4">
+                <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-xl p-4 space-y-4 shadow-sm">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center">
-                      <h4 className="section-header">ŞABLON SAYFALARI</h4>
+                      <h4 className="text-xs font-bold text-[rgba(255,255,255,0.72)] tracking-wider uppercase">ŞABLON SAYFALARI</h4>
                       <InfoTooltip text="Şablonunuz birden çok sayfadan oluşabilir. Her sayfa için farklı bir görsel düzeni (Kapak, 1, 2 veya 3 Görselli vb.) seçerek, çoklu resim yüklediğinizde resimlerin otomatik yerleşimini sağlayabilirsiniz." />
                     </div>
-                    <span className="text-[10px] bg-indigo-500/15 text-indigo-400 border border-indigo-500/25 px-2.5 py-0.5 rounded-full font-bold font-mono">
+                    <span className="text-[10px] bg-[#252528] text-[#6C5CE7] px-2.5 py-0.5 rounded-full font-bold font-mono">
                       {(currentTemplate.pages || []).length} Sayfa
                     </span>
                   </div>
@@ -5246,29 +4762,30 @@ export default function App() {
                     {(currentTemplate.pages || []).map((page, idx) => {
                       const isActive = activePageIndex === idx;
                       const imageCount = page.regions.filter(r => isTemplateImageFrame(r)).length;
+
                       let roleBadgeText = 'Özel';
-                      let roleBadgeColor = 'bg-slate-700/60 text-slate-300 border border-slate-650';
+                      let roleBadgeColor = 'bg-[#252528] text-[rgba(255,255,255,0.95)]';
                       if (page.pageRole === 'cover') {
                         roleBadgeText = 'Kapak';
-                        roleBadgeColor = 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
+                        roleBadgeColor = 'bg-[#252528] text-[#FF453A] border border-[rgba(255,255,255,0.08)]';
                       } else if (page.pageRole === '1-image') {
                         roleBadgeText = '1 Görsel';
-                        roleBadgeColor = 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20';
+                        roleBadgeColor = 'bg-[#252528] text-[#34C759] border border-[rgba(255,255,255,0.08)]';
                       } else if (page.pageRole === '2-image') {
                         roleBadgeText = '2 Görsel';
-                        roleBadgeColor = 'bg-blue-500/10 text-blue-400 border border-blue-500/20';
+                        roleBadgeColor = 'bg-[#252528] text-[#6C5CE7] border border-[rgba(255,255,255,0.08)]';
                       } else if (page.pageRole === '3-image') {
                         roleBadgeText = '3 Görsel';
-                        roleBadgeColor = 'bg-amber-500/10 text-amber-400 border border-amber-500/20';
+                        roleBadgeColor = 'bg-[#252528] text-[#FF9F0A] border border-[rgba(255,255,255,0.08)]';
                       }
 
                       return (
                         <div
                           key={page.id}
-                          className={`rounded-xl border p-3 transition ${
+                          className={`rounded-lg border p-3 transition ${
                             isActive
-                              ? 'border-indigo-500/50 bg-indigo-500/10 shadow-sm ring-1 ring-indigo-500/20'
-                              : 'border-slate-700/60 hover:border-slate-600 bg-slate-800/40'
+                              ? 'border-[#6C5CE7] bg-[#252528]/20 dark:bg-[#252528]/40 shadow-sm'
+                              : 'border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] bg-[#1D1D1F]/40 dark:bg-[#252528]'
                           }`}
                         >
                           <div className="flex items-center justify-between">
@@ -5278,9 +4795,9 @@ export default function App() {
                                 setActivePageIndex(idx);
                                 setSelectedNodeId(null);
                               }}
-                              className="flex-1 text-left font-bold text-xs text-slate-300 flex items-center space-x-1.5 cursor-pointer focus:outline-none"
+                              className="flex-1 text-left font-bold text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] flex items-center space-x-1.5 cursor-pointer focus:outline-none"
                             >
-                              <span className="text-[10px] font-mono text-slate-500">#{idx + 1}</span>
+                              <span className="text-[10px] font-mono text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]">#{idx + 1}</span>
                               <span className="truncate">{page.name || `${idx + 1}. Sayfa`}</span>
                             </button>
                             
@@ -5292,7 +4809,7 @@ export default function App() {
                                 <button
                                   type="button"
                                   onClick={() => deleteTemplatePage(idx)}
-                                  className="p-1 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+                                  className="p-1 rounded text-[rgba(255,255,255,0.72)] hover:text-[#FF453A] hover:bg-[#252528] transition cursor-pointer"
                                   title="Sayfayı Sil"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -5302,23 +4819,23 @@ export default function App() {
                           </div>
 
                           {isActive && (
-                            <div className="mt-3 pt-3 border-t border-slate-700/60 space-y-2.5">
+                            <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)]/60 space-y-2.5">
                               <div>
-                                <label className="text-[10px] text-slate-400 font-bold block mb-1">SAYFA İSMİ</label>
+                                <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold block mb-1">SAYFA İSMİ</label>
                                 <input
                                   type="text"
                                   value={page.name}
                                   onChange={(e) => handlePagePropertyChange(idx, 'name', e.target.value)}
-                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-medium focus:outline-none focus:border-indigo-500"
+                                  className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium focus:outline-none focus:border-[#6C5CE7]"
                                 />
                               </div>
 
                               <div>
-                                <label className="text-[10px] text-slate-400 font-bold block mb-1">GÖRSELLİK / ŞABLON ROLÜ</label>
+                                <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold block mb-1">GÖRSELLİK / ŞABLON ROLÜ</label>
                                 <select
                                   value={page.pageRole || 'custom'}
                                   onChange={(e) => handlePagePropertyChange(idx, 'pageRole', e.target.value)}
-                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-semibold cursor-pointer focus:outline-none focus:border-indigo-500"
+                                  className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-semibold cursor-pointer focus:outline-none focus:border-[#6C5CE7]"
                                 >
                                   <option value="cover">Kapak Sayfası (Cover Page)</option>
                                   <option value="1-image">Tek Görselli Kolaj (1-Image Collage)</option>
@@ -5328,9 +4845,9 @@ export default function App() {
                                 </select>
                               </div>
 
-                              <div className="text-[9px] text-slate-400 font-semibold flex justify-between">
+                              <div className="text-[9px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between">
                                 <span>Bu sayfadaki dinamik görsel alanı sayısı:</span>
-                                <span className="font-bold text-indigo-400">{imageCount} adet</span>
+                                <span className="font-bold text-[rgba(255,255,255,0.72)]">{imageCount} adet</span>
                               </div>
                             </div>
                           )}
@@ -5340,13 +4857,13 @@ export default function App() {
                   </div>
 
                   {/* Yeni Sayfa Ekleme Kontrolleri */}
-                  <div className="pt-3 border-t border-slate-700/60">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase block mb-2">YENİ SAYFA EKLE</span>
+                  <div className="pt-3 border-t border-[rgba(255,255,255,0.08)]">
+                    <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block mb-2">YENİ SAYFA EKLE</span>
                     <div className="grid grid-cols-2 gap-1.5">
                       <button
                         type="button"
                         onClick={() => addNewTemplatePage('1-image')}
-                        className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
+                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#6C5CE7] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         <span>+ Tek Görselli</span>
@@ -5354,7 +4871,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => addNewTemplatePage('2-image')}
-                        className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
+                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#6C5CE7] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         <span>+ 2 Görselli</span>
@@ -5362,7 +4879,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => addNewTemplatePage('3-image')}
-                        className="py-1.5 px-2 bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
+                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#6C5CE7] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         <span>+ 3 Görselli</span>
@@ -5370,7 +4887,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={() => addNewTemplatePage('cover')}
-                        className="py-1.5 px-2 bg-slate-850 hover:bg-slate-800 text-indigo-300 rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
+                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#6C5CE7] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
                       >
                         <Plus className="w-3 h-3" />
                         <span>+ Kapak</span>
@@ -5378,29 +4895,29 @@ export default function App() {
                     </div>
                   </div>
 
-                  <p className="text-[10px] text-slate-400 font-semibold leading-relaxed">
+                  <p className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold leading-relaxed">
                     Kullanıcı çoklu fotoğraf yüklediğinde, sistem fotoğrafları yukarıda seçtiğiniz şablon rollerine (Kapak, Tek, 2 Görsel vb.) göre otomatik yerleştirir.
                   </p>
                 </div>
                 
                 {/* Şablon Genel Ayarları */}
-                <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 space-y-4">
-                  <h4 className="text-xs font-bold text-slate-500 tracking-wider uppercase">1. ŞABLON BOYUT & TUVAL</h4>
+                <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-xl p-4 space-y-4 shadow-sm">
+                  <h4 className="text-xs font-bold text-[rgba(255,255,255,0.72)] tracking-wider uppercase">1. ŞABLON BOYUT & TUVAL</h4>
                   
                   <div className="space-y-3">
                     <div>
-                      <label className="text-xs text-slate-400 block mb-1 font-semibold">Şablon İsmi</label>
+                      <label className="text-xs text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Şablon İsmi</label>
                       <input
                         type="text"
                         value={currentTemplate.name}
                         onChange={(e) => handleTemplatePropertyChange('name', e.target.value)}
-                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-slate-200 font-medium"
+                        className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium"
                       />
                     </div>
 
                     <div>
-                      <label className="text-xs text-slate-400 block mb-1 font-semibold flex items-center space-x-1">
-                        <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                      <label className="text-xs text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold flex items-center space-x-1">
+                        <Sparkles className="w-3.5 h-3.5 text-[#6C5CE7]" />
                         <span>Kurumsal Dil / AI Prompt</span>
                       </label>
                       <textarea
@@ -5408,55 +4925,55 @@ export default function App() {
                         onChange={(e) => handleTemplatePropertyChange('aiSystemPrompt', e.target.value)}
                         placeholder="Örn: Genç ve samimi bir ton kullan, emojiler ekle, lüks marka dili, ingilizce yaz vb."
                         rows={2}
-                        className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-slate-200 font-medium resize-none placeholder:text-slate-600"
+                        className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium resize-none"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs text-slate-400 block mb-1 font-semibold">Genişlik (px)</label>
+                        <label className="text-xs text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Genişlik (px)</label>
                         <input
                           type="number"
                           value={currentTemplate.width}
                           min={200}
                           max={3000}
                           onChange={(e) => handleTemplatePropertyChange('width', parseInt(e.target.value) || 1080)}
-                          className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 font-mono text-slate-200 font-medium"
+                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] font-mono text-[rgba(255,255,255,0.95)] font-medium"
                         />
                       </div>
                       <div>
-                        <label className="text-xs text-slate-400 block mb-1 font-semibold">Yükseklik (px)</label>
+                        <label className="text-xs text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yükseklik (px)</label>
                         <input
                           type="number"
                           value={currentTemplate.height}
                           min={200}
                           max={3000}
                           onChange={(e) => handleTemplatePropertyChange('height', parseInt(e.target.value) || 1080)}
-                          className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 font-mono text-slate-200 font-medium"
+                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] font-mono text-[rgba(255,255,255,0.95)] font-medium"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-xs text-slate-400 block mb-1 font-semibold">Tuval Varsayılan Arka Planı</label>
+                      <label className="text-xs text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Tuval Varsayılan Arka Planı</label>
                       <div className="flex space-x-2">
                         <input
                           type="color"
-                          value={currentTemplate.backgroundColor.startsWith('#') ? currentTemplate.backgroundColor : '#FFFFFF'}
+                          value={currentTemplate.backgroundColor.startsWith('#') ? currentTemplate.backgroundColor : '#252528'}
                           onChange={(e) => handleTemplatePropertyChange('backgroundColor', e.target.value)}
-                          className="w-10 h-8 rounded border border-slate-600 bg-transparent cursor-pointer"
+                          className="w-10 h-8 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer"
                         />
                         <input
                           type="text"
                           value={currentTemplate.backgroundColor}
                           onChange={(e) => handleTemplatePropertyChange('backgroundColor', e.target.value)}
-                          className="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-300 focus:outline-none focus:border-indigo-500 font-medium"
+                          className="flex-1 bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-1.5 text-xs font-mono text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#6C5CE7] focus:ring-2 focus:ring-[#6C5CE7] font-medium"
                         />
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-xs text-slate-400 block mb-1 font-semibold">Hazır Şablon Arka Plan Resmi</label>
+                      <label className="text-xs text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Hazır Şablon Arka Plan Resmi</label>
                       <div className="flex items-center space-x-2">
                         <input
                           type="file"
@@ -5477,15 +4994,15 @@ export default function App() {
                         />
                         <label
                           htmlFor="bg-image-uploader-input"
-                          className="flex-1 text-center bg-slate-700 hover:bg-slate-600 border border-slate-600 hover:border-slate-500 text-slate-300 rounded-lg px-3 py-2 text-xs font-semibold cursor-pointer transition flex items-center justify-center space-x-2"
+                          className="flex-1 text-center bg-[#1D1D1F] dark:bg-[#3A3A3C] hover:bg-[#252528] dark:hover:bg-[#3A3A3C]/80 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] rounded-lg px-3 py-2 text-xs font-semibold cursor-pointer transition flex items-center justify-center space-x-2 shadow-sm"
                         >
-                          <Upload className="w-3.5 h-3.5 text-slate-400" />
+                          <Upload className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
                           <span>{currentTemplate.backgroundImageUrl ? 'Arka Planı Değiştir' : 'Görsel Yükle (PNG/JPG)'}</span>
                         </label>
                         {currentTemplate.backgroundImageUrl && (
                           <button
                             onClick={() => handleTemplatePropertyChange('backgroundImageUrl', undefined)}
-                            className="px-3 py-2 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30 text-red-400 rounded-lg text-xs font-bold transition cursor-pointer"
+                            className="px-3 py-2 bg-[#252528] dark:bg-[#252528]/40 hover:bg-[#252528] dark:hover:bg-[#2C2C2E]/60 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/40 text-[#FF453A] dark:text-[#FF453A] rounded-lg text-xs font-bold transition cursor-pointer shadow-sm"
                             title="Arka Plan Resmini Kaldır"
                           >
                             Kaldır
@@ -5498,20 +5015,20 @@ export default function App() {
                         const uniqueImages = getUniqueUploadedImages();
                         if (uniqueImages.length === 0) return null;
                         return (
-                          <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5 text-left">
-                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Yüklediğiniz Diğer Görseller</span>
+                          <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)] space-y-1.5 text-left">
+                            <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase tracking-wider block">Yüklediğiniz Diğer Görseller</span>
                             <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
                               {uniqueImages.map((url, i) => (
                                 <div key={i} className="relative group/thumb shrink-0">
                                   <button
                                     type="button"
                                     onClick={() => handleTemplatePropertyChange('backgroundImageUrl', url)}
-                                    className="relative w-11 h-11 rounded-lg overflow-hidden border border-slate-200 hover:border-indigo-500 shrink-0 bg-slate-100 cursor-pointer shadow-sm transition hover:scale-105 active:scale-95 group"
+                                    className="relative w-11 h-11 rounded-lg overflow-hidden border border-[rgba(255,255,255,0.08)] hover:border-[#6C5CE7] shrink-0 bg-[#252528] cursor-pointer shadow-sm transition hover:scale-105 active:scale-95 group"
                                     title="Bu görseli şablon arka planı yap"
                                   >
                                     <img src={url} alt={`Varlık ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                                     <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                                      <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
+                                      <Check className="w-3.5 h-3.5 text-[rgba(255,255,255,0.95)] stroke-[3]" />
                                     </div>
                                   </button>
                                   <button
@@ -5520,7 +5037,7 @@ export default function App() {
                                       e.stopPropagation();
                                       removeUploadedImage(url);
                                     }}
-                                    className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow hover:scale-110 active:scale-90 transition z-20 cursor-pointer opacity-0 group-hover/thumb:opacity-100"
+                                    className="absolute -top-1 -right-1 w-4 h-4 bg-[#FF453A] hover:bg-[#FF453A] text-[rgba(255,255,255,0.95)] rounded-full flex items-center justify-center shadow hover:scale-110 active:scale-90 transition z-20 cursor-pointer opacity-0 group-hover/thumb:opacity-100"
                                     title="Görseli Kaldır"
                                   >
                                     <X className="w-2.5 h-2.5 stroke-[3]" />
@@ -5536,97 +5053,97 @@ export default function App() {
                 </div>
 
                 {/* 2. ŞABLON RENK PALETİ */}
-                <div className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 space-y-4 shadow-sm" id="custom-palette-overrides-card">
+                <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-xl p-4 space-y-4 shadow-sm" id="custom-palette-overrides-card">
                   <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-bold text-slate-400 tracking-wider uppercase flex items-center space-x-1.5">
-                      <Palette className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="text-xs font-bold text-[rgba(255,255,255,0.72)] tracking-wider uppercase flex items-center space-x-1.5">
+                      <Palette className="w-3.5 h-3.5 text-[#6C5CE7]" />
                       <span>2. ŞABLON RENK PALETİ</span>
                     </span>
                     <button
                       type="button"
                       onClick={resetTemplatePalette}
-                      className="text-[10px] text-pink-500 hover:text-pink-400 hover:underline font-bold cursor-pointer"
+                      className="text-[10px] text-[#FF453A] hover:underline font-bold cursor-pointer"
                     >
                       Varsayılana Sıfırla
                     </button>
                   </div>
-                  <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                  <p className="text-[11px] text-[rgba(255,255,255,0.72)] font-medium leading-relaxed">
                     Tasarım şablonunuzun varsayılan renklerini dilediğiniz gibi özelleştirin. Başlık ve açıklamalardaki <strong>**kalın vurgu**</strong> yazılarının rengini en alttaki seçiciden belirleyebilirsiniz. Bu renkler şablona kaydedilir.
                   </p>
 
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     {/* Birincil Renk */}
-                    <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
-                      <label className="text-[10px] text-slate-400 font-extrabold block mb-1 uppercase tracking-wider">Birincil Renk</label>
+                    <div className="bg-[#1D1D1F]/80 dark:bg-[#3A3A3C] p-2.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] flex flex-col justify-between">
+                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] font-extrabold block mb-1 uppercase tracking-wider">Birincil Renk</label>
                       <div className="flex items-center space-x-2">
                         <input
                           type="color"
-                          value={currentTemplate.palette?.primary || '#4F46E5'}
+                          value={currentTemplate.palette?.primary || '#6C5CE7'}
                           onChange={(e) => handleTemplatePaletteChange('primary', e.target.value)}
-                          className="w-6 h-6 rounded-md border border-slate-700 cursor-pointer p-0"
+                          className="w-6 h-6 rounded-md border border-[rgba(255,255,255,0.08)] cursor-pointer p-0"
                         />
-                        <span className="font-mono text-[10px] text-slate-500 font-bold uppercase">{currentTemplate.palette?.primary || '#4F46E5'}</span>
+                        <span className="font-mono text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold uppercase">{currentTemplate.palette?.primary || '#6C5CE7'}</span>
                       </div>
                     </div>
 
                     {/* Vurgu Rengi */}
-                    <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
-                      <label className="text-[10px] text-slate-400 font-extrabold block mb-1 uppercase tracking-wider">İkincil Accent</label>
+                    <div className="bg-[#1D1D1F]/80 dark:bg-[#3A3A3C] p-2.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] flex flex-col justify-between">
+                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] font-extrabold block mb-1 uppercase tracking-wider">İkincil Accent</label>
                       <div className="flex items-center space-x-2">
                         <input
                           type="color"
-                          value={currentTemplate.palette?.accent || '#F59E0B'}
+                          value={currentTemplate.palette?.accent || '#FF9F0A'}
                           onChange={(e) => handleTemplatePaletteChange('accent', e.target.value)}
-                          className="w-6 h-6 rounded-md border border-slate-700 cursor-pointer p-0"
+                          className="w-6 h-6 rounded-md border border-[rgba(255,255,255,0.08)] cursor-pointer p-0"
                         />
-                        <span className="font-mono text-[10px] text-slate-500 font-bold uppercase">{currentTemplate.palette?.accent || '#F59E0B'}</span>
+                        <span className="font-mono text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold uppercase">{currentTemplate.palette?.accent || '#FF9F0A'}</span>
                       </div>
                     </div>
 
                     {/* Metin Rengi */}
-                    <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
-                      <label className="text-[10px] text-slate-400 font-extrabold block mb-1 uppercase tracking-wider">Metin Rengi</label>
+                    <div className="bg-[#1D1D1F]/80 dark:bg-[#3A3A3C] p-2.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] flex flex-col justify-between">
+                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] font-extrabold block mb-1 uppercase tracking-wider">Metin Rengi</label>
                       <div className="flex items-center space-x-2">
                         <input
                           type="color"
-                          value={currentTemplate.palette?.text || '#0F172A'}
+                          value={currentTemplate.palette?.text || '#1D1D1F'}
                           onChange={(e) => handleTemplatePaletteChange('text', e.target.value)}
-                          className="w-6 h-6 rounded-md border border-slate-700 cursor-pointer p-0"
+                          className="w-6 h-6 rounded-md border border-[rgba(255,255,255,0.08)] cursor-pointer p-0"
                         />
-                        <span className="font-mono text-[10px] text-slate-500 font-bold uppercase">{currentTemplate.palette?.text || '#0F172A'}</span>
+                        <span className="font-mono text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold uppercase">{currentTemplate.palette?.text || '#1D1D1F'}</span>
                       </div>
                     </div>
 
                     {/* Arka Plan Rengi */}
-                    <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-800/80 flex flex-col justify-between">
-                      <label className="text-[10px] text-slate-400 font-extrabold block mb-1 uppercase tracking-wider">Arka Plan</label>
+                    <div className="bg-[#1D1D1F]/80 dark:bg-[#3A3A3C] p-2.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] flex flex-col justify-between">
+                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] font-extrabold block mb-1 uppercase tracking-wider">Arka Plan</label>
                       <div className="flex items-center space-x-2">
                         <input
                           type="color"
-                          value={currentTemplate.palette?.bg || '#F8FAFC'}
+                          value={currentTemplate.palette?.bg || '#1D1D1F'}
                           onChange={(e) => handleTemplatePaletteChange('bg', e.target.value)}
-                          className="w-6 h-6 rounded-md border border-slate-700 cursor-pointer p-0"
+                          className="w-6 h-6 rounded-md border border-[rgba(255,255,255,0.08)] cursor-pointer p-0"
                         />
-                        <span className="font-mono text-[10px] text-slate-500 font-bold uppercase">{currentTemplate.palette?.bg || '#F8FAFC'}</span>
+                        <span className="font-mono text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold uppercase">{currentTemplate.palette?.bg || '#1D1D1F'}</span>
                       </div>
                     </div>
                   </div>
 
                   {/* Kalın Vurgu Yazı Rengi */}
-                  <div className="bg-indigo-500/10 p-3 rounded-xl border border-indigo-500/20 flex items-center justify-between">
+                  <div className="bg-[#252528]/50 dark:bg-[#252528]/40 p-3 rounded-xl border border-[#6C5CE7] dark:border-[#6C5CE7]/40 flex items-center justify-between">
                     <div>
-                      <span className="text-xs font-bold text-slate-200 block">Kalın Vurgu Yazı Rengi</span>
-                      <span className="text-[10px] text-slate-500 block">**kalın yazılar** bu renkle vurgulanır.</span>
+                      <span className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] block">Kalın Vurgu Yazı Rengi</span>
+                      <span className="text-[10px] text-[rgba(255,255,255,0.72)] block">**kalın yazılar** bu renkle vurgulanır.</span>
                     </div>
                     <div className="flex items-center space-x-2">
                       <input
                         type="color"
-                        value={currentTemplate.palette?.boldHighlight || currentTemplate.palette?.primary || '#4F46E5'}
+                        value={currentTemplate.palette?.boldHighlight || currentTemplate.palette?.primary || '#6C5CE7'}
                         onChange={(e) => handleTemplatePaletteChange('boldHighlight', e.target.value)}
-                        className="w-8 h-8 rounded-lg border border-slate-700 shadow-sm cursor-pointer p-0"
+                        className="w-8 h-8 rounded-lg border border-[rgba(255,255,255,0.08)] shadow-sm cursor-pointer p-0"
                       />
-                      <span className="font-mono text-xs text-indigo-400 font-extrabold uppercase">
-                        {currentTemplate.palette?.boldHighlight || currentTemplate.palette?.primary || '#4F46E5'}
+                      <span className="font-mono text-xs text-[#6C5CE7] font-extrabold uppercase">
+                        {currentTemplate.palette?.boldHighlight || currentTemplate.palette?.primary || '#6C5CE7'}
                       </span>
                     </div>
                   </div>
@@ -5635,30 +5152,30 @@ export default function App() {
                 {/* Katman & Bölge Yönetimi */}
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
-                    <h4 className="text-xs font-bold text-slate-500 tracking-wider uppercase">3. BÖLGELER & KATMANLAR</h4>
+                    <h4 className="text-xs font-bold text-[rgba(255,255,255,0.72)] tracking-wider uppercase">3. BÖLGELER & KATMANLAR</h4>
                     
                     <div className="flex flex-wrap gap-1.5 justify-end">
                       <button
                         type="button"
                         onClick={() => addNewRegion('text')}
-                        className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-slate-700 hover:border-slate-600 bg-slate-800 hover:bg-slate-755/80 text-slate-300 text-[10px] font-extrabold cursor-pointer shadow-sm transition"
+                        className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[10px] font-extrabold cursor-pointer shadow-sm transition"
                       >
-                        <Type className="w-3 h-3 text-indigo-400 font-bold" />
-                        <span>Metin</span>
+                        <Type className="w-3 h-3 text-[#6C5CE7] font-bold" />
+                        <span>Metin Bölgesi</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => addNewRegion('image')}
-                        className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-slate-700 hover:border-slate-600 bg-slate-800 hover:bg-slate-755/80 text-slate-300 text-[10px] font-extrabold cursor-pointer shadow-sm transition"
+                        className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[10px] font-extrabold cursor-pointer shadow-sm transition"
                       >
-                        <ImageIcon className="w-3 h-3 text-indigo-400 font-bold" />
-                        <span>Resim</span>
+                        <ImageIcon className="w-3 h-3 text-[#6C5CE7] font-bold" />
+                        <span>Boş Resim</span>
                       </button>
                       <label
-                        className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-emerald-500/30 hover:border-emerald-500/50 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-[10px] font-extrabold cursor-pointer shadow-sm transition animate-pulse-subtle"
+                        className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] bg-[#252528] hover:bg-[#252528]/80 text-[#34C759] text-[10px] font-extrabold cursor-pointer shadow-sm transition"
                       >
-                        <Upload className="w-3 h-3 text-emerald-400 font-bold" />
-                        <span>Yükle</span>
+                        <Upload className="w-3 h-3 text-[#34C759] font-bold" />
+                        <span>PNG/Görsel Yükle</span>
                         <input
                           type="file"
                           accept="image/*"
@@ -5701,28 +5218,28 @@ export default function App() {
                           onDragEnd={() => {
                             setDraggedIndex(null);
                           }}
-                          className={`flex items-center justify-between p-2 rounded-xl border transition ${
+                          className={`flex items-center justify-between p-2 rounded-lg border transition ${
                             isSelected
-                              ? 'bg-indigo-500/10 border-indigo-500/40 shadow-lg ring-1 ring-indigo-500/20'
-                              : 'bg-slate-800 border-slate-700/60 hover:border-slate-600 hover:bg-slate-800/80 shadow-sm'
-                          } ${draggedIndex === origIndex ? 'opacity-30 border-dashed' : ''}`}
+                              ? 'bg-[#252528] dark:bg-[#252528]/60 border-[#6C5CE7] shadow-sm'
+                              : 'bg-[#252528] dark:bg-[#1D1D1F] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] shadow-sm'
+                          } ${draggedIndex === origIndex ? 'opacity-40 border-dashed' : ''}`}
                           onClick={() => setSelectedNodeId(r.id)}
                         >
                           <div className="flex items-center space-x-2 w-full min-w-0">
                             {/* Drag handle */}
                             <div 
-                              className="text-slate-500 cursor-grab active:cursor-grabbing p-0.5 hover:bg-slate-700 rounded shrink-0"
+                              className="text-[rgba(255,255,255,0.72)] cursor-grab active:cursor-grabbing p-0.5 hover:bg-[#1D1D1F] rounded shrink-0"
                               title="Sürükleyerek Sırala"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <GripVertical className="w-3.5 h-3.5 text-slate-500" />
+                              <GripVertical className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)]" />
                             </div>
 
                             {/* Layer type icon */}
                             <div className="shrink-0">
                               {r.type === 'text' 
-                                ? <Type className="w-3.5 h-3.5 text-slate-400" /> 
-                                : <ImageIcon className="w-3.5 h-3.5 text-slate-400" />
+                                ? <Type className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)]" /> 
+                                : <ImageIcon className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)]" />
                               }
                             </div>
 
@@ -5749,14 +5266,14 @@ export default function App() {
                                       setEditingRegionId(null);
                                     }
                                   }}
-                                  className="w-full bg-slate-900 border border-indigo-500 rounded px-1.5 py-0.5 text-xs text-slate-100 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                                  className="w-full bg-[#1D1D1F] border border-[#6C5CE7] rounded px-1.5 py-0.5 text-xs text-[rgba(255,255,255,0.95)] font-bold focus:outline-none focus:ring-1 focus:ring-[#6C5CE7]"
                                   autoFocus
                                   onClick={(e) => e.stopPropagation()}
                                 />
                               ) : (
                                 <div className="flex items-center space-x-1 group/name">
                                   <span 
-                                    className="text-xs font-bold text-slate-200 truncate block cursor-pointer"
+                                    className="text-xs font-bold text-[rgba(255,255,255,0.95)] truncate block cursor-pointer"
                                     onDoubleClick={(e) => {
                                       e.stopPropagation();
                                       setEditingRegionId(r.id);
@@ -5773,14 +5290,14 @@ export default function App() {
                                       setEditingRegionId(r.id);
                                       setTempRegionName(r.name);
                                     }}
-                                    className="opacity-0 group-hover/name:opacity-100 p-0.5 text-slate-500 hover:text-indigo-400 transition cursor-pointer"
+                                    className="opacity-0 group-hover/name:opacity-100 p-0.5 text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] transition cursor-pointer"
                                     title="İsmi Düzenle"
                                   >
                                     <Pencil className="w-2.5 h-2.5" />
                                   </button>
                                 </div>
                               )}
-                              <span className="text-[9px] text-slate-400 block font-medium truncate">
+                              <span className="text-[9px] text-[rgba(255,255,255,0.72)] block font-medium truncate">
                                 {r.type === 'text' ? 'Metin Katmanı' : (r.clipImage === false ? 'Serbest PNG' : 'Görsel Katmanı')} • {r.width}x{r.height}px
                               </span>
                             </div>
@@ -5792,10 +5309,10 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => handleRegionPropertyChange(r.id, 'hidden', !r.hidden)}
-                              className={`p-1 rounded-lg transition cursor-pointer ${
+                              className={`p-1 rounded transition cursor-pointer ${
                                 r.hidden 
-                                  ? 'text-red-400 hover:text-indigo-400 bg-red-500/10 hover:bg-slate-700' 
-                                  : 'text-slate-500 hover:text-indigo-400 hover:bg-slate-700'
+                                  ? 'text-[#FF453A] hover:text-[#6C5CE7] bg-[#252528] hover:bg-[#1D1D1F]' 
+                                  : 'text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] hover:bg-[#1D1D1F]'
                               }`}
                               title={r.hidden ? "Katmanı Göster (Gizli)" : "Katmanı Gizle (Görünür)"}
                             >
@@ -5806,35 +5323,35 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => handleRegionPropertyChange(r.id, 'locked', !r.locked)}
-                              className={`p-1 rounded-lg transition cursor-pointer ${
+                              className={`p-1 rounded transition cursor-pointer ${
                                 r.locked 
-                                  ? 'text-amber-400 hover:text-indigo-400 bg-amber-500/10 hover:bg-slate-700 font-bold' 
-                                  : 'text-slate-500 hover:text-indigo-400 hover:bg-slate-700'
+                                  ? 'text-[#FF9F0A] hover:text-[#6C5CE7] bg-[#252528] hover:bg-[#1D1D1F] font-bold' 
+                                  : 'text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] hover:bg-[#1D1D1F]'
                               }`}
                               title={r.locked ? "Kilidi Aç (Kilitli)" : "Katmanı Kilitle (Seçilebilir)"}
                             >
                               {r.locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
                             </button>
 
-                            <span className="w-px h-3.5 bg-slate-700 mx-0.5" />
+                            <span className="w-px h-3.5 bg-[#2C2C2E] mx-0.5" />
 
-                            {/* Move Up in hierarchy button */}
+                            {/* Move Up in hierarchy button (moves index up in array, closer to top of list/rendering last) */}
                             <button
                               type="button"
                               disabled={origIndex === editingTemplate.regions.length - 1}
                               onClick={() => moveRegionInList(origIndex, origIndex + 1)}
-                              className="text-slate-500 hover:text-indigo-400 hover:bg-slate-700 disabled:opacity-20 disabled:pointer-events-none p-1 rounded-lg transition cursor-pointer"
+                              className="text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] hover:bg-[#1D1D1F] disabled:opacity-20 disabled:pointer-events-none p-1 rounded transition cursor-pointer"
                               title="Üste Taşı"
                             >
                               <ArrowUp className="w-3 h-3" />
                             </button>
 
-                            {/* Move Down in hierarchy button */}
+                            {/* Move Down in hierarchy button (moves index down in array, closer to bottom of list/rendering first) */}
                             <button
                               type="button"
                               disabled={origIndex === 0}
                               onClick={() => moveRegionInList(origIndex, origIndex - 1)}
-                              className="text-slate-500 hover:text-indigo-400 hover:bg-slate-700 disabled:opacity-20 disabled:pointer-events-none p-1 rounded-lg transition cursor-pointer"
+                              className="text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] hover:bg-[#1D1D1F] disabled:opacity-20 disabled:pointer-events-none p-1 rounded transition cursor-pointer"
                               title="Alta Taşı"
                             >
                               <ArrowDown className="w-3 h-3" />
@@ -5844,7 +5361,7 @@ export default function App() {
                             <button
                               type="button"
                               onClick={() => deleteElement(r.id)}
-                              className="text-slate-500 hover:text-red-400 hover:bg-red-500/10 p-1 rounded-lg transition cursor-pointer"
+                              className="text-[rgba(255,255,255,0.72)] hover:text-[#FF453A] hover:bg-[#252528] p-1 rounded transition cursor-pointer"
                               title="Katmanı Sil"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
@@ -5863,7 +5380,7 @@ export default function App() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: 10 }}
-                      className="bg-slate-800/90 border border-slate-700/60 shadow-lg rounded-xl p-4 space-y-4"
+                      className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shadow-md rounded-xl p-4 space-y-4"
                     >
                       {/* Check if Region or FixedElement */}
                       {(() => {
@@ -5873,44 +5390,44 @@ export default function App() {
                         if (region) {
                           return (
                             <div className="space-y-4">
-                              <div className="flex items-center justify-between border-b border-slate-700/60 pb-2">
+                              <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] pb-2">
                                 <div className="flex items-center">
-                                  <h5 className="text-xs font-bold text-slate-300 uppercase">KATMAN DÜZENLEYİCİ</h5>
+                                  <h5 className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] uppercase">KATMAN DÜZENLEYİCİ</h5>
                                   <InfoTooltip text="Seçtiğiniz bu katmanın ekrandaki yerini (X ve Y konumları), genişlik/yükseklik boyutlarını, yazı tipini, boyutunu, rengini ve metin hiyerarşisi rollerini buradan detaylıca ayarlayabilirsiniz." />
                                 </div>
-                                <span className="text-[9px] bg-indigo-500/15 border border-indigo-500/25 text-indigo-400 px-2.5 py-0.5 rounded-md font-extrabold font-mono">Dinamik</span>
+                                <span className="text-[9px] bg-[#252528] dark:bg-[#252528]/60 border border-[rgba(255,255,255,0.08)] dark:border-[#6C5CE7]/50 text-[#6C5CE7] dark:text-[#6C5CE7] px-2.5 py-0.5 rounded-md font-extrabold font-mono">Dinamik</span>
                               </div>
 
                               <div className="grid grid-cols-2 gap-3">
                                 <div>
-                                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Katman Adı</label>
+                                  <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold block mb-1">Katman Adı</label>
                                   <input
                                     type="text"
                                     value={region.name}
                                     onChange={(e) => handleRegionPropertyChange(region.id, 'name', e.target.value)}
-                                    className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-medium focus:outline-none focus:border-indigo-500"
+                                    className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium focus:outline-none focus:border-[#6C5CE7]"
                                   />
                                 </div>
                                 <div>
-                                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Bölge Tipi</label>
-                                  <span className="w-full bg-slate-900 border border-slate-750 rounded px-2.5 py-1.5 text-xs text-slate-400 block font-bold">
+                                  <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold block mb-1">Bölge Tipi</label>
+                                  <span className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] block font-bold">
                                     {region.type === 'text' ? 'Metin Alanı' : 'Resim Alanı'}
                                   </span>
                                 </div>
                               </div>
 
                               {/* Quick states: Hidden / Locked */}
-                              <div className="flex items-center space-x-3 bg-slate-900/60 border border-slate-850 rounded-xl p-3 text-xs justify-between">
-                                <span className="font-bold text-slate-400 text-[10px] uppercase">Katman Durumu:</span>
+                              <div className="flex items-center space-x-3 bg-[#1D1D1F] dark:bg-[#252528] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] rounded-xl p-3 text-xs justify-between">
+                                <span className="font-bold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] text-[10px] uppercase">Katman Durumu:</span>
                                 
                                 <div className="flex space-x-2">
                                   <button
                                     type="button"
                                     onClick={() => handleRegionPropertyChange(region.id, 'hidden', !region.hidden)}
-                                    className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg transition cursor-pointer font-bold text-[11px] border ${
+                                    className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer font-bold text-[11px] shadow-sm border ${
                                       region.hidden 
-                                        ? 'bg-red-500/10 border-red-500/30 text-red-400' 
-                                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+                                        ? 'bg-[#252528] dark:bg-[#252528]/40 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/40 text-[#FF453A] dark:text-[#FF453A]' 
+                                        : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#252528] dark:hover:bg-[#3A3A3C]/80'
                                     }`}
                                   >
                                     {region.hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -5920,10 +5437,10 @@ export default function App() {
                                   <button
                                     type="button"
                                     onClick={() => handleRegionPropertyChange(region.id, 'locked', !region.locked)}
-                                    className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-lg transition cursor-pointer font-bold text-[11px] border ${
+                                    className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer font-bold text-[11px] shadow-sm border ${
                                       region.locked 
-                                        ? 'bg-amber-500/10 border-amber-500/30 text-amber-400' 
-                                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
+                                        ? 'bg-[#252528] dark:bg-[#252528]/40 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/40 text-[#FF9F0A] dark:text-[#FF9F0A]' 
+                                        : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#252528] dark:hover:bg-[#3A3A3C]/80'
                                     }`}
                                   >
                                     {region.locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
@@ -5934,13 +5451,13 @@ export default function App() {
 
                               {/* Geometry offsets */}
                               <div className="space-y-3 pt-2">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase block">Konum &amp; Boyut (X, Y, W, H)</span>
+                                <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Konum & Boyut (X, Y, W, H)</span>
                                 
                                 <div className="grid grid-cols-2 gap-3">
                                   <div>
-                                    <label className="text-[10px] text-slate-400 font-semibold flex justify-between mb-1">
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Konum X</span>
-                                      <span className="font-mono text-indigo-400 font-bold">{region.x}px</span>
+                                      <span className="font-mono text-[#6C5CE7] font-bold">{region.x}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -5948,13 +5465,13 @@ export default function App() {
                                       max={currentTemplate.width}
                                       value={region.x}
                                       onChange={(e) => handleRegionPropertyChange(region.id, 'x', parseInt(e.target.value))}
-                                      className="w-full accent-indigo-600 cursor-pointer"
+                                      className="w-full accent-[#6C5CE7] cursor-pointer"
                                     />
                                   </div>
                                   <div>
-                                    <label className="text-[10px] text-slate-400 font-semibold flex justify-between mb-1">
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Konum Y</span>
-                                      <span className="font-mono text-indigo-400 font-bold">{region.y}px</span>
+                                      <span className="font-mono text-[#6C5CE7] font-bold">{region.y}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -5962,16 +5479,16 @@ export default function App() {
                                       max={currentTemplate.height}
                                       value={region.y}
                                       onChange={(e) => handleRegionPropertyChange(region.id, 'y', parseInt(e.target.value))}
-                                      className="w-full accent-indigo-600 cursor-pointer"
+                                      className="w-full accent-[#6C5CE7] cursor-pointer"
                                     />
                                   </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
                                   <div>
-                                    <label className="text-[10px] text-slate-400 font-semibold flex justify-between mb-1">
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Genişlik</span>
-                                      <span className="font-mono text-indigo-400 font-bold">{region.width}px</span>
+                                      <span className="font-mono text-[#6C5CE7] font-bold">{region.width}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -5979,13 +5496,13 @@ export default function App() {
                                       max={currentTemplate.width}
                                       value={region.width}
                                       onChange={(e) => handleRegionPropertyChange(region.id, 'width', parseInt(e.target.value))}
-                                      className="w-full accent-indigo-600 cursor-pointer"
+                                      className="w-full accent-[#6C5CE7] cursor-pointer"
                                     />
                                   </div>
                                   <div>
-                                    <label className="text-[10px] text-slate-400 font-semibold flex justify-between mb-1">
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Yükseklik</span>
-                                      <span className="font-mono text-indigo-400 font-bold">{region.height}px</span>
+                                      <span className="font-mono text-[#6C5CE7] font-bold">{region.height}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -5993,32 +5510,32 @@ export default function App() {
                                       max={currentTemplate.height}
                                       value={region.height}
                                       onChange={(e) => handleRegionPropertyChange(region.id, 'height', parseInt(e.target.value))}
-                                      className="w-full accent-indigo-600 cursor-pointer"
+                                      className="w-full accent-[#6C5CE7] cursor-pointer"
                                     />
                                   </div>
                                 </div>
 
                                 <div className="pt-1.5 pb-1">
-                                  <label className="text-[10px] text-slate-400 font-bold block mb-1.5">Katmanı Ortala</label>
+                                  <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block mb-1.5">Katmanı Ortala</label>
                                   <div className="grid grid-cols-3 gap-1.5">
                                     <button
                                       type="button"
                                       onClick={() => centerSelectedLayer('horizontal')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 transition flex items-center justify-center space-x-1 cursor-pointer"
+                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
                                     >
                                       <span>↔ Yatay</span>
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => centerSelectedLayer('vertical')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 transition flex items-center justify-center space-x-1 cursor-pointer"
+                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
                                     >
                                       <span>↕ Dikey</span>
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => centerSelectedLayer('both')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-400 transition flex items-center justify-center space-x-1 cursor-pointer"
+                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#252528] hover:bg-[#303033] border border-[#6C5CE7] text-[#6C5CE7] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
                                     >
                                       <span>✛ Tam</span>
                                     </button>
@@ -6028,13 +5545,13 @@ export default function App() {
 
                               {/* Stylings border radius etc */}
                               <div className="space-y-3 pt-2">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase block">Arka Plan (Dolgu) &amp; Çerçeve</span>
+                                <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Arka Plan (Dolgu) & Çerçeve</span>
 
                                 {region.type === 'text' && (
-                                  <div className="flex items-center justify-between bg-indigo-500/10 border border-indigo-500/20 rounded-xl p-2.5">
+                                  <div className="flex items-center justify-between bg-[#252528]/50 border border-[#6C5CE7] rounded-xl p-2.5">
                                     <div className="space-y-0.5 pr-2">
-                                      <span className="text-[11px] font-extrabold text-slate-200 block">Metin Arka Planını Sığdır</span>
-                                      <span className="text-[9px] text-slate-400 block leading-tight font-medium">Arka planı başlık/metin uzunluğuna göre eş zamanlı uyarla.</span>
+                                      <span className="text-[11px] font-extrabold text-[rgba(255,255,255,0.95)] block">Metin Arka Planını Sığdır</span>
+                                      <span className="text-[9px] text-[rgba(255,255,255,0.72)] block leading-tight font-medium">Arka planı başlık/metin uzunluğuna göre eş zamanlı uyarla.</span>
                                     </div>
                                     <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
                                       <input
@@ -6043,14 +5560,14 @@ export default function App() {
                                         onChange={(e) => handleRegionPropertyChange(region.id, 'fitBackgroundToText', e.target.checked)}
                                         className="sr-only peer"
                                       />
-                                      <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-350 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600 peer-checked:after:bg-white"></div>
+                                      <div className="w-8 h-4 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#6C5CE7] peer-checked:after:bg-[#252528]"></div>
                                     </label>
                                   </div>
                                 )}
                                 <div className="grid grid-cols-2 gap-3">
                                   <div className={region.hasBackground === false ? "opacity-60 transition-opacity duration-200" : "transition-opacity duration-200"}>
                                     <div className="flex items-center justify-between mb-1">
-                                      <label className="text-[10px] text-slate-400 font-bold block">Arka Plan Dolgu</label>
+                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block">Arka Plan Dolgu</label>
                                       <label className="relative inline-flex items-center cursor-pointer select-none">
                                         <input
                                           type="checkbox"
@@ -6058,15 +5575,15 @@ export default function App() {
                                           onChange={(e) => handleRegionPropertyChange(region.id, 'hasBackground', e.target.checked)}
                                           className="sr-only peer"
                                         />
-                                        <div className="w-7 h-3.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[12px] peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-350 after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-indigo-600 peer-checked:after:bg-white"></div>
+                                        <div className="w-7 h-3.5 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[12px] peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-[#6C5CE7] peer-checked:after:bg-[#252528]"></div>
                                       </label>
                                     </div>
                                     <div className="flex space-x-1">
                                       <input
                                         type="color"
-                                        value={region.backgroundColor?.startsWith('#') ? region.backgroundColor : '#FFFFFF'}
+                                        value={region.backgroundColor?.startsWith('#') ? region.backgroundColor : '#252528'}
                                         onChange={(e) => handleRegionPropertyChange(region.id, 'backgroundColor', e.target.value)}
-                                        className="w-8 h-7 rounded border border-slate-700 bg-transparent cursor-pointer"
+                                        className="w-8 h-7 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer"
                                         disabled={region.hasBackground === false}
                                       />
                                       <input
@@ -6074,14 +5591,14 @@ export default function App() {
                                         value={region.backgroundColor || 'transparent'}
                                         onChange={(e) => handleRegionPropertyChange(region.id, 'backgroundColor', e.target.value)}
                                         placeholder="transparent"
-                                        className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] font-mono text-slate-300 font-medium"
+                                        className="flex-1 bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-[11px] font-mono text-[rgba(255,255,255,0.95)] font-medium"
                                         disabled={region.hasBackground === false}
                                       />
                                     </div>
                                   </div>
                                   <div className={region.hasBorder === false ? "opacity-60 transition-opacity duration-200" : "transition-opacity duration-200"}>
                                     <div className="flex items-center justify-between mb-1">
-                                      <label className="text-[10px] text-slate-400 font-bold block">Kenarlık Rengi</label>
+                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block">Kenarlık Rengi</label>
                                       <label className="relative inline-flex items-center cursor-pointer select-none">
                                         <input
                                           type="checkbox"
@@ -6089,15 +5606,15 @@ export default function App() {
                                           onChange={(e) => handleRegionPropertyChange(region.id, 'hasBorder', e.target.checked)}
                                           className="sr-only peer"
                                         />
-                                        <div className="w-7 h-3.5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[12px] peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-350 after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-indigo-600 peer-checked:after:bg-white"></div>
+                                        <div className="w-7 h-3.5 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[12px] peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-[#6C5CE7] peer-checked:after:bg-[#252528]"></div>
                                       </label>
                                     </div>
                                     <div className="flex space-x-1">
                                       <input
                                         type="color"
-                                        value={region.borderColor?.startsWith('#') ? region.borderColor : '#4F46E5'}
+                                        value={region.borderColor?.startsWith('#') ? region.borderColor : '#6C5CE7'}
                                         onChange={(e) => handleRegionPropertyChange(region.id, 'borderColor', e.target.value)}
-                                        className="w-8 h-7 rounded border border-slate-700 bg-transparent cursor-pointer"
+                                        className="w-8 h-7 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer"
                                         disabled={region.hasBorder === false}
                                       />
                                       <input
@@ -6105,7 +5622,7 @@ export default function App() {
                                         value={region.borderColor || 'transparent'}
                                         onChange={(e) => handleRegionPropertyChange(region.id, 'borderColor', e.target.value)}
                                         placeholder="transparent"
-                                        className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] font-mono text-slate-300 font-medium"
+                                        className="flex-1 bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-[11px] font-mono text-[rgba(255,255,255,0.95)] font-medium"
                                         disabled={region.hasBorder === false}
                                       />
                                     </div>
@@ -6114,22 +5631,22 @@ export default function App() {
 
                                 <div className="grid grid-cols-2 gap-3">
                                   <div className={region.hasBackground === false ? "opacity-60 transition-opacity duration-200" : "transition-opacity duration-200"}>
-                                    <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Köşe Yuvarlama (Radius)</label>
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Köşe Yuvarlama (Radius)</label>
                                     <input
                                       type="number"
                                       value={region.borderRadius}
                                       onChange={(e) => handleRegionPropertyChange(region.id, 'borderRadius', parseInt(e.target.value) || 0)}
-                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 font-medium font-mono"
+                                      className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
                                       disabled={region.hasBackground === false}
                                     />
                                   </div>
                                   <div className={region.hasBorder === false ? "opacity-60 transition-opacity duration-200" : "transition-opacity duration-200"}>
-                                    <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Kenarlık Kalınlığı</label>
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Kenarlık Kalınlığı</label>
                                     <input
                                       type="number"
                                       value={region.borderWidth}
                                       onChange={(e) => handleRegionPropertyChange(region.id, 'borderWidth', parseInt(e.target.value) || 0)}
-                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 font-medium font-mono"
+                                      className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
                                       disabled={region.hasBorder === false}
                                     />
                                   </div>
@@ -6138,30 +5655,30 @@ export default function App() {
 
                               {/* Typography settings for Text region */}
                               {region.type === 'text' && region.textStyle && (
-                                <div className="space-y-3 pt-2 border-t border-slate-700/60">
-                                  <span className="text-[10px] font-bold text-slate-550 uppercase block">YAZITİPİ (TYPOGRAPHY) AYARLARI</span>
+                                <div className="space-y-3 pt-2 border-t border-[rgba(255,255,255,0.08)]">
+                                  <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">YAZITİPİ (TYPOGRAPHY) AYARLARI</span>
 
                                   <div>
-                                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Metin Rolü / Hiyerarşisi</label>
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block mb-1">Metin Rolü / Hiyerarşisi</label>
                                     <select
                                       value={region.textRole || 'normal'}
                                       onChange={(e) => handleRegionPropertyChange(region.id, 'textRole', e.target.value)}
-                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-semibold cursor-pointer mb-2"
+                                      className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] font-semibold cursor-pointer mb-2"
                                     >
                                       <option value="normal">Normal / Diğer Metin</option>
                                       <option value="title">Başlık (Title)</option>
                                       <option value="subtitle">Alt Başlık (Subtitle)</option>
                                       <option value="description">Açıklama (Description)</option>
                                     </select>
-                                    <p className="text-[9px] text-slate-500">Yapay Zeka içeriği doldururken bu role göre başlığı, alt başlığı veya açıklamayı otomatik eşleştirecektir.</p>
+                                    <p className="text-[9px] text-[rgba(255,255,255,0.72)]">Yapay Zeka içeriği doldururken bu role göre başlığı, alt başlığı veya açıklamayı otomatik eşleştirecektir.</p>
                                   </div>
 
                                   <div>
-                                    <label className="text-[10px] text-slate-400 font-bold block mb-1">Font Ailesi</label>
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block mb-1">Font Ailesi</label>
                                     <select
                                       value={region.textStyle.fontFamily}
                                       onChange={(e) => handleRegionTextStyleChange(region.id, 'fontFamily', e.target.value)}
-                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-semibold cursor-pointer"
+                                      className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] font-semibold cursor-pointer"
                                     >
                                       <option value="Arimo">Arimo (Modern Dengeli Sans)</option>
                                       <option value="Roboto">Roboto (Klasik Temiz Sans)</option>
@@ -6184,28 +5701,28 @@ export default function App() {
 
                                   <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                      <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Yazı Boyutu (px)</label>
+                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Boyutu (px)</label>
                                       <input
                                         type="number"
                                         value={region.textStyle.fontSize}
                                         onChange={(e) => handleRegionTextStyleChange(region.id, 'fontSize', parseInt(e.target.value) || 24)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 font-medium font-mono"
+                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
                                       />
                                     </div>
                                     <div>
-                                      <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Yazı Rengi</label>
+                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Rengi</label>
                                       <div className="flex space-x-1.5">
                                         <input
                                           type="color"
-                                          value={region.textStyle.color.startsWith('#') ? region.textStyle.color : '#FFFFFF'}
+                                          value={region.textStyle.color.startsWith('#') ? region.textStyle.color : '#252528'}
                                           onChange={(e) => handleRegionTextStyleChange(region.id, 'color', e.target.value)}
-                                          className="w-8 h-7 rounded border border-slate-700 bg-transparent cursor-pointer shrink-0"
+                                          className="w-8 h-7 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer shrink-0"
                                         />
                                         <input
                                           type="text"
                                           value={region.textStyle.color}
                                           onChange={(e) => handleRegionTextStyleChange(region.id, 'color', e.target.value)}
-                                          className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-slate-200 font-medium"
+                                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-medium"
                                         />
                                       </div>
                                     </div>
@@ -6213,21 +5730,21 @@ export default function App() {
 
                                   <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                      <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Satır Aralığı</label>
+                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Satır Aralığı</label>
                                       <input
                                         type="number"
                                         step={0.1}
                                         value={region.textStyle.lineHeight}
                                         onChange={(e) => handleRegionTextStyleChange(region.id, 'lineHeight', parseFloat(e.target.value) || 1.2)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 font-medium font-mono"
+                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
                                       />
                                     </div>
                                     <div>
-                                      <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Yazı Kalınlığı</label>
+                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Kalınlığı</label>
                                       <select
                                         value={region.textStyle.fontWeight}
                                         onChange={(e) => handleRegionTextStyleChange(region.id, 'fontWeight', e.target.value)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300 font-bold cursor-pointer"
+                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs text-[rgba(255,255,255,0.95)] font-bold cursor-pointer"
                                       >
                                         <option value="300">İnce (300)</option>
                                         <option value="normal">Normal (400)</option>
@@ -6241,24 +5758,24 @@ export default function App() {
 
                                   <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                      <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Harf Boşluğu (px)</label>
+                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Harf Boşluğu (px)</label>
                                       <input
                                         type="number"
                                         value={region.textStyle.letterSpacing ?? 0}
                                         onChange={(e) => handleRegionTextStyleChange(region.id, 'letterSpacing', parseInt(e.target.value) || 0)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 font-medium font-mono"
+                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
                                       />
                                     </div>
                                     <div>
-                                      <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Hizalama</label>
-                                      <div className="flex rounded-lg border border-slate-700 p-0.5 bg-slate-900 gap-0.5 h-7">
+                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Hizalama</label>
+                                      <div className="flex rounded-lg border border-[rgba(255,255,255,0.08)] p-0.5 bg-[#1D1D1F] gap-0.5 h-7">
                                         <button
                                           type="button"
                                           onClick={() => handleRegionTextStyleChange(region.id, 'align', 'left')}
                                           className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                             region.textStyle.align === 'left'
-                                              ? 'bg-indigo-650 text-white shadow-sm border border-indigo-500/25'
-                                              : 'text-slate-500 hover:text-slate-300'
+                                              ? 'bg-[#252528] text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)]'
+                                              : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
                                           }`}
                                           title="Sola Hizala"
                                         >
@@ -6269,8 +5786,8 @@ export default function App() {
                                           onClick={() => handleRegionTextStyleChange(region.id, 'align', 'center')}
                                           className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                             region.textStyle.align === 'center'
-                                              ? 'bg-indigo-650 text-white shadow-sm border border-indigo-500/25'
-                                              : 'text-slate-500 hover:text-slate-300'
+                                              ? 'bg-[#252528] text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)]'
+                                              : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
                                           }`}
                                           title="Ortala"
                                         >
@@ -6281,8 +5798,8 @@ export default function App() {
                                           onClick={() => handleRegionTextStyleChange(region.id, 'align', 'right')}
                                           className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                             region.textStyle.align === 'right'
-                                              ? 'bg-indigo-650 text-white shadow-sm border border-indigo-500/25'
-                                              : 'text-slate-500 hover:text-slate-300'
+                                              ? 'bg-[#252528] text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)]'
+                                              : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
                                           }`}
                                           title="Sağa Hizala"
                                         >
@@ -6293,9 +5810,9 @@ export default function App() {
                                   </div>
 
                                   {/* Shadow settings */}
-                                  <div className="space-y-3 pt-2 border-t border-slate-700/60">
+                                  <div className="space-y-3 pt-2 border-t border-[rgba(255,255,255,0.08)]">
                                     <div className="flex items-center justify-between">
-                                      <span className="text-[10px] font-bold text-slate-400 uppercase block">Metin Arkası Gölge (Text Shadow)</span>
+                                      <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Metin Arkası Gölge (Text Shadow)</span>
                                       <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
                                         <input
                                           type="checkbox"
@@ -6303,19 +5820,19 @@ export default function App() {
                                           onChange={(e) => handleRegionTextStyleChange(region.id, 'hasShadow', e.target.checked)}
                                           className="sr-only peer"
                                         />
-                                        <div className="w-8 h-4 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-350 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600 peer-checked:after:bg-white"></div>
+                                        <div className="w-8 h-4 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#6C5CE7] peer-checked:after:bg-[#252528]"></div>
                                       </label>
                                     </div>
                                     <div className={`space-y-3 ${region.textStyle.hasShadow === false ? "opacity-45 pointer-events-none transition-opacity duration-200" : "transition-opacity duration-200"}`}>
                                       <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                          <label className="text-[10px] text-slate-400 font-semibold block mb-1">Gölge Rengi</label>
+                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold block mb-1">Gölge Rengi</label>
                                           <div className="flex space-x-1">
                                             <input
                                               type="color"
-                                              value={region.textStyle.shadowColor?.startsWith('#') ? region.textStyle.shadowColor : '#000000'}
+                                              value={region.textStyle.shadowColor?.startsWith('#') ? region.textStyle.shadowColor : 'rgba(0,0,0,0.5)'}
                                               onChange={(e) => handleRegionTextStyleChange(region.id, 'shadowColor', e.target.value)}
-                                              className="w-8 h-7 rounded border border-slate-700 bg-transparent cursor-pointer"
+                                              className="w-8 h-7 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer"
                                               disabled={region.textStyle.hasShadow === false}
                                             />
                                             <input
@@ -6323,40 +5840,40 @@ export default function App() {
                                               value={region.textStyle.shadowColor || 'transparent'}
                                               onChange={(e) => handleRegionTextStyleChange(region.id, 'shadowColor', e.target.value)}
                                               placeholder="transparent"
-                                              className="flex-1 bg-slate-900 border border-slate-700 rounded px-2 py-1 text-[11px] font-mono text-slate-200 font-medium"
+                                              className="flex-1 bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-[11px] font-mono text-[rgba(255,255,255,0.95)] font-medium"
                                               disabled={region.textStyle.hasShadow === false}
                                             />
                                           </div>
                                         </div>
                                         <div>
-                                          <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Gölge Dağılımı (Blur)</label>
+                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Gölge Dağılımı (Blur)</label>
                                           <input
                                             type="number"
                                             value={region.textStyle.shadowBlur ?? 0}
                                             onChange={(e) => handleRegionTextStyleChange(region.id, 'shadowBlur', parseInt(e.target.value) || 0)}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-slate-200 font-semibold"
+                                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-semibold"
                                             disabled={region.textStyle.hasShadow === false}
                                           />
                                         </div>
                                       </div>
                                       <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                          <label className="text-[10px] text-slate-400 block mb-1 font-semibold">X Kayması (Offset X)</label>
+                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">X Kayması (Offset X)</label>
                                           <input
                                             type="number"
                                             value={region.textStyle.shadowOffsetX ?? 0}
                                             onChange={(e) => handleRegionTextStyleChange(region.id, 'shadowOffsetX', parseInt(e.target.value) || 0)}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-slate-200 font-semibold"
+                                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-semibold"
                                             disabled={region.textStyle.hasShadow === false}
                                           />
                                         </div>
                                         <div>
-                                          <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Y Kayması (Offset Y)</label>
+                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Y Kayması (Offset Y)</label>
                                           <input
                                             type="number"
                                             value={region.textStyle.shadowOffsetY ?? 0}
                                             onChange={(e) => handleRegionTextStyleChange(region.id, 'shadowOffsetY', parseInt(e.target.value) || 0)}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-slate-200 font-semibold"
+                                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-semibold"
                                             disabled={region.textStyle.hasShadow === false}
                                           />
                                         </div>
@@ -6367,35 +5884,35 @@ export default function App() {
                               )}
 
                               {/* Layer Hierarchy Reordering Controls */}
-                              <div className="space-y-2 pt-3 border-t border-slate-700/60">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase block">Katman Hiyerarşisi (Sıralama)</span>
+                              <div className="space-y-2 pt-3 border-t border-[rgba(255,255,255,0.08)]">
+                                <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Katman Hiyerarşisi (Sıralama)</span>
                                 <div className="grid grid-cols-4 gap-1.5 text-center">
                                   <button
                                     onClick={() => moveLayerOrder(region.id, 'front')}
-                                    className="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-[10px] rounded text-slate-300 font-bold cursor-pointer transition shadow-sm"
+                                    className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition shadow-sm"
                                     title="En Üste Getir"
                                   >
                                     En Üst
                                   </button>
                                   <button
                                     onClick={() => moveLayerOrder(region.id, 'up')}
-                                    className="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-[10px] rounded text-slate-300 font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
+                                    className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
                                     title="Bir Üste Çıkar"
                                   >
-                                    <ChevronUp className="w-3 h-3 text-indigo-400" />
+                                    <ChevronUp className="w-3 h-3 text-[#6C5CE7]" />
                                     <span>Öne</span>
                                   </button>
                                   <button
                                     onClick={() => moveLayerOrder(region.id, 'down')}
-                                    className="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-[10px] rounded text-slate-300 font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
+                                    className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
                                     title="Bir Alta İndir"
                                   >
-                                    <ChevronDown className="w-3 h-3 text-indigo-400" />
+                                    <ChevronDown className="w-3 h-3 text-[#6C5CE7]" />
                                     <span>Arka</span>
                                   </button>
                                   <button
                                     onClick={() => moveLayerOrder(region.id, 'back')}
-                                    className="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-[10px] rounded text-slate-300 font-bold cursor-pointer transition shadow-sm"
+                                    className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition shadow-sm"
                                     title="En Alta Gönder"
                                   >
                                     En Alt
@@ -6409,30 +5926,30 @@ export default function App() {
                         if (fixed) {
                           return (
                             <div className="space-y-4">
-                              <div className="flex items-center justify-between border-b border-slate-700/60 pb-2">
-                                <h5 className="text-xs font-bold text-amber-500 uppercase">SABİT ÖĞE DÜZENLEYİCİ</h5>
-                                <span className="text-[9px] bg-amber-500/15 border border-amber-500/25 text-amber-400 px-2 py-0.5 rounded-md font-extrabold">Sabit</span>
+                              <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] pb-2">
+                                <h5 className="text-xs font-bold text-[#FF9F0A] uppercase">SABİT ÖĞE DÜZENLEYİCİ</h5>
+                                <span className="text-[9px] bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[#FF9F0A] px-2 py-0.5 rounded-md font-extrabold">Sabit</span>
                               </div>
 
                               <div>
-                                <label className="text-[10px] text-slate-400 font-bold block mb-1">Katman Adı</label>
+                                <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block mb-1">Katman Adı</label>
                                 <input
                                   type="text"
                                   value={fixed.name}
                                   onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'name', e.target.value)}
-                                  className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-medium focus:outline-none focus:border-amber-500"
+                                  className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium"
                                 />
                               </div>
 
                               {/* Geometry offsets */}
                               <div className="space-y-3 pt-2">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase block">Konum &amp; Boyut (X, Y, W, H)</span>
+                                <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Konum & Boyut (X, Y, W, H)</span>
                                 
                                 <div className="grid grid-cols-2 gap-3">
                                   <div>
-                                    <label className="text-[10px] text-slate-400 font-semibold flex justify-between mb-1">
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Konum X</span>
-                                      <span className="font-mono text-amber-450 font-bold">{fixed.x}px</span>
+                                      <span className="font-mono text-[#FF9F0A] font-bold">{fixed.x}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -6440,13 +5957,13 @@ export default function App() {
                                       max={currentTemplate.width}
                                       value={fixed.x}
                                       onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'x', parseInt(e.target.value))}
-                                      className="w-full accent-amber-500 cursor-pointer"
+                                      className="w-full accent-[#FF9F0A] cursor-pointer"
                                     />
                                   </div>
                                   <div>
-                                    <label className="text-[10px] text-slate-400 font-semibold flex justify-between mb-1">
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Konum Y</span>
-                                      <span className="font-mono text-amber-450 font-bold">{fixed.y}px</span>
+                                      <span className="font-mono text-[#FF9F0A] font-bold">{fixed.y}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -6454,16 +5971,16 @@ export default function App() {
                                       max={currentTemplate.height}
                                       value={fixed.y}
                                       onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'y', parseInt(e.target.value))}
-                                      className="w-full accent-amber-500 cursor-pointer"
+                                      className="w-full accent-[#FF9F0A] cursor-pointer"
                                     />
                                   </div>
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-3">
                                   <div>
-                                    <label className="text-[10px] text-slate-400 font-semibold flex justify-between mb-1">
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Genişlik</span>
-                                      <span className="font-mono text-amber-450 font-bold">{fixed.width}px</span>
+                                      <span className="font-mono text-[#FF9F0A] font-bold">{fixed.width}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -6471,13 +5988,13 @@ export default function App() {
                                       max={currentTemplate.width}
                                       value={fixed.width}
                                       onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'width', parseInt(e.target.value))}
-                                      className="w-full accent-amber-500 cursor-pointer"
+                                      className="w-full accent-[#FF9F0A] cursor-pointer"
                                     />
                                   </div>
                                   <div>
-                                    <label className="text-[10px] text-slate-400 font-semibold flex justify-between mb-1">
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
                                       <span>Yükseklik</span>
-                                      <span className="font-mono text-amber-450 font-bold">{fixed.height}px</span>
+                                      <span className="font-mono text-[#FF9F0A] font-bold">{fixed.height}px</span>
                                     </label>
                                     <input
                                       type="range"
@@ -6485,32 +6002,32 @@ export default function App() {
                                       max={currentTemplate.height}
                                       value={fixed.height}
                                       onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'height', parseInt(e.target.value))}
-                                      className="w-full accent-amber-500 cursor-pointer"
+                                      className="w-full accent-[#FF9F0A] cursor-pointer"
                                     />
                                   </div>
                                 </div>
 
                                 <div className="pt-1.5 pb-1">
-                                  <label className="text-[10px] text-slate-400 font-bold block mb-1.5">Katmanı Ortala</label>
+                                  <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block mb-1.5">Katmanı Ortala</label>
                                   <div className="grid grid-cols-3 gap-1.5">
                                     <button
                                       type="button"
                                       onClick={() => centerSelectedLayer('horizontal')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 transition flex items-center justify-center space-x-1 cursor-pointer"
+                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
                                     >
                                       <span>↔ Yatay</span>
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => centerSelectedLayer('vertical')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-300 transition flex items-center justify-center space-x-1 cursor-pointer"
+                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
                                     >
                                       <span>↕ Dikey</span>
                                     </button>
                                     <button
                                       type="button"
                                       onClick={() => centerSelectedLayer('both')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-400 transition flex items-center justify-center space-x-1 cursor-pointer"
+                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#252528] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[#FF9F0A] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
                                     >
                                       <span>✛ Tam</span>
                                     </button>
@@ -6521,14 +6038,14 @@ export default function App() {
                               {/* Details depending on type */}
                               {fixed.type === 'shape' && (
                                 <div className="space-y-3 pt-2">
-                                  <span className="text-[10px] font-bold text-slate-550 uppercase block">Şekil Detayları</span>
+                                  <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Şekil Detayları</span>
                                   <div className="grid grid-cols-2 gap-3">
                                     <div>
-                                      <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Şekil Tipi</label>
+                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Şekil Tipi</label>
                                       <select
                                         value={fixed.shapeType}
                                         onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'shapeType', e.target.value)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 font-bold cursor-pointer"
+                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs text-[rgba(255,255,255,0.95)] font-bold cursor-pointer"
                                       >
                                         <option value="rect">Dikdörtgen</option>
                                         <option value="circle">Daire</option>
@@ -6536,12 +6053,12 @@ export default function App() {
                                       </select>
                                     </div>
                                     <div>
-                                      <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Dolgu Rengi</label>
+                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Dolgu Rengi</label>
                                       <input
                                         type="text"
                                         value={fixed.backgroundColor || fixed.color}
                                         onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'backgroundColor', e.target.value)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs font-mono text-slate-250 font-semibold"
+                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-semibold"
                                       />
                                     </div>
                                   </div>
@@ -6550,25 +6067,25 @@ export default function App() {
 
                               {(fixed.type === 'logo' || fixed.type === 'social') && (
                                 <div className="space-y-3 pt-2">
-                                  <span className="text-[10px] font-bold text-slate-500 uppercase block">Metin &amp; Simge Özellikleri</span>
+                                  <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Metin & Simge Özellikleri</span>
                                   
                                   <div>
-                                    <label className="text-[10px] text-slate-400 block mb-1 font-semibold">İçerik Metni</label>
+                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">İçerik Metni</label>
                                     <input
                                       type="text"
                                       value={fixed.content}
                                       onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'content', e.target.value)}
-                                      className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-semibold focus:outline-none focus:border-amber-500"
+                                      className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-semibold"
                                     />
                                   </div>
 
                                   {fixed.type === 'social' && (
                                     <div>
-                                      <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Simge Tipi</label>
+                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Simge Tipi</label>
                                       <select
                                         value={fixed.iconType}
                                         onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'iconType', e.target.value)}
-                                        className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-200 font-bold cursor-pointer"
+                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs text-[rgba(255,255,255,0.95)] font-bold cursor-pointer"
                                       >
                                         <option value="none">Simgesiz</option>
                                         <option value="instagram">Instagram</option>
@@ -6580,17 +6097,17 @@ export default function App() {
                                   )}
 
                                   {fixed.textStyle && (
-                                    <div className="space-y-3 pt-2 border-t border-slate-700/60">
+                                    <div className="space-y-3 pt-2 border-t border-[rgba(255,255,255,0.08)]">
                                       <div>
-                                        <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Font Ailesi</label>
+                                        <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Font Ailesi</label>
                                         <select
                                           value={fixed.textStyle.fontFamily || 'Space Grotesk'}
                                           onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'fontFamily', e.target.value)}
-                                          className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1.5 text-xs text-slate-200 font-bold cursor-pointer"
+                                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] font-bold cursor-pointer"
                                         >
                                           <option value="Arimo">Arimo (Modern Dengeli Sans)</option>
                                           <option value="Roboto">Roboto (Klasik Temiz Sans)</option>
-                                          <option value="Oswald">Oswald (Dar &amp; Çarpıcı Başlık)</option>
+                                          <option value="Oswald">Oswald (Dar & Çarpıcı Başlık)</option>
                                           <option value="Inter">Inter (Sade Sans)</option>
                                           <option value="Space Grotesk">Space Grotesk (Modern Tech)</option>
                                           <option value="Playfair Display">Playfair Display (Zarif Serif)</option>
@@ -6609,28 +6126,28 @@ export default function App() {
 
                                       <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                          <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Yazı Boyutu</label>
+                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Boyutu</label>
                                           <input
                                             type="number"
                                             value={fixed.textStyle.fontSize}
                                             onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'fontSize', parseInt(e.target.value) || 14)}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 font-medium font-mono"
+                                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
                                           />
                                         </div>
                                         <div>
-                                          <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Yazı Rengi</label>
+                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Rengi</label>
                                           <div className="flex space-x-1.5">
                                             <input
                                               type="color"
-                                              value={fixed.textStyle.color.startsWith('#') ? fixed.textStyle.color : '#FFFFFF'}
+                                              value={fixed.textStyle.color.startsWith('#') ? fixed.textStyle.color : '#252528'}
                                               onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'color', e.target.value)}
-                                              className="w-8 h-7 rounded border border-slate-700 bg-transparent cursor-pointer shrink-0"
+                                              className="w-8 h-7 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer shrink-0"
                                             />
                                             <input
                                               type="text"
                                               value={fixed.textStyle.color}
                                               onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'color', e.target.value)}
-                                              className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs font-mono text-slate-200 font-medium"
+                                              className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-medium"
                                             />
                                           </div>
                                         </div>
@@ -6638,11 +6155,11 @@ export default function App() {
 
                                       <div className="grid grid-cols-2 gap-3">
                                         <div>
-                                          <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Yazı Kalınlığı</label>
+                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Kalınlığı</label>
                                           <select
                                             value={fixed.textStyle.fontWeight || 'normal'}
                                             onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'fontWeight', e.target.value)}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-350 font-bold cursor-pointer"
+                                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs text-[rgba(255,255,255,0.95)] font-bold cursor-pointer"
                                           >
                                             <option value="300">İnce (300)</option>
                                             <option value="normal">Normal (400)</option>
@@ -6653,26 +6170,26 @@ export default function App() {
                                           </select>
                                         </div>
                                         <div>
-                                          <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Harf Boşluğu (px)</label>
+                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Harf Boşluğu (px)</label>
                                           <input
                                             type="number"
                                             value={fixed.textStyle.letterSpacing ?? 0}
                                             onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'letterSpacing', parseInt(e.target.value) || 0)}
-                                            className="w-full bg-slate-900 border border-slate-700 rounded px-2.5 py-1 text-xs text-slate-200 font-medium font-mono"
+                                            className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium font-mono"
                                           />
                                         </div>
                                       </div>
 
                                       <div>
-                                        <label className="text-[10px] text-slate-400 block mb-1 font-semibold">Hizalama</label>
-                                        <div className="flex rounded-lg border border-slate-700 p-0.5 bg-slate-900 gap-0.5 h-7">
+                                        <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Hizalama</label>
+                                        <div className="flex rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] p-0.5 bg-[#1D1D1F] dark:bg-[#252528] gap-0.5 h-7">
                                           <button
                                             type="button"
                                             onClick={() => handleFixedElementTextStyleChange(fixed.id, 'align', 'left')}
                                             className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                               fixed.textStyle.align === 'left'
-                                                ? 'bg-indigo-650 text-white shadow-sm border border-indigo-500/25'
-                                                : 'text-slate-500 hover:text-slate-300'
+                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#6C5CE7] dark:text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
+                                                : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
                                             }`}
                                             title="Sola Hizala"
                                           >
@@ -6683,8 +6200,8 @@ export default function App() {
                                             onClick={() => handleFixedElementTextStyleChange(fixed.id, 'align', 'center')}
                                             className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                               fixed.textStyle.align === 'center'
-                                                ? 'bg-indigo-650 text-white shadow-sm border border-indigo-500/25'
-                                                : 'text-slate-500 hover:text-slate-300'
+                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#6C5CE7] dark:text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
+                                                : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
                                             }`}
                                             title="Ortala"
                                           >
@@ -6695,8 +6212,8 @@ export default function App() {
                                             onClick={() => handleFixedElementTextStyleChange(fixed.id, 'align', 'right')}
                                             className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
                                               fixed.textStyle.align === 'right'
-                                                ? 'bg-indigo-650 text-white shadow-sm border border-indigo-500/25'
-                                                : 'text-slate-500 hover:text-slate-300'
+                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#6C5CE7] dark:text-[#6C5CE7] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
+                                                : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
                                             }`}
                                             title="Sağa Hizala"
                                           >
@@ -6708,35 +6225,35 @@ export default function App() {
                                   )}
 
                                   {/* Layer Hierarchy Reordering Controls for Fixed elements */}
-                                  <div className="space-y-2 pt-3 border-t border-slate-700/60 mt-3">
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase block">Katman Hiyerarşisi (Sıralama)</span>
+                                  <div className="space-y-2 pt-3 border-t border-[rgba(255,255,255,0.08)] mt-3">
+                                    <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Katman Hiyerarşisi (Sıralama)</span>
                                     <div className="grid grid-cols-4 gap-1.5 text-center">
                                       <button
                                         onClick={() => moveLayerOrder(fixed.id, 'front')}
-                                        className="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-[10px] rounded text-slate-350 font-bold cursor-pointer transition shadow-sm"
+                                        className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition shadow-sm"
                                         title="En Üste Getir"
                                       >
                                         En Üst
                                       </button>
                                       <button
                                         onClick={() => moveLayerOrder(fixed.id, 'up')}
-                                        className="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-[10px] rounded text-slate-350 font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
+                                        className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
                                         title="Bir Üste Çıkar"
                                       >
-                                        <ChevronUp className="w-3 h-3 text-amber-400" />
+                                        <ChevronUp className="w-3 h-3 text-[#FF9F0A]" />
                                         <span>Öne</span>
                                       </button>
                                       <button
                                         onClick={() => moveLayerOrder(fixed.id, 'down')}
-                                        className="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-[10px] rounded text-slate-350 font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
+                                        className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
                                         title="Bir Alta İndir"
                                       >
-                                        <ChevronDown className="w-3 h-3 text-amber-400" />
+                                        <ChevronDown className="w-3 h-3 text-[#FF9F0A]" />
                                         <span>Arka</span>
                                       </button>
                                       <button
                                         onClick={() => moveLayerOrder(fixed.id, 'back')}
-                                        className="p-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 hover:border-slate-600 text-[10px] rounded text-slate-350 font-bold cursor-pointer transition shadow-sm"
+                                        className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition shadow-sm"
                                         title="En Alta Gönder"
                                       >
                                         En Alt
@@ -6758,64 +6275,44 @@ export default function App() {
 
             {/* TAB 3: PHASE 2 GRAPHIC PRODUCTION ENGINE */}
             {activeTab === 'phase2' && (
-              <div className="space-y-5">
+              <div className="space-y-6">
 
                 {/* Şablon Hızlı Seçici */}
-                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4 space-y-3 animate-fade-in">
+                <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-[20px] p-4 space-y-3 shadow-[0_2px_12px_rgba(0,0,0,0.03)] animate-fade-in">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-400 tracking-wider uppercase flex items-center space-x-1.5">
-                      <LayoutTemplate className="w-3.5 h-3.5 text-indigo-400" />
+                    <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] tracking-wide uppercase flex items-center space-x-1.5">
+                      <LayoutTemplate className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)]" />
                       <span>Aktif Tasarım Şablonu</span>
                     </span>
                     <button
                       type="button"
                       onClick={() => setActiveTab('presets')}
-                      className="text-[10px] text-indigo-400 hover:text-indigo-300 hover:underline font-bold flex items-center space-x-0.5 cursor-pointer"
+                      className="text-[10px] text-[#6C5CE7] dark:text-[#6C5CE7] hover:text-[#6C5CE7] dark:hover:text-[#6C5CE7] font-medium flex items-center space-x-0.5 cursor-pointer transition-colors"
                     >
                       <span>Tümünü Yönet ({templates.length})</span>
                       <ChevronRight className="w-3 h-3" />
                     </button>
                   </div>
-                  <div className="flex space-x-2 overflow-x-auto pb-1.5">
-                    {templates.map(temp => {
-                      const isActive = temp.id === currentTemplateId;
-                      return (
-                        <button
-                          key={temp.id}
-                          type="button"
-                          onClick={() => {
-                            setCurrentTemplateId(temp.id);
-                            setSelectedNodeId(null);
-                          }}
-                          className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap border transition-all cursor-pointer flex items-center space-x-1.5 shrink-0 ${
-                            isActive
-                              ? 'bg-gradient-to-r from-indigo-600 to-violet-600 border-indigo-500 text-white shadow-lg shadow-indigo-500/25 font-extrabold'
-                              : 'bg-slate-700/60 hover:bg-slate-700 border-slate-600 text-slate-300 font-semibold'
-                          }`}
-                        >
-                          <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-amber-300 animate-pulse' : 'bg-slate-500'}`} />
-                          <span>{temp.name}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <select aria-label="Aktif şablon" className="w-full" value={currentTemplateId} onChange={e => setCurrentTemplateId(e.target.value)}>
+                    {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  </select>
                 </div>
 
                 {/* Sihirbaz Modülü */}
-                <div className="bg-slate-800/60 border border-slate-700/60 rounded-2xl p-4 space-y-4 relative overflow-hidden">
+                <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-[24px] p-5 space-y-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] relative overflow-hidden">
                   <div className="flex items-center space-x-2">
-                    <div className="p-1.5 bg-indigo-500/15 text-indigo-400 rounded-lg">
-                      <Sparkles className="w-3.5 h-3.5" />
+                    <div className="p-1.5 bg-[#252528] dark:bg-[#252528]/60 text-[#6C5CE7] dark:text-[#6C5CE7] rounded-[10px]">
+                      <Sparkles className="w-4 h-4" />
                     </div>
-                    <h3 className="text-xs font-bold text-slate-200 tracking-wider uppercase">Sihirbaz</h3>
+                    <h3 className="text-sm font-semibold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] tracking-tight">Medya ve içerik</h3>
                   </div>
 
-                  {/* Kısaca Bahset (AI Özel İstekleri) */}
-                  <div className="space-y-3 bg-slate-900/60 p-3.5 rounded-xl border border-slate-700/60">
+<details className="workspace-ai-disclosure"><summary><Sparkles size={14}/>Yapay zekâ ile metin oluştur<ChevronDown size={14}/></summary>
+                  <div className="space-y-3 bg-[#1D1D1F] dark:bg-[#252528] p-4 rounded-[16px] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)]">
                     <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">gönderiden kısaca bahset</span>
+                      <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wide">Gönderiden kısaca bahset</span>
                       {currentTemplate.aiSystemPrompt && (
-                        <span className="text-[9px] text-indigo-400 font-bold bg-indigo-500/15 border border-indigo-500/25 px-1.5 py-0.5 rounded-md">
+                        <span className="text-[9px] text-[#6C5CE7] dark:text-[#6C5CE7] font-medium bg-[#252528] dark:bg-[#252528]/60 px-2 py-0.5 rounded-full">
                           Kurumsal Dil Aktif
                         </span>
                       )}
@@ -6826,8 +6323,8 @@ export default function App() {
                         value={aiCollageBrief}
                         onChange={(e) => setAiCollageBrief(e.target.value)}
                         placeholder="Örn: 'Butiğim için yaz koleksiyonu, keten elbiseler', 'fiyat odaklı ve sıcak bir dil kullan' vb."
-                        rows={3}
-                        className="w-full bg-slate-950 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-slate-300 font-medium resize-y placeholder:text-slate-600"
+                        rows={2}
+                        className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)] rounded-[12px] px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-[#6C5CE7] focus:ring-4 focus:ring-[#6C5CE7]/10 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium resize-y transition-all placeholder:text-[rgba(255,255,255,0.72)] dark:placeholder:text-[rgba(255,255,255,0.72)]"
                       />
                     </div>
 
@@ -6844,23 +6341,19 @@ export default function App() {
                               });
                             });
                             const uniqueUrls = Array.from(new Set(urls));
-                            if (uniqueUrls.length > 0) {
-                              runAiCollageAnalysis(uniqueUrls);
-                            } else {
-                              alert('Önce görsel yüklemelisiniz!');
-                            }
+                            runAiCollageAnalysis(uniqueUrls);
                           }}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1 shadow-sm cursor-pointer"
+                          className="px-4 py-2 bg-[#1D1D1F] dark:bg-[#6C5CE7] hover:bg-[#252528] dark:hover:bg-[#6C5CE7] disabled:bg-[#303033] dark:disabled:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] rounded-[10px] text-[12px] font-medium transition-all flex items-center space-x-1.5 cursor-pointer"
                         >
                           {isAiAnalyzing ? (
                             <>
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>AI Tüm Sayfaları Güncelliyor...</span>
+                              <span>Analiz Ediliyor...</span>
                             </>
                           ) : (
                             <>
-                              <Sparkles className="w-3 h-3" />
-                              <span>Yapay Zeka ile Tüm Sayfaları Güncelle</span>
+                              <Sparkles className="w-3 h-3 text-[#FF9F0A]" />
+                              <span>Sayfaları Güncelle</span>
                             </>
                           )}
                         </button>
@@ -6869,17 +6362,17 @@ export default function App() {
                           type="button"
                           disabled={isAiLoading}
                           onClick={triggerAiGenerator}
-                          className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg text-xs font-bold transition flex items-center space-x-1 shadow-sm cursor-pointer"
+                          className="px-4 py-2 bg-[#1D1D1F] dark:bg-[#6C5CE7] hover:bg-[#252528] dark:hover:bg-[#6C5CE7] disabled:bg-[#303033] dark:disabled:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] rounded-[10px] text-[12px] font-medium transition-all flex items-center space-x-1.5 cursor-pointer"
                         >
                           {isAiLoading ? (
                             <>
                               <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              <span>Metinler Üretiliyor...</span>
+                              <span>Üretiliyor...</span>
                             </>
                           ) : (
                             <>
-                              <Sparkles className="w-3 h-3" />
-                              <span>Yapay Zeka ile Başlık & Açıklama Üret</span>
+                              <Sparkles className="w-3 h-3 text-[#FF9F0A]" />
+                              <span>Başlık & Açıklama Üret</span>
                             </>
                           )}
                         </button>
@@ -6887,21 +6380,23 @@ export default function App() {
                     </div>
                   </div>
 
+                  </details>
+
                   <div 
                     onDragEnter={(e) => handleDrag(e, 'multi-collage')}
                     onDragLeave={(e) => handleDrag(e, 'multi-collage')}
                     onDragOver={(e) => handleDrag(e, 'multi-collage')}
                     onDrop={handleMultiDrop}
-                    className={`border-2 border-dashed rounded-xl p-5 text-center transition cursor-pointer relative ${
+                    className={`rounded-[16px] p-6 text-center transition-all cursor-pointer relative overflow-hidden flex flex-col items-center justify-center space-y-1.5 ${
                       dragActive['multi-collage']
-                        ? 'border-indigo-500 bg-indigo-500/10 scale-[1.01]'
-                        : 'border-slate-700 hover:border-slate-500 bg-slate-900/40'
+                        ? 'bg-[#252528]/50 dark:bg-[#252528]/40 border-2 border-[#6C5CE7] dark:border-[#6C5CE7] scale-[1.01]'
+                        : 'bg-[#1D1D1F] dark:bg-[#252528] hover:bg-[#1D1D1F] dark:hover:bg-[#252528]/80 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] border-dashed'
                     }`}
                   >
                     <input
                       type="file"
                       multiple
-                      accept="image/*"
+                      accept="image/*,video/mp4,video/quicktime,video/webm"
                       onChange={(e) => {
                         if (e.target.files && e.target.files.length > 0) {
                           handleMultiImageFiles(e.target.files);
@@ -6909,8 +6404,13 @@ export default function App() {
                       }}
                       className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     />
-                    <UploadCloud className="w-8 h-8 text-indigo-400 mx-auto mb-2" />
-                    <p className="text-xs text-slate-300 font-bold">Görsel Yükle</p>
+                    <div className="w-10 h-10 rounded-full bg-[#252528] dark:bg-[#3A3A3C] shadow-sm flex items-center justify-center mb-1">
+                      <UploadCloud className="w-4 h-4 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
+                    </div>
+                    <div>
+                      <p className="text-[13px] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium">Fotoğraf veya MP4 Video Yükle</p>
+                      <p className="text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] mt-0.5">Görselleri ve videoları sürükleyip bırakın</p>
+                    </div>
                   </div>
 
                   {/* Eklenen Fotoğraflar Küçük Resim Gösterimi */}
@@ -6923,16 +6423,16 @@ export default function App() {
 
                     return (
                       <div className="space-y-1.5">
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Yüklenen Fotoğraflar</span>
+                        <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider block">Yüklenen Fotoğraflar</span>
                         <div className="flex items-center gap-2.5 overflow-x-auto pb-1.5 scrollbar-thin">
                           {/* 1. Background Image Thumbnail (Special Highlight Styling & Undeletable) */}
                           {bgUrl && (
-                            <div className="relative w-14 h-14 rounded-lg overflow-hidden border-2 border-emerald-500 shrink-0 shadow-md bg-emerald-50/50 group/thumb transition-all hover:scale-105" title="Arka Plan Görseli (Silinemez)">
+                            <div className="relative w-14 h-14 rounded-lg overflow-hidden border-2 border-[#34C759] shrink-0 shadow-md bg-[#252528]/50 group/thumb transition-all hover:scale-105" title="Arka Plan Görseli (Silinemez)">
                               <img src={bgUrl} alt="Arka Plan Görseli" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              <span className="absolute bottom-0 left-0 right-0 bg-emerald-600 text-white text-[8px] font-bold py-0.5 text-center uppercase tracking-wider">
+                              <span className="absolute bottom-0 left-0 right-0 bg-[#34C759] text-[rgba(255,255,255,0.95)] text-[8px] font-bold py-0.5 text-center uppercase tracking-wider">
                                 Arka Plan
                               </span>
-                              <div className="absolute top-1 right-1 w-3.5 h-3.5 bg-emerald-500 text-white rounded-full flex items-center justify-center shadow">
+                              <div className="absolute top-1 right-1 w-3.5 h-3.5 bg-[#34C759] text-[rgba(255,255,255,0.95)] rounded-full flex items-center justify-center shadow">
                                 <Lock className="w-2 h-2" />
                               </div>
                             </div>
@@ -6940,17 +6440,17 @@ export default function App() {
 
                           {/* 2. Regular User Uploaded Images */}
                           {filteredUniqueUrls.map((url, i) => (
-                            <div key={i} className="relative w-14 h-14 rounded-lg border border-slate-200 shrink-0 shadow-sm bg-slate-100 group/thumb transition-all hover:scale-105">
+                            <div key={i} className="relative w-14 h-14 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shrink-0 shadow-sm bg-[#252528] dark:bg-[#252528] group/thumb transition-all hover:scale-105">
                               <div className="w-full h-full rounded-lg overflow-hidden">
                                 <img src={url} alt={`Yüklenen ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                               </div>
-                              <span className="absolute bottom-0 right-0 bg-slate-900/80 text-white text-[9px] font-mono px-1.5 py-0.5 rounded-tl rounded-br-lg">
+                              <span className="absolute bottom-0 right-0 bg-[#1D1D1F]/80 dark:bg-[#252528]/80 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[9px] font-mono px-1.5 py-0.5 rounded-tl rounded-br-lg">
                                 {i + 1}
                               </span>
                               <button
                                 type="button"
                                 onClick={() => removeUploadedImage(url)}
-                                className="absolute -top-1.5 -right-1.5 w-5.5 h-5.5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow active:scale-90 transition z-20 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover/thumb:opacity-100"
+                                className="absolute -top-1.5 -right-1.5 w-5.5 h-5.5 bg-[#FF453A] hover:bg-[#FF453A] text-[rgba(255,255,255,0.95)] rounded-full flex items-center justify-center shadow active:scale-90 transition z-20 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover/thumb:opacity-100"
                                 title="Fotoğrafı Kaldır"
                               >
                                 <X className="w-3 h-3 stroke-[3.5]" />
@@ -6962,391 +6462,463 @@ export default function App() {
                     );
                   })()}
 
-                  {isAiAnalyzing && (
-                    <div className="space-y-2 p-4 bg-indigo-50/50 border border-indigo-100 rounded-xl animate-fade-in">
-                      <div className="flex justify-between items-center text-xs font-bold text-indigo-700">
-                        <div className="flex items-center space-x-2">
-                          <Loader2 className="w-4 h-4 text-indigo-600 animate-spin" />
-                          <span>Yapay Zeka Görselleri Analiz Ediyor...</span>
+                    {isAiAnalyzing && (
+                      <div className="space-y-2 p-4 bg-[#252528]/50 dark:bg-[#252528]/20 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 rounded-[16px] animate-fade-in mt-4">
+                        <div className="flex justify-between items-center text-[11px] font-medium text-[#6C5CE7] dark:text-[#6C5CE7]">
+                          <div className="flex items-center space-x-2">
+                            <Loader2 className="w-4 h-4 text-[#6C5CE7] dark:text-[#6C5CE7] animate-spin" />
+                            <span>Yapay Zeka Görselleri Analiz Ediyor...</span>
+                          </div>
+                          <span className="font-mono text-[#6C5CE7] dark:text-[#6C5CE7] bg-[#252528]/50 dark:bg-[#252528]/50 px-2 py-0.5 rounded-full">
+                            %{Math.round(aiProgress)}
+                          </span>
                         </div>
-                        <span className="font-mono text-indigo-600 bg-indigo-100/60 px-2 py-0.5 rounded-full">
-                          %{Math.round(aiProgress)}
-                        </span>
+                        <div className="w-full bg-[#252528]/50 h-1.5 rounded-full overflow-hidden shadow-inner">
+                          <div 
+                            className="bg-[#252528]0 h-full rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${aiProgress}%` }}
+                          />
+                        </div>
+                        <p className="text-[10px] text-[rgba(255,255,255,0.72)] font-medium text-center">
+                          {aiProgress < 40 
+                            ? 'Görseller optimize ediliyor...' 
+                            : aiProgress < 75 
+                            ? 'İçerik ve renk paleti çözümlüyor...' 
+                            : 'Kampanya metinleri oluşturuluyor...'}
+                        </p>
                       </div>
-                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden shadow-inner">
-                        <div 
-                          className="bg-indigo-600 h-full rounded-full transition-all duration-300 ease-out"
-                          style={{ width: `${aiProgress}%` }}
-                        />
-                      </div>
-                      <p className="text-[10px] text-slate-500 font-semibold text-center italic">
-                        {aiProgress < 40 
-                          ? 'Görseller sıkıştırılıyor ve optimize ediliyor...' 
-                          : aiProgress < 75 
-                          ? 'Yapay Zeka görsel içeriğini ve renk paletini çözümlüyor...' 
-                          : 'Sektörünüze özel kampanya başlığı ve açıklamaları oluşturuluyor...'}
-                      </p>
-                    </div>
-                  )}
+                    )}
 
-                  {generatedPages.length > 0 && (
-                    <div className="space-y-3 pt-3 border-t border-indigo-100 animate-fade-in">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-indigo-600 flex items-center space-x-1">
-                          <ImageIcon className="w-3.5 h-3.5 text-indigo-500" />
-                          <span>Üretilen Sayfalar ({generatedPages.length})</span>
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setGeneratedPages([]);
-                            setActiveGeneratedPageIndex(0);
-                            setAiSuccessMessage('Çoklu sayfa akışı temizlendi.');
-                          }}
-                          className="text-[10px] text-pink-600 hover:underline font-bold"
-                        >
-                          Sıfırla
-                        </button>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1.5">
-                        {generatedPages.map((page, index) => (
+                    {generatedPages.length > 0 && (
+                      <div className="space-y-3 pt-3 border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] animate-fade-in mt-4">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] flex items-center space-x-1.5">
+                            <ImageIcon className="w-4 h-4 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
+                            <span>Üretilen Sayfalar ({generatedPages.length})</span>
+                          </span>
                           <button
-                            key={page.id}
                             type="button"
-                            onClick={() => setActiveGeneratedPageIndex(index)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center space-x-1.5 ${
-                              activeGeneratedPageIndex === index
-                                ? 'bg-indigo-600 text-white shadow-md scale-105'
-                                : 'bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 shadow-sm'
-                            }`}
+                            onClick={() => {
+                              setGeneratedPages([]);
+                              setActiveGeneratedPageIndex(0);
+                              setAiSuccessMessage('Sayfa akışı temizlendi.');
+                            }}
+                            className="text-[10px] text-[#FF453A] hover:text-[#FF453A] font-medium transition-colors"
                           >
-                            <span>{page.name || (index === 0 ? '✦ Kapak Sayfası' : `${index}. Sayfa`)}</span>
+                            Sıfırla
                           </button>
-                        ))}
+                        </div>
+
+                        <div className="flex flex-wrap gap-2">
+                          {generatedPages.map((page, index) => (
+                            <button
+                              key={page.id}
+                              type="button"
+                              onClick={() => setActiveGeneratedPageIndex(index)}
+                              className={`px-3.5 py-1.5 rounded-[12px] text-xs font-medium transition-all flex items-center space-x-1.5 ${
+                                activeGeneratedPageIndex === index
+                                  ? 'bg-[#1D1D1F] dark:bg-[#2C2C2E] text-[rgba(255,255,255,0.95)] shadow-md scale-[1.02]'
+                                  : 'bg-[#1D1D1F] dark:bg-[#252528] hover:bg-[#1D1D1F] dark:hover:bg-[#2C2C2E] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)]/60 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] shadow-sm'
+                              }`}
+                            >
+                              <span>{page.name || (index === 0 ? 'Kapak Sayfası' : `${index}. Sayfa`)}</span>
+                            </button>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+                  </div>
 
                 {/* Dinamik Alanların Düzenlenmesi (Aşama 2 Form) */}
-                <div className="space-y-4">
-                  <h4 className="text-xs font-bold text-slate-400 tracking-wider uppercase">DİNAMİK ŞABLON PARAMETRELERİ</h4>
+                <div className="space-y-4 mt-6">
+                  <h4 className="text-[11px] font-medium text-[rgba(255,255,255,0.72)] tracking-wide uppercase">Metinler</h4>
 
                   {activeTemplatePage.regions.filter(r => r.isDynamic !== false).length === 0 && (
-                    <div className="p-4 rounded-xl border border-dashed border-slate-300 text-center text-slate-500 text-xs font-medium">
-                      Bu şablonda tanımlanmış dinamik bölge yok! Aşama 1'den ekleyebilirsiniz.
+                    <div className="p-4 rounded-[16px] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)]/60 bg-[#1D1D1F] dark:bg-[#252528]/50 text-center text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] text-xs font-medium">
+                      Bu şablonda tanımlanmış dinamik bölge yok.
                     </div>
                   )}
 
-                  {activeTemplatePage.regions.filter(r => r.isDynamic !== false).map(r => {
-                    if (r.type === 'text') {
+                  {/* 1. TEXT REGIONS */}
+                  {activeTemplatePage.regions
+                    .filter(r => r.isDynamic !== false && r.type === 'text')
+                    .map(r => {
                       const textVal = activePageData.dynamicTexts[r.id] !== undefined
                         ? activePageData.dynamicTexts[r.id]
                         : (r.placeholderText || '');
                       
                       return (
-                        <div key={r.id} className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 space-y-2 shadow-sm">
+                        <div key={r.id} className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-[20px] p-4.5 space-y-2.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
                           <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-bold text-indigo-600 flex items-center space-x-1">
-                              <Type className="w-3.5 h-3.5 text-indigo-500" />
+                            <span className="text-xs font-semibold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] flex items-center space-x-1.5">
+                              <Type className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
                               <span>{r.name}</span>
                             </span>
-                            <span className="text-[9px] text-slate-400 font-mono">ID: {r.id.split('-')[1]}</span>
+                            
                           </div>
 
                           <textarea
                             rows={3}
                             value={textVal}
                             onChange={(e) => updateActiveText(r.id, e.target.value)}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 text-slate-800 font-medium leading-relaxed resize-y shadow-inner animate-fade-in"
+                            className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] rounded-[14px] px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-[#6C5CE7] focus:ring-4 focus:ring-[#6C5CE7]/10 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium leading-relaxed resize-y transition-all"
                             placeholder="Metninizi yazın..."
                           />
 
-                          <div className="flex justify-between items-center text-[10px] text-slate-500 font-medium">
-                            <span>Markdown: <strong className="text-slate-600">**kalın**</strong> ve <em className="text-slate-600">*eğik*</em> desteklenir.</span>
-                            <span className="font-mono text-[9px]">{textVal.length} karakter</span>
+                          <div className="flex justify-between items-center text-[10px] text-[rgba(255,255,255,0.72)] font-medium px-1">
+                            <span>Markdown <strong className="text-[rgba(255,255,255,0.72)]">**kalın**</strong> ve <em className="text-[rgba(255,255,255,0.72)]">*eğik*</em> destekler.</span>
+                            <span className="font-mono">{textVal.length} karakter</span>
                           </div>
                         </div>
                       );
-                    }
+                    })}
 
-                    if (r.type === 'image') {
-                      const imgData = activePageData.dynamicImages[r.id] || {
-                        url: '',
-                        scale: 1.0,
-                        offsetX: 0,
-                        offsetY: 0,
-                        rotation: 0
-                      };
+                  {/* 2. SINGLE UNIFIED IMAGE REGION CONTROLLER FOR SELECTED CANVAS PHOTO */}
+                  {(() => {
+                    const isStaticTemplatePNG = (region: any) => {
+                      if (region.isDynamic === false) return true;
+                      const n = (region.name || '').toLowerCase();
+                      return n.includes('takım') || n.includes('logo') || n.includes('süs') || n.includes('rozet') || n.includes('ikon') || n.includes('çerçeve');
+                    };
 
-                      const hasImage = !!imgData.url;
-                      const isExpanded = !!expandedImageSettings[r.id];
+                    const dynamicImageRegions = activeTemplatePage.regions.filter(r => r.type === 'image' && !isStaticTemplatePNG(r));
+                    if (dynamicImageRegions.length === 0) return null;
 
-                      return (
-                        <div key={r.id} className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 space-y-4 shadow-sm">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-bold text-indigo-600 flex items-center space-x-1">
-                              <ImageIcon className="w-3.5 h-3.5 text-indigo-500" />
-                              <span>{r.name}</span>
+                    // Determine active image region (either selected on canvas, or editing, or default to first)
+                    const activeImageRegion = dynamicImageRegions.find(r => r.id === selectedNodeId) ||
+                                              dynamicImageRegions.find(r => r.id === editingImageRegionId) ||
+                                              dynamicImageRegions[0];
+
+                    const r = activeImageRegion;
+                    const activeIndex = dynamicImageRegions.findIndex(item => item.id === r.id);
+                    const activeDisplayName = activeIndex !== -1 ? `Görsel ${activeIndex + 1}` : r.name;
+
+                    const imgData = activePageData.dynamicImages[r.id] || {
+                      url: '',
+                      scale: 1.0,
+                      offsetX: 0,
+                      offsetY: 0,
+                      rotation: 0
+                    };
+
+                    const hasImage = !!imgData.url;
+                    const isExpanded = !!expandedImageSettings[r.id];
+
+                    return (
+                      <div key="unified-image-section" className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-[20px] p-5 space-y-4 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
+                        {/* Selector header / tabs for choosing which photo to edit if multiple exist */}
+                        <div>
+                          <div className="flex items-center justify-between mb-3">
+                            <span className="text-xs font-semibold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] flex items-center space-x-1.5">
+                              <ImageIcon className="w-4 h-4 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
+                              <span>Fotoğraf Seçimi ve Değiştirme</span>
                             </span>
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${imgData.url ? 'bg-[#252528] dark:bg-[#252528]/30 text-[#34C759] dark:text-[#34C759]' : 'bg-[#252528] dark:bg-[#252528] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]'}`}>
                               {imgData.url ? 'Görsel Yüklendi' : 'Görsel Bekleniyor'}
                             </span>
                           </div>
 
-                          {/* File Thumbnail or Drag & Drop Block */}
-                          {hasImage ? (
-                            <div className="flex items-center space-x-3 bg-slate-50/70 p-3 rounded-xl border border-slate-200">
-                              <div className="w-14 h-14 rounded-lg overflow-hidden border border-slate-200 bg-white shrink-0 shadow-sm relative group">
-                                <img src={imgData.url} alt="Thumbnail" className="w-full h-full object-cover group-hover:scale-105 transition duration-150" referrerPolicy="no-referrer" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <span className="text-[10.5px] font-bold text-slate-700 truncate block">Görsel Alanı Dolu</span>
-                                <span className="text-[9.5px] text-emerald-600 font-semibold flex items-center space-x-0.5 mt-0.5">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse inline-block" />
-                                  <span>Tasarımda Gösteriliyor</span>
-                                </span>
-                              </div>
-                              <div className="flex flex-col space-y-1 shrink-0">
-                                <label className="px-2.5 py-1 rounded-md bg-indigo-50 hover:bg-indigo-100/80 text-indigo-600 hover:text-indigo-700 text-[10px] font-bold border border-indigo-200 cursor-pointer text-center transition shadow-sm">
-                                  <span>Değiştir</span>
-                                  <input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => handleFileInput(e, r.id)}
-                                    className="hidden"
-                                  />
-                                </label>
+                          {dynamicImageRegions.length > 1 && (
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-2 pt-1 scrollbar-none">
+                              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] shrink-0 mr-1">Alanlar:</span>
+                              {dynamicImageRegions.map((regionItem, idx) => {
+                                const isItemActive = regionItem.id === r.id;
+                                const itemImg = activePageData.dynamicImages[regionItem.id]?.url;
+                                const itemLabel = `Görsel ${idx + 1}`;
+                                return (
+                                  <button
+                                    key={regionItem.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedNodeId(regionItem.id);
+                                      setEditingImageRegionId(regionItem.id);
+                                    }}
+                                    className={`px-3 py-1.5 rounded-full text-[11px] font-medium transition-all flex items-center space-x-1.5 shrink-0 ${
+                                      isItemActive
+                                        ? 'bg-[#1D1D1F] dark:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] shadow-sm scale-[1.02]'
+                                        : 'bg-[#1D1D1F] dark:bg-[#252528] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] border border-[rgba(255,255,255,0.08)]/50 dark:border-[rgba(255,255,255,0.08)]'
+                                    }`}
+                                  >
+                                    {itemImg && (
+                                      <img src={itemImg} alt="" className="w-4 h-4 rounded-full object-cover" />
+                                    )}
+                                    <span>{itemLabel}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* File Thumbnail or Drag & Drop Block */}
+                        {hasImage ? (
+                          <div className="flex items-center space-x-4 bg-[#1D1D1F] dark:bg-[#252528] p-3 rounded-[16px] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]">
+                            <div className="w-16 h-16 rounded-[12px] overflow-hidden bg-[#252528] dark:bg-[#2C2C2E] shrink-0 shadow-sm relative group">
+                              <img src={imgData.url} alt="Thumbnail" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" referrerPolicy="no-referrer" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-[12px] font-semibold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] truncate block">
+                                {imgData.isVideo ? '🎥 MP4 Video' : `${activeDisplayName} Dolu`}
+                              </span>
+                              <span className="text-[10px] text-[#34C759] font-medium flex items-center space-x-1 mt-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
+                                <span>{imgData.isVideo ? 'Canlı Video Hazır' : 'Tasarımda Aktif'}</span>
+                              </span>
+                            </div>
+                            <div className="flex flex-col space-y-1.5 shrink-0">
+                              {imgData.isVideo && (
                                 <button
                                   type="button"
-                                  onClick={() => updateActiveImageProp(r.id, 'url', '')}
-                                  className="px-2.5 py-1 rounded-md bg-pink-50 hover:bg-pink-100 text-pink-600 text-[10px] font-bold border border-pink-150 cursor-pointer text-center transition"
+                                  onClick={() => setPlayingVideoRegionId(prev => prev === r.id ? null : r.id)}
+                                  className={`px-3 py-1.5 rounded-[10px] text-[10px] font-bold border cursor-pointer text-center transition-all shadow-sm ${
+                                    playingVideoRegionId === r.id
+                                      ? 'bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30'
+                                      : 'bg-gradient-to-r from-[#6C5CE7] to-[#34C759] text-white border-transparent hover:opacity-90'
+                                  }`}
                                 >
-                                  Temizle
+                                  {playingVideoRegionId === r.id ? 'Durdur' : '▶ Oynat'}
                                 </button>
-                              </div>
-                            </div>
-                          ) : (
-                            <div
-                              onDragEnter={(e) => handleDrag(e, r.id)}
-                              onDragLeave={(e) => handleDrag(e, r.id)}
-                              onDragOver={(e) => handleDrag(e, r.id)}
-                              onDrop={(e) => handleDrop(e, r.id)}
-                              className={`border-2 border-dashed rounded-xl p-4 text-center transition ${
-                                dragActive[r.id]
-                                  ? 'border-indigo-500 bg-indigo-50/50'
-                                  : 'border-slate-200 hover:border-slate-300 bg-slate-50/30'
-                              }`}
-                            >
-                              <UploadCloud className="w-8 h-8 text-indigo-500 mx-auto mb-2 animate-bounce" />
-                              <p className="text-xs text-slate-700 font-bold mb-1">Görselinizi Sürükleyin veya Seçin</p>
-                              <p className="text-[10px] text-slate-400 mb-3 font-semibold font-mono">PNG, JPEG veya SVG desteklenir</p>
-                              
-                              <label className="px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-600 text-xs font-bold border border-indigo-200 cursor-pointer inline-block transition shadow-sm">
-                                <span>Dosya Seç</span>
+                              )}
+                              <label className="px-3 py-1.5 rounded-[10px] bg-[#252528] dark:bg-[#2C2C2E] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[10px] font-medium border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] cursor-pointer text-center transition-all shadow-sm">
+                                <span>Değiştir</span>
                                 <input
                                   type="file"
-                                  accept="image/*"
+                                  accept="image/*,video/mp4,video/quicktime,video/webm"
                                   onChange={(e) => handleFileInput(e, r.id)}
                                   className="hidden"
                                 />
                               </label>
+                              <button
+                                type="button"
+                                onClick={() => updateActiveImageProp(r.id, 'url', '')}
+                                className="px-3 py-1.5 rounded-[10px] bg-[#252528]/50 dark:bg-[#2C2C2E]/20 hover:bg-[#252528] dark:hover:bg-[#2C2C2E]/40 text-[#FF453A] dark:text-[#FF453A] text-[10px] font-medium border border-transparent cursor-pointer text-center transition-all"
+                              >
+                                Temizle
+                              </button>
                             </div>
-                          )}
+                          </div>
+                        ) : (
+                          <div
+                            onDragEnter={(e) => handleDrag(e, r.id)}
+                            onDragLeave={(e) => handleDrag(e, r.id)}
+                            onDragOver={(e) => handleDrag(e, r.id)}
+                            onDrop={(e) => handleDrop(e, r.id)}
+                            className={`rounded-[16px] p-6 text-center transition-all flex flex-col items-center justify-center space-y-2 ${
+                              dragActive[r.id]
+                                ? 'bg-[#252528]/50 dark:bg-[#252528]/40 border-2 border-[#6C5CE7] dark:border-[#6C5CE7]'
+                                : 'bg-[#1D1D1F] dark:bg-[#252528] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] border-dashed'
+                            }`}
+                          >
+                            <div className="w-10 h-10 rounded-full bg-[#252528] dark:bg-[#2C2C2E] shadow-sm flex items-center justify-center mb-1">
+                              <UploadCloud className="w-4 h-4 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
+                            </div>
+                            <div>
+                              <p className="text-[12px] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium">Görsel veya video sürükleyin</p>
+                              <p className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] mt-0.5">PNG, JPG veya MP4 ({activeDisplayName})</p>
+                            </div>
+                            
+                            <label className="mt-2 px-4 py-2 rounded-[12px] bg-[#252528] dark:bg-[#2C2C2E] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[11px] font-medium border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] cursor-pointer inline-block transition-all shadow-sm">
+                              <span>Dosya Seç</span>
+                              <input
+                                type="file"
+                                accept="image/*,video/mp4,video/quicktime,video/webm"
+                                onChange={(e) => handleFileInput(e, r.id)}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        )}
 
-                          {/* Quick-pick shared image list */}
-                          {(() => {
-                            const uniqueImages = getUniqueUploadedImages();
-                            if (uniqueImages.length === 0) return null;
-                            return (
-                              <div className="mt-3 pt-3 border-t border-slate-100 space-y-1.5 text-left">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Yüklediğiniz Diğer Görseller</span>
-                                <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
-                                  {uniqueImages.map((url, i) => (
-                                    <div key={i} className="relative group/thumb shrink-0">
-                                      <button
-                                        type="button"
-                                        onClick={() => updateActiveImageProp(r.id, 'url', url)}
-                                        className="relative w-11 h-11 rounded-lg overflow-hidden border border-slate-200 hover:border-indigo-500 shrink-0 bg-slate-100 cursor-pointer shadow-sm transition hover:scale-105 active:scale-95 group"
-                                        title="Bu görseli buraya yerleştir"
-                                      >
-                                        <img src={url} alt={`Varlık ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                                          <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
-                                        </div>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          removeUploadedImage(url);
-                                        }}
-                                        className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 hover:bg-rose-600 text-white rounded-full flex items-center justify-center shadow hover:scale-110 active:scale-90 transition z-20 cursor-pointer opacity-100 sm:opacity-0 sm:group-hover/thumb:opacity-100"
-                                        title="Görseli Kaldır"
-                                      >
-                                        <X className="w-2.5 h-2.5 stroke-[3]" />
-                                      </button>
-                                    </div>
-                                  ))}
-                                </div>
+                        {/* Quick-pick shared image list */}
+                        {(() => {
+                          const uniqueImages = getUniqueUploadedImages();
+                          if (uniqueImages.length === 0) return null;
+                          return (
+                            <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.08)]/60 space-y-2.5 text-left">
+                              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] uppercase tracking-wide block">Diğer Görseller</span>
+                              <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none">
+                                {uniqueImages.map((url, i) => (
+                                  <div key={i} className="relative group/thumb shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={() => updateActiveImageProp(r.id, 'url', url)}
+                                      className="relative w-12 h-12 rounded-[10px] overflow-hidden border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] hover:border-[#6C5CE7] shrink-0 bg-[#1D1D1F] dark:bg-[#3A3A3C] cursor-pointer shadow-sm transition-all hover:scale-[1.03] active:scale-95 group"
+                                      title="Bu görseli buraya yerleştir"
+                                    >
+                                      <img src={url} alt={`Varlık ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                                        <Check className="w-4 h-4 text-[rgba(255,255,255,0.95)] stroke-[2.5]" />
+                                      </div>
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeUploadedImage(url);
+                                      }}
+                                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:text-[#FF453A] rounded-full flex items-center justify-center shadow-sm hover:scale-110 active:scale-90 transition z-20 cursor-pointer opacity-100 sm:opacity-0 sm:group-hover/thumb:opacity-100"
+                                      title="Görseli Kaldır"
+                                    >
+                                      <X className="w-3 h-3 stroke-[2.5]" />
+                                    </button>
+                                  </div>
+                                ))}
                               </div>
-                            );
-                          })()}
+                            </div>
+                          );
+                        })()}
 
-                          {/* Collapsible Photo Alignment and Tweaks Bar */}
-                          <div className="pt-1.5 border-t border-slate-100">
-                            <button
-                              type="button"
-                              onClick={() => setExpandedImageSettings(prev => ({
-                                ...prev,
-                                [r.id]: !isExpanded
-                              }))}
-                              className="w-full flex items-center justify-between py-1.5 text-xs font-bold text-slate-700 hover:text-indigo-600 cursor-pointer transition select-none"
-                            >
-                              <div className="flex items-center space-x-1.5">
-                                <Sliders className="w-3.5 h-3.5 text-indigo-500" />
-                                <span>İnce Ayarlar ve Hizalama</span>
+                        {/* Collapsible Photo Alignment and Tweaks Bar */}
+                        <div className="pt-1.5 border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedImageSettings(prev => ({
+                              ...prev,
+                              [r.id]: !isExpanded
+                            }))}
+                            className="w-full flex items-center justify-between py-1.5 text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.72)] hover:text-[#6C5CE7] dark:hover:text-[#6C5CE7] cursor-pointer transition select-none"
+                          >
+                            <div className="flex items-center space-x-1.5">
+                              <Sliders className="w-3.5 h-3.5 text-[#6C5CE7] dark:text-[#6C5CE7]" />
+                              <span>İnce Ayarlar ve Hizalama</span>
+                            </div>
+                            <span className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-0'}`}>
+                              <ChevronDown className="w-4 h-4 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
+                            </span>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="space-y-3.5 pt-3 border-t border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)]/80 mt-1 animate-fade-in">
+                              <div className="flex justify-between items-center text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-semibold">
+                                <span className="font-bold uppercase tracking-wider">Hizalama Komutları</span>
+                                <button
+                                  onClick={() => {
+                                    updateActiveImageProp(r.id, 'scale', 1.0);
+                                    updateActiveImageProp(r.id, 'offsetX', 0);
+                                    updateActiveImageProp(r.id, 'offsetY', 0);
+                                    updateActiveImageProp(r.id, 'rotation', 0);
+                                  }}
+                                  className="text-[#6C5CE7] hover:text-[#6C5CE7] font-bold flex items-center space-x-1 transition"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  <span>Pozisyonu Sıfırla</span>
+                                </button>
                               </div>
-                              <span className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-0'}`}>
-                                <ChevronDown className="w-4 h-4 text-slate-400" />
-                              </span>
-                            </button>
 
-                            {isExpanded && (
-                              <div className="space-y-3.5 pt-3 border-t border-slate-100/80 mt-1 animate-fade-in">
-                                <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold">
-                                  <span className="font-bold uppercase tracking-wider">Hizalama Komutları</span>
-                                  <button
-                                    onClick={() => {
-                                      updateActiveImageProp(r.id, 'scale', 1.0);
-                                      updateActiveImageProp(r.id, 'offsetX', 0);
-                                      updateActiveImageProp(r.id, 'offsetY', 0);
-                                      updateActiveImageProp(r.id, 'rotation', 0);
-                                    }}
-                                    className="text-indigo-600 hover:text-indigo-700 font-bold flex items-center space-x-1 transition"
-                                  >
-                                    <RotateCcw className="w-3 h-3" />
-                                    <span>Pozisyonu Sıfırla</span>
-                                  </button>
+                              {/* Mouse with Image adjustment toggle */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (editingImageRegionId === r.id) {
+                                    setEditingImageRegionId(null);
+                                  } else {
+                                    setEditingImageRegionId(r.id);
+                                    setSelectedNodeId(r.id);
+                                  }
+                                }}
+                                className={`w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center space-x-2 border transition cursor-pointer ${
+                                  editingImageRegionId === r.id
+                                    ? 'bg-[#34C759] border-[#34C759] text-[rgba(255,255,255,0.95)] shadow-lg shadow-[rgba(52,199,89,0.2)] dark:shadow-[rgba(52,199,89,0.2)]/30'
+                                    : 'bg-[#252528] dark:bg-[#2C2C2E]/20 border-[#6C5CE7] dark:border-[#6C5CE7]/50 hover:bg-[#303033] dark:hover:bg-[#2C2C2E]/40 text-[#6C5CE7] dark:text-[#6C5CE7]'
+                                }`}
+                              >
+                                <MousePointer className={`w-3.5 h-3.5 ${editingImageRegionId === r.id ? 'animate-pulse' : ''}`} />
+                                <span>
+                                  {editingImageRegionId === r.id ? 'Mouse Düzenleme Aktif (Kapat)' : 'Görseli Mouse ile Sürükle ve Ölçekle'}
+                                </span>
+                              </button>
+
+                              {/* Maske Sınırı Toggle */}
+                              <div className="flex items-center justify-between bg-[#1D1D1F] dark:bg-[#252528] p-2.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]">
+                                <div>
+                                  <span className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] block">Sınır Maskesi (Kırpma)</span>
+                                  <span className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block leading-tight">Görselin katman kutusuna sığmasını kısıtlar.</span>
                                 </div>
-
-                                {/* Mouse with Image adjustment toggle */}
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    if (editingImageRegionId === r.id) {
-                                      setEditingImageRegionId(null);
-                                    } else {
-                                      setEditingImageRegionId(r.id);
-                                      setSelectedNodeId(r.id);
-                                    }
+                                    handleRegionPropertyChange(r.id, 'clipImage', r.clipImage !== false ? false : true);
                                   }}
-                                  className={`w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center space-x-2 border transition cursor-pointer ${
-                                    editingImageRegionId === r.id
-                                      ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg shadow-emerald-100'
-                                      : 'bg-indigo-50 border-indigo-200 hover:bg-indigo-100 text-indigo-700'
+                                  className={`px-2.5 py-1 rounded text-[10px] font-extrabold border transition cursor-pointer shrink-0 ${
+                                    r.clipImage !== false
+                                      ? 'bg-[#252528] dark:bg-[#2C2C2E]/30 border-[#6C5CE7] dark:border-[#6C5CE7]/50 text-[#6C5CE7] dark:text-[#6C5CE7]'
+                                      : 'bg-[#252528] dark:bg-[#252528]/30 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 text-[#34C759] dark:text-[#34C759]'
                                   }`}
                                 >
-                                  <MousePointer className={`w-3.5 h-3.5 ${editingImageRegionId === r.id ? 'animate-pulse' : ''}`} />
-                                  <span>
-                                    {editingImageRegionId === r.id ? 'Mouse Düzenleme Aktif (Kapat)' : 'Görseli Mouse ile Sürükle ve Ölçekle'}
-                                  </span>
+                                  {r.clipImage !== false ? 'Maskeli' : 'Serbest'}
                                 </button>
-
-                                {/* Maske Sınırı Toggle */}
-                                <div className="flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-200">
-                                  <div>
-                                    <span className="text-xs font-bold text-slate-800 block">Sınır Maskesi (Kırpma)</span>
-                                    <span className="text-[10px] text-slate-500 block leading-tight">Görselin katman kutusuna sığmasını kısıtlar.</span>
-                                  </div>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      handleRegionPropertyChange(r.id, 'clipImage', r.clipImage !== false ? false : true);
-                                    }}
-                                    className={`px-2.5 py-1 rounded text-[10px] font-extrabold border transition cursor-pointer shrink-0 ${
-                                      r.clipImage !== false
-                                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                                        : 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                                    }`}
-                                  >
-                                    {r.clipImage !== false ? 'Maskeli' : 'Sınırsız (PNG)'}
-                                  </button>
-                                </div>
-
-                                {/* Zoom Scale slider */}
-                                <div>
-                                  <div className="flex justify-between text-[11px] text-slate-600 font-medium mb-1">
-                                    <span>Yakınlaştır / Uzaklaştır (Ölçek)</span>
-                                    <span className="font-mono text-indigo-600 font-bold">{imgData.scale.toFixed(1)}x</span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min={0.1}
-                                    max={10.0}
-                                    step={0.1}
-                                    value={imgData.scale}
-                                    onChange={(e) => updateActiveImageProp(r.id, 'scale', parseFloat(e.target.value))}
-                                    className="w-full accent-indigo-600 cursor-pointer h-1 bg-slate-100 rounded-lg appearance-none"
-                                  />
-                                </div>
-
-                                {/* Offset X / Horizontal Shift slider */}
-                                <div>
-                                  <div className="flex justify-between text-[11px] text-slate-600 font-medium mb-1">
-                                    <span>Yatay Kaydırma (Sol - Sağ)</span>
-                                    <span className="font-mono text-indigo-600 font-bold">{imgData.offsetX}px</span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min={-1000}
-                                    max={1000}
-                                    value={imgData.offsetX}
-                                    onChange={(e) => updateActiveImageProp(r.id, 'offsetX', parseInt(e.target.value))}
-                                    className="w-full accent-indigo-600 cursor-pointer h-1 bg-slate-100 rounded-lg appearance-none"
-                                  />
-                                </div>
-
-                                {/* Offset Y / Vertical Shift slider */}
-                                <div>
-                                  <div className="flex justify-between text-[11px] text-slate-600 font-medium mb-1">
-                                    <span>Dikey Kaydırma (Yukarı - Aşağı)</span>
-                                    <span className="font-mono text-indigo-600 font-bold">{imgData.offsetY}px</span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min={-1000}
-                                    max={1000}
-                                    value={imgData.offsetY}
-                                    onChange={(e) => updateActiveImageProp(r.id, 'offsetY', parseInt(e.target.value))}
-                                    className="w-full accent-indigo-600 cursor-pointer h-1 bg-slate-100 rounded-lg appearance-none"
-                                  />
-                                </div>
-
-                                {/* Rotate slider */}
-                                <div>
-                                  <div className="flex justify-between text-[11px] text-slate-600 font-medium mb-1">
-                                    <span>Döndür (Açı)</span>
-                                    <span className="font-mono text-indigo-600 font-bold">{imgData.rotation}°</span>
-                                  </div>
-                                  <input
-                                    type="range"
-                                    min={-180}
-                                    max={180}
-                                    value={imgData.rotation}
-                                    onChange={(e) => updateActiveImageProp(r.id, 'rotation', parseInt(e.target.value))}
-                                    className="w-full accent-indigo-600 cursor-pointer h-1 bg-slate-100 rounded-lg appearance-none"
-                                  />
-                                </div>
                               </div>
-                            )}
-                          </div>
+
+                              {/* Scale / Zoom slider */}
+                              <div>
+                                <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
+                                  <span>Ölçek (Yakınlaştır / Uzaklaştır)</span>
+                                  <span className="font-mono text-[#6C5CE7] dark:text-[#6C5CE7] font-bold">{(imgData.scale || 1.0).toFixed(2)}x</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={0.2}
+                                  max={4.0}
+                                  step={0.05}
+                                  value={imgData.scale || 1.0}
+                                  onChange={(e) => updateActiveImageProp(r.id, 'scale', parseFloat(e.target.value))}
+                                  className="w-full accent-[#6C5CE7] dark:accent-[#6C5CE7] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
+                                />
+                              </div>
+
+                              {/* Offset X / Horizontal Shift slider */}
+                              <div>
+                                <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
+                                  <span>Yatay Kaydırma (Sol - Sağ)</span>
+                                  <span className="font-mono text-[#6C5CE7] dark:text-[#6C5CE7] font-bold">{imgData.offsetX}px</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={-1000}
+                                  max={1000}
+                                  value={imgData.offsetX}
+                                  onChange={(e) => updateActiveImageProp(r.id, 'offsetX', parseInt(e.target.value))}
+                                  className="w-full accent-[#6C5CE7] dark:accent-[#6C5CE7] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
+                                />
+                              </div>
+
+                              {/* Offset Y / Vertical Shift slider */}
+                              <div>
+                                <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
+                                  <span>Dikey Kaydırma (Yukarı - Aşağı)</span>
+                                  <span className="font-mono text-[#6C5CE7] dark:text-[#6C5CE7] font-bold">{imgData.offsetY}px</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={-1000}
+                                  max={1000}
+                                  value={imgData.offsetY}
+                                  onChange={(e) => updateActiveImageProp(r.id, 'offsetY', parseInt(e.target.value))}
+                                  className="w-full accent-[#6C5CE7] dark:accent-[#6C5CE7] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
+                                />
+                              </div>
+
+                              {/* Rotate slider */}
+                              <div>
+                                <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
+                                  <span>Döndür (Açı)</span>
+                                  <span className="font-mono text-[#6C5CE7] dark:text-[#6C5CE7] font-bold">{imgData.rotation}°</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={-180}
+                                  max={180}
+                                  value={imgData.rotation}
+                                  onChange={(e) => updateActiveImageProp(r.id, 'rotation', parseInt(e.target.value))}
+                                  className="w-full accent-[#6C5CE7] dark:accent-[#6C5CE7] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
-                      );
-                    }
-                    return null;
-                  })}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -7354,27 +6926,27 @@ export default function App() {
         </div>
 
         {/* MIDDLE COLUMN: LIVE CANVAS PREVIEW STAGE */}
-        <div id="canvas-stage" className={`flex-1 bg-[#080b12] flex flex-col items-center justify-between p-3 sm:p-4 lg:p-6 relative overflow-hidden h-full ${mobileView === 'canvas' ? 'flex' : 'hidden lg:flex'}`}>
+        <div id="canvas-stage" className={`flex-1 clay-inset dark:bg-[#1D1D1F]/50 mx-2 mb-2 flex flex-col items-center justify-between p-3 sm:p-4 lg:p-6 relative overflow-hidden h-full ${mobileView === 'canvas' ? 'flex' : 'hidden lg:flex'}`}>
           
           {/* Top Info Bar */}
-          <div className="w-full max-w-2xl bg-slate-900/90 backdrop-blur-sm border border-slate-800/80 rounded-xl px-4 py-2 flex items-center justify-between text-xs font-semibold z-10 shrink-0" style={{ boxShadow: '0 0 0 1px rgba(99,102,241,0.08)' }}>
+          <div className="w-full max-w-2xl clay-card dark:bg-[#252528] dark:border-[rgba(255,255,255,0.08)] px-4 py-2 mb-4 flex items-center justify-between text-xs font-semibold z-10 shrink-0 border-0">
             <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse shadow-lg shadow-indigo-500/50" />
-              <span className="text-slate-300 font-bold">Görsel Tuvali</span>
-              <span className="text-slate-700">|</span>
-              <span className="text-slate-500 font-bold font-mono">{currentTemplate.width} × {currentTemplate.height} px</span>
+              <span className="w-2 h-2 bg-[#6C5CE7] dark:bg-[#6C5CE7] rounded-full animate-pulse" />
+              <span className="text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-bold">Önizleme</span>
+              <span className="text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]">|</span>
+              <span className="text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold font-mono">{currentTemplate.width} × {currentTemplate.height} px</span>
             </div>
 
-            <div className="flex items-center space-x-2 sm:space-x-3 text-slate-500">
+            <div className="flex items-center space-x-2 sm:space-x-3 text-[rgba(255,255,255,0.72)]">
               {/* Geri Al (Undo) */}
               <button
                 type="button"
                 disabled={undoStack.length === 0}
                 onClick={handleUndo}
-                className="flex items-center space-x-1 px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg transition cursor-pointer font-bold text-[11px] border border-slate-700 hover:border-slate-600 hover:bg-slate-800 text-slate-400 bg-slate-900 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                className="clay-btn flex items-center space-x-1 px-2 py-1 sm:px-2.5 sm:py-1 transition cursor-pointer font-bold text-[11px] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.72)] disabled:opacity-40 disabled:cursor-not-allowed"
                 title="Geri Al (Ctrl+Z)"
               >
-                <Undo2 className="w-3.5 h-3.5 text-indigo-400" />
+                <Undo2 className="w-3.5 h-3.5 text-[#6C5CE7] dark:text-[#6C5CE7]" />
                 <span className="hidden xs:inline">Geri Al</span>
               </button>
 
@@ -7383,24 +6955,24 @@ export default function App() {
                 type="button"
                 disabled={redoStack.length === 0}
                 onClick={handleRedo}
-                className="flex items-center space-x-1 px-2 py-1 sm:px-2.5 sm:py-1 rounded-lg transition cursor-pointer font-bold text-[11px] border border-slate-700 hover:border-slate-600 hover:bg-slate-800 text-slate-400 bg-slate-900 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed"
+                className="clay-btn flex items-center space-x-1 px-2 py-1 sm:px-2.5 sm:py-1 transition cursor-pointer font-bold text-[11px] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.72)] disabled:opacity-40 disabled:cursor-not-allowed"
                 title="İleri Al (Ctrl+Y)"
               >
-                <Redo2 className="w-3.5 h-3.5 text-indigo-400" />
+                <Redo2 className="w-3.5 h-3.5 text-[#6C5CE7] dark:text-[#6C5CE7]" />
                 <span className="hidden xs:inline">İleri Al</span>
               </button>
 
-              <span className="text-slate-700 hidden xs:inline">|</span>
+              <span className="text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hidden xs:inline">|</span>
 
               {/* Grid Toggle */}
               <button
                 onClick={() => setShowGrid(!showGrid)}
                 className={`flex items-center space-x-1.5 px-2 py-1 sm:px-3 sm:py-1 rounded-lg transition cursor-pointer font-bold text-[11px] shadow-sm ${
-                  showGrid ? 'bg-indigo-500/15 border border-indigo-500/30 text-indigo-400' : 'bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-400'
+                  showGrid ? 'bg-[#252528] dark:bg-[#252528]/60 border border-[#6C5CE7] dark:border-[#6C5CE7]/50 text-[#6C5CE7] dark:text-[#6C5CE7]' : 'bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)]'
                 }`}
                 title="Kılavuz Çizgileri"
               >
-                <Grid className="w-3.5 h-3.5 text-indigo-400" />
+                <Grid className="w-3.5 h-3.5 text-[#6C5CE7]" />
                 <span className="hidden xs:inline">Kılavuz</span>
               </button>
 
@@ -7408,11 +6980,11 @@ export default function App() {
               <button
                 onClick={() => setShowSafeMargins(!showSafeMargins)}
                 className={`flex items-center space-x-1.5 px-2 py-1 sm:px-3 sm:py-1 rounded-lg transition cursor-pointer font-bold text-[11px] shadow-sm ${
-                  showSafeMargins ? 'bg-indigo-500/15 border border-indigo-500/30 text-indigo-400' : 'bg-slate-900 border border-slate-700 hover:bg-slate-800 text-slate-400'
+                  showSafeMargins ? 'bg-[#252528] dark:bg-[#252528]/60 border border-[#6C5CE7] dark:border-[#6C5CE7]/50 text-[#6C5CE7] dark:text-[#6C5CE7]' : 'bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)]'
                 }`}
                 title="Güvenli Baskı Alanı"
               >
-                <Info className="w-3.5 h-3.5 text-indigo-400" />
+                <Info className="w-3.5 h-3.5 text-[#6C5CE7]" />
                 <span className="hidden xs:inline">Güvenli Alan</span>
               </button>
             </div>
@@ -7421,20 +6993,20 @@ export default function App() {
           {/* Canvas Wrapper Container with Scrollable Pages */}
           <div 
             id="canvas-viewport"
-            className="flex-1 flex flex-col items-center w-full max-h-[calc(100dvh-180px)] sm:max-h-[calc(100dvh-200px)] my-2 sm:my-4 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-8 canvas-viewport-bg rounded-2xl border border-slate-800/50 select-none scroll-smooth relative"
+            className="flex-1 flex flex-col items-center w-full max-h-[calc(100dvh-180px)] sm:max-h-[calc(100dvh-200px)] my-2 sm:my-4 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-8 select-none scroll-smooth relative"
           >
-            {/* Ambient glow overlay */}
-            <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(99,102,241,0.06) 0%, transparent 60%)' }} />
+            {/* The canvas background guide line grid for visual design style */}
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
 
             {editingImageRegionId && (
-              <div className="sticky top-0 z-30 w-full max-w-md bg-emerald-600 text-white text-[11px] font-bold px-4 py-2.5 rounded-xl shadow-lg flex items-center justify-between space-x-3 border border-emerald-500 animate-fade-in shrink-0">
+              <div className="sticky top-0 z-30 w-full max-w-md bg-[#34C759] text-[rgba(255,255,255,0.95)] text-[11px] font-bold px-4 py-2.5 rounded-xl shadow-lg flex items-center justify-between space-x-3 border border-[#34C759] animate-fade-in shrink-0">
                 <div className="flex items-center space-x-2">
                   <MousePointer className="w-3.5 h-3.5 animate-bounce" />
                   <span>Görseli mouse ile sürükleyip kaydırın, tekerlek ile yakınlaştırın</span>
                 </div>
                 <button
                   onClick={() => setEditingImageRegionId(null)}
-                  className="bg-emerald-700 hover:bg-emerald-800 text-white px-2 py-0.5 rounded text-[10px] font-extrabold uppercase transition cursor-pointer"
+                  className="bg-[#34C759] hover:bg-[#34C759] text-[rgba(255,255,255,0.95)] px-2 py-0.5 rounded text-[10px] font-extrabold uppercase transition cursor-pointer"
                 >
                   Tamam
                 </button>
@@ -7446,57 +7018,93 @@ export default function App() {
               // --- TEMPLATE EDIT MODE PAGES ---
               (currentTemplate.pages || []).map((page, idx) => {
                 const isActive = activePageIndex === idx;
-                const baseWidth = window.innerWidth < 640 ? Math.min(window.innerWidth - 32, 380) : 380;
+                const baseWidth = Math.min(canvasWidth, 620);
                 const pageScale = zoomMode === 'fit' ? 1.0 : zoomScale;
                 const displayWidth = baseWidth * pageScale;
                 return (
                   <div 
                     key={page.id} 
                     className="flex flex-col items-center space-y-2.5 w-full shrink-0"
-                    style={{ maxWidth: `${displayWidth}px` }}
+                    style={{ width: `${displayWidth}px`, maxWidth: 'none' }}
                   >
                     {/* Header with Page Info */}
                     <div className="flex items-center justify-between w-full px-2">
-                      <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                        <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse shadow-lg shadow-indigo-500/50"></span>
+                      <span className="text-[11px] font-extrabold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider flex items-center space-x-1">
+                        <span className="w-2 h-2 rounded-full bg-[#6C5CE7] dark:bg-[#6C5CE7] animate-pulse"></span>
                         <span>{idx + 1}. Sayfa: {page.name || 'İsimsiz Sayfa'}</span>
                       </span>
                       {isActive && (
-                        <span className="text-[10px] bg-indigo-600 text-white font-bold px-2 py-0.5 rounded-full shadow-sm">
-                          Aktif Düzenleme
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          {(() => {
+                            const p1Imgs = activeGraphicData.dynamicImages || {};
+                            const p1Regs = activeTemplatePage.regions || page.regions || [];
+                            const p1VideoReg = p1Regs.find(
+                              r => r.type === 'image' && p1Imgs[r.id]?.isVideo && (p1Imgs[r.id]?.videoUrl || p1Imgs[r.id]?.url)
+                            );
+                            if (!p1VideoReg) return null;
+                            return (
+                              <button
+                                type="button"
+                                onClick={() => setPlayingVideoRegionId(prev => prev ? null : p1VideoReg.id)}
+                                className={`text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center space-x-1 transition-all duration-200 cursor-pointer ${
+                                  playingVideoRegionId === p1VideoReg.id
+                                    ? 'bg-red-500 hover:bg-red-600 text-white'
+                                    : 'bg-gradient-to-r from-[#6C5CE7] to-[#34C759] hover:opacity-90 text-white shadow'
+                                }`}
+                              >
+                                <span>{playingVideoRegionId === p1VideoReg.id ? '⏸ Durdur' : '▶ Videoyu Oynat'}</span>
+                              </button>
+                            );
+                          })()}
+                          <span className="text-[10px] bg-[#6C5CE7] text-[rgba(255,255,255,0.95)] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                            Aktif Düzenleme
+                          </span>
+                        </div>
                       )}
                     </div>
 
                     {/* Canvas Frame */}
                     <div 
-                      className={`relative w-full p-1 rounded-xl shadow-2xl transition duration-200 canvas-wrapper-glow ${
+                      className={`relative w-full p-1 bg-[#252528] dark:bg-[#252528]/50 border rounded-[16px] transition duration-200 ${
                         isActive 
-                          ? 'bg-indigo-500/10 border-2 border-indigo-500/60 ring-4 ring-indigo-500/15 shadow-indigo-500/20' 
-                          : 'bg-slate-800/40 border border-slate-700/60 hover:border-slate-600 hover:shadow-xl'
+                          ? 'border-[#6C5CE7] ring-4 ring-[#6C5CE7] dark:ring-[#6C5CE7]/30 shadow-[0_30px_60px_-15px_rgba(67,56,202,0.15)] dark:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)]' 
+                          : 'border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08),0_4px_8px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.12),0_10px_20px_-8px_rgba(0,0,0,0.06)]'
                       }`}
                       style={{ aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}` }}
                     >
                       {isActive ? (
-                        <canvas
-                          ref={canvasRef}
-                          onMouseDown={handleCanvasPointerDown}
-                          onMouseMove={handleCanvasPointerMove}
-                          onMouseUp={handleCanvasPointerUp}
-                          onMouseLeave={handleCanvasPointerUp}
-                          onTouchStart={handleCanvasPointerDown}
-                          onTouchMove={handleCanvasPointerMove}
-                          onTouchEnd={handleCanvasPointerUp}
-                          onDoubleClick={handleCanvasDoubleClick}
-                          style={{
-                            width: '100%',
-                            height: '100%',
-                            aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}`,
-                            display: 'block',
-                            cursor: isDragging ? 'grabbing' : 'grab'
-                          }}
-                          className="bg-white rounded-lg shadow-inner select-none touch-none"
-                        />
+                        <div className="relative w-full h-full overflow-hidden rounded-lg">
+                          <canvas
+                            ref={canvasRef}
+                            onMouseDown={handleCanvasPointerDown}
+                            onMouseMove={handleCanvasPointerMove}
+                            onMouseUp={handleCanvasPointerUp}
+                            onMouseLeave={handleCanvasPointerUp}
+                            onTouchStart={handleCanvasPointerDown}
+                            onTouchMove={handleCanvasPointerMove}
+                            onTouchEnd={handleCanvasPointerUp}
+                            onDoubleClick={handleCanvasDoubleClick}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}`,
+                              display: 'block',
+                              cursor: isDragging ? 'grabbing' : 'grab'
+                            }}
+                            className="bg-[#252528] dark:bg-[#1D1D1F] rounded-lg shadow-inner select-none touch-none"
+                          />
+                          <CanvasVideoOverlay
+                            templateWidth={currentTemplate.width}
+                            templateHeight={currentTemplate.height}
+                            displayWidth={displayWidth}
+                            regions={activeTemplatePage.regions || page.regions || []}
+                            dynamicImages={activeGraphicData.dynamicImages || {}}
+                            playingRegionId={playingVideoRegionId}
+                            onSetPlayingRegionId={setPlayingVideoRegionId}
+                            isMuted={isVideoMuted}
+                            onToggleMute={setIsVideoMuted}
+                          />
+                        </div>
                       ) : (
                         <StaticPageCanvas
                           template={currentTemplate}
@@ -7524,57 +7132,93 @@ export default function App() {
                 generatedPages.map((page, idx) => {
                   const isActive = activeGeneratedPageIndex === idx;
                   const pageDef = currentTemplate.pages?.find(p => p.id === page.templatePageId) || currentTemplate;
-                  const baseWidth = window.innerWidth < 640 ? Math.min(window.innerWidth - 32, 380) : 380;
+                  const baseWidth = Math.min(canvasWidth, 620);
                   const pageScale = zoomMode === 'fit' ? 1.0 : zoomScale;
                   const displayWidth = baseWidth * pageScale;
                   return (
                     <div 
                       key={page.id} 
                       className="flex flex-col items-center space-y-2 w-full shrink-0"
-                      style={{ maxWidth: `${displayWidth}px` }}
+                      style={{ width: `${displayWidth}px`, maxWidth: 'none' }}
                     >
                       {/* Header with Page Info */}
                       <div className="flex items-center justify-between w-full px-2">
-                      <span className="text-[11px] font-extrabold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-lg shadow-emerald-500/50"></span>
-                        <span>{page.name || `${idx + 1}. Sayfa`}</span>
-                      </span>
+                        <span className="text-[11px] font-extrabold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider flex items-center space-x-1">
+                          <span className="w-2 h-2 rounded-full bg-[#34C759] animate-pulse"></span>
+                          <span>{page.name || `${idx + 1}. Sayfa`}</span>
+                        </span>
                         {isActive && (
-                          <span className="text-[10px] bg-emerald-600 text-white font-bold px-2 py-0.5 rounded-full shadow-sm">
-                            Aktif Düzenleme
-                          </span>
+                          <div className="flex items-center space-x-2">
+                            {(() => {
+                              const p2Imgs = activePageData.dynamicImages || {};
+                              const p2Regs = activeTemplatePage.regions || pageDef.regions || [];
+                              const p2VideoReg = p2Regs.find(
+                                r => r.type === 'image' && p2Imgs[r.id]?.isVideo && (p2Imgs[r.id]?.videoUrl || p2Imgs[r.id]?.url)
+                              );
+                              if (!p2VideoReg) return null;
+                              return (
+                                <button
+                                  type="button"
+                                  onClick={() => setPlayingVideoRegionId(prev => prev ? null : p2VideoReg.id)}
+                                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center space-x-1 transition-all duration-200 cursor-pointer ${
+                                    playingVideoRegionId === p2VideoReg.id
+                                      ? 'bg-red-500 hover:bg-red-600 text-white'
+                                      : 'bg-gradient-to-r from-[#6C5CE7] to-[#34C759] hover:opacity-90 text-white shadow'
+                                  }`}
+                                >
+                                  <span>{playingVideoRegionId === p2VideoReg.id ? '⏸ Durdur' : '▶ Videoyu Oynat'}</span>
+                                </button>
+                              );
+                            })()}
+                            <span className="text-[10px] bg-[#34C759] text-[rgba(255,255,255,0.95)] font-bold px-2 py-0.5 rounded-full shadow-sm">
+                              Aktif Düzenleme
+                            </span>
+                          </div>
                         )}
                       </div>
 
-                      {/* Canvas Frame - Generated Post */}
+                      {/* Canvas Frame */}
                       <div 
-                        className={`relative w-full p-1 rounded-xl shadow-2xl transition duration-200 canvas-wrapper-glow ${
+                        className={`relative w-full p-1 bg-[#252528] dark:bg-[#252528]/50 border rounded-xl shadow-lg transition duration-200 ${
                           isActive 
-                            ? 'bg-emerald-500/10 border-2 border-emerald-500/50 ring-4 ring-emerald-500/15 shadow-emerald-500/20' 
-                            : 'bg-slate-800/40 border border-slate-700/60 hover:border-slate-600 hover:shadow-xl'
+                            ? 'border-[#34C759] ring-4 ring-[#34C759] dark:ring-[#34C759]/30 shadow-[rgba(52,199,89,0.2)]/50 dark:shadow-[0_10px_30px_-5px_rgba(0,0,0,0.5)]' 
+                            : 'border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] hover:shadow-xl'
                         }`}
                         style={{ aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}` }}
                       >
                         {isActive ? (
-                          <canvas
-                            ref={canvasRef}
-                            onMouseDown={handleCanvasPointerDown}
-                            onMouseMove={handleCanvasPointerMove}
-                            onMouseUp={handleCanvasPointerUp}
-                            onMouseLeave={handleCanvasPointerUp}
-                            onTouchStart={handleCanvasPointerDown}
-                            onTouchMove={handleCanvasPointerMove}
-                            onTouchEnd={handleCanvasPointerUp}
-                            onDoubleClick={handleCanvasDoubleClick}
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}`,
-                              display: 'block',
-                              cursor: isDragging ? 'grabbing' : 'grab'
-                            }}
-                            className="bg-white rounded-lg shadow-inner select-none touch-none"
-                          />
+                          <div className="relative w-full h-full overflow-hidden rounded-lg">
+                            <canvas
+                              ref={canvasRef}
+                              onMouseDown={handleCanvasPointerDown}
+                              onMouseMove={handleCanvasPointerMove}
+                              onMouseUp={handleCanvasPointerUp}
+                              onMouseLeave={handleCanvasPointerUp}
+                              onTouchStart={handleCanvasPointerDown}
+                              onTouchMove={handleCanvasPointerMove}
+                              onTouchEnd={handleCanvasPointerUp}
+                              onDoubleClick={handleCanvasDoubleClick}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}`,
+                                display: 'block',
+                                cursor: isDragging ? 'grabbing' : 'grab'
+                              }}
+                              className="bg-[#252528] rounded-lg shadow-inner select-none touch-none"
+                            />
+                            <CanvasVideoOverlay
+                              templateWidth={currentTemplate.width}
+                              templateHeight={currentTemplate.height}
+                              displayWidth={displayWidth}
+                              regions={activeTemplatePage.regions || pageDef.regions || []}
+                              dynamicImages={activePageData.dynamicImages || {}}
+                              playingRegionId={playingVideoRegionId}
+                              onSetPlayingRegionId={setPlayingVideoRegionId}
+                              isMuted={isVideoMuted}
+                              onToggleMute={setIsVideoMuted}
+                            />
+                          </div>
                         ) : (
                           <StaticPageCanvas
                             template={currentTemplate}
@@ -7601,35 +7245,38 @@ export default function App() {
                   );
                 })
               ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-                  <p className="text-sm font-semibold">Henüz üretilmiş bir sayfa yok.</p>
-                  <p className="text-xs">Soldaki panelden içerik üreterek başlayın.</p>
+                <div className="flex flex-col items-center gap-3 shrink-0" style={{width: Math.min(canvasWidth, 620) * (zoomMode === 'fit' ? 1 : zoomScale)}}>
+                  <div className="workspace-page-caption"><span>01 / Kapak</span><span>{currentTemplate.name}</span></div>
+                  <div className="relative w-full" style={{aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}`}}>
+                    <canvas ref={canvasRef} onMouseDown={handleCanvasPointerDown} onMouseMove={handleCanvasPointerMove} onMouseUp={handleCanvasPointerUp} onMouseLeave={handleCanvasPointerUp} onTouchStart={handleCanvasPointerDown} onTouchMove={handleCanvasPointerMove} onTouchEnd={handleCanvasPointerUp} onDoubleClick={handleCanvasDoubleClick} className="w-full h-full touch-none" aria-label="Aktif tasarım önizlemesi"/>
+                    <CanvasVideoOverlay templateWidth={currentTemplate.width} templateHeight={currentTemplate.height} displayWidth={Math.min(canvasWidth, 620)} regions={editingTemplate.regions} dynamicImages={activeGraphicData.dynamicImages} playingRegionId={playingVideoRegionId} onSetPlayingRegionId={setPlayingVideoRegionId} isMuted={isVideoMuted} onToggleMute={setIsVideoMuted}/>
+                  </div>
                 </div>
               )
             )}
           </div>
 
           {/* FLOATING ZOOM AND PAN CONTROLS */}
-          <div className="absolute bottom-16 right-4 sm:bottom-6 sm:right-6 bg-slate-900/95 backdrop-blur-md border border-slate-700/80 shadow-2xl rounded-full p-1.5 flex items-center space-x-1 z-20" style={{ boxShadow: '0 8px 32px rgba(0,0,0,0.6), 0 0 0 1px rgba(99,102,241,0.1)' }}>
+          <div className="workspace-zoom absolute bottom-16 right-4 sm:bottom-6 sm:right-6 bg-[#252528]/95 dark:bg-[#2C2C2E]/95 backdrop-blur border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shadow-xl rounded-full p-1.5 flex items-center space-x-1 z-20">
             {/* Zoom Out */}
             <button
               onClick={() => {
                 if (zoomMode === 'fit') {
                   setZoomMode('custom');
-                  setZoomScale(0.35);
+                  setZoomScale(0.9);
                   setPanOffset({ x: 0, y: 0 });
                 } else {
                   setZoomScale(prev => Math.max(0.1, parseFloat((prev - 0.05).toFixed(2))));
                 }
               }}
-              className="p-1.5 hover:bg-slate-700 rounded-full text-slate-400 hover:text-slate-200 transition cursor-pointer"
+              className="p-1.5 hover:bg-[#252528] dark:hover:bg-[#2C2C2E] rounded-full text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)] transition cursor-pointer"
               title="Uzaklaştır"
             >
               <Minus className="w-4 h-4" />
             </button>
 
             {/* Current Zoom Indicator */}
-            <span className="text-[11px] font-bold text-slate-300 min-w-[45px] text-center font-mono">
+            <span className="text-[11px] font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] min-w-[45px] text-center font-mono">
               {zoomMode === 'fit' ? 'Sığdır' : `${Math.round(zoomScale * 100)}%`}
             </span>
 
@@ -7638,19 +7285,19 @@ export default function App() {
               onClick={() => {
                 if (zoomMode === 'fit') {
                   setZoomMode('custom');
-                  setZoomScale(0.5);
+                  setZoomScale(1.1);
                   setPanOffset({ x: 0, y: 0 });
                 } else {
                   setZoomScale(prev => Math.min(3.0, parseFloat((prev + 0.05).toFixed(2))));
                 }
               }}
-              className="p-1.5 hover:bg-slate-700 rounded-full text-slate-400 hover:text-slate-200 transition cursor-pointer"
+              className="p-1.5 hover:bg-[#252528] dark:hover:bg-[#2C2C2E] rounded-full text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)] transition cursor-pointer"
               title="Yakınlaştır"
             >
               <Plus className="w-4 h-4" />
             </button>
 
-            <div className="w-px h-4 bg-slate-200 mx-1" />
+            <div className="w-px h-4 bg-[#2C2C2E] dark:bg-[#2C2C2E] mx-1" />
 
             {/* Fit Screen / Reset */}
             <button
@@ -7660,8 +7307,8 @@ export default function App() {
               }}
               className={`p-1.5 rounded-full transition cursor-pointer ${
                 zoomMode === 'fit'
-                  ? 'bg-indigo-50 text-indigo-600 font-bold'
-                  : 'text-slate-500 hover:bg-slate-100 hover:text-slate-900'
+                  ? 'bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#6C5CE7] dark:text-[#6C5CE7] font-bold'
+                  : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:bg-[#252528] dark:hover:bg-[#2C2C2E] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
               }`}
               title="Ekrana Sığdır"
             >
@@ -7670,22 +7317,22 @@ export default function App() {
           </div>
 
           {/* Bottom Info Status bar */}
-          <div className="w-full max-w-xl text-center text-slate-600 font-medium text-[10px] sm:text-[11px] leading-relaxed select-none pb-2 shrink-0">
-            Mükemmel hizalama ve DPI çıktısı için parametreleri sol panelden özelleştirin.
-            Kılavuz çizgileri ve hizalama araçları çıktı görselinde gizlenir.
+          <div className="w-full max-w-xl text-center text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium text-[10px] sm:text-[11px] leading-relaxed select-none pb-2 shrink-0">
+            Tuvalde bir öğeye tıklayarak seçin.
+            Görseli çift tıklayarak kadrajını düzenleyin.
           </div>
         </div>
 
         {/* RIGHT COLUMN: QUICK ASSETS & EXPORT */}
-        <div id="export-assets-bar" className={`w-full lg:w-[300px] bg-slate-900 border-l border-slate-800/80 p-4 sm:p-5 flex flex-col justify-between h-full overflow-y-auto shrink-0 z-20 ${mobileView === 'export' ? 'flex' : 'hidden lg:flex'}`} style={{ boxShadow: 'inset 1px 0 0 rgba(99,102,241,0.08)' }}>
+        <div id="export-assets-bar" className={`w-full lg:w-[320px] clay-card dark:bg-[#252528] dark:border-[rgba(255,255,255,0.08)] border-0 lg:mb-2 lg:ml-2 lg:mr-2 p-4 sm:p-5 flex flex-col justify-between overflow-y-auto shrink-0 z-20 ${mobileView === 'export' ? 'flex' : 'hidden lg:flex'}`}>
           
-          <div className="space-y-5">
-            <div className="space-y-3">
+          <div className="space-y-6">
+            <div className="space-y-3.5">
               <div className="flex items-center justify-between">
-                <span className="section-header">PROJE SAYFALARI</span>
+                <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider block">SAYFALAR</span>
                 {generatedPages.length > 0 && (
-                  <span className="text-[9.5px] font-extrabold text-indigo-400 bg-indigo-500/15 border border-indigo-500/25 px-2 py-0.5 rounded-full">
-                    {generatedPages.length} Hazır
+                  <span className="text-[9.5px] font-extrabold text-[#6C5CE7] dark:text-[#6C5CE7] bg-[#252528] dark:bg-[#2C2C2E]/30 px-2 py-0.5 rounded-full">
+                    {generatedPages.length} Sayfa Hazır
                   </span>
                 )}
               </div>
@@ -7713,36 +7360,36 @@ export default function App() {
                         }}
                         className={`group p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between relative overflow-hidden ${
                           isActive
-                            ? 'bg-indigo-500/10 border-indigo-500/40 shadow-sm ring-1 ring-indigo-500/20'
-                            : 'bg-slate-800/50 border-slate-700/60 hover:bg-slate-800 hover:border-slate-600'
+                            ? 'bg-[#252528]/50 dark:bg-[#252528]/60 border-[#6C5CE7] dark:border-[#6C5CE7]/50 shadow-sm ring-1 ring-[#6C5CE7] dark:ring-[#6C5CE7]/50'
+                            : 'bg-[#1D1D1F]/50 dark:bg-[#1D1D1F] border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)] hover:bg-[#252528]/50 dark:hover:bg-[#3A3A3C]/50 hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)]'
                         }`}
                       >
                         <div className="flex items-center space-x-3 min-w-0">
                           {/* Mini Number Badge */}
                           <div className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 shadow-sm transition-colors ${
                             isActive
-                              ? 'bg-indigo-600 text-white shadow-indigo-500/30'
-                              : 'bg-slate-700 text-slate-300'
+                              ? 'bg-[#6C5CE7] dark:bg-[#6C5CE7] text-[rgba(255,255,255,0.95)]'
+                              : 'bg-[#2C2C2E] dark:bg-[#3A3A3C] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)]'
                           }`}>
                             {idx + 1}
                           </div>
 
                           <div className="min-w-0">
-                            <span className="text-xs font-bold text-slate-200 truncate block">
+                            <span className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] truncate block">
                               {page.name || `${idx + 1}. Sayfa`}
                             </span>
                             <div className="flex items-center space-x-2 mt-0.5">
                               {/* Fill status */}
                               {imageRegions.length > 0 ? (
-                                <span className={`text-[9.5px] font-bold ${isFullyFilled ? 'text-emerald-400 font-extrabold' : 'text-amber-400'}`}>
+                                <span className={`text-[9.5px] font-bold ${isFullyFilled ? 'text-[#34C759] dark:text-[#34C759] font-extrabold' : 'text-[#FF9F0A] dark:text-[#FF9F0A]'}`}>
                                   {filledImages}/{imageRegions.length} Görsel
                                 </span>
                               ) : (
-                                <span className="text-[9.5px] text-slate-500 font-semibold">Sadece Metin</span>
+                                <span className="text-[9.5px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-semibold">Sadece Metin</span>
                               )}
-                              <span className="w-1 h-1 rounded-full bg-slate-600" />
-                              <span className="text-[9.5px] text-slate-600 truncate max-w-[80px] font-medium font-mono">
-                                ID: {page.id.split('-')[1]}
+                              <span className="w-1 h-1 rounded-full bg-[#303033] dark:bg-[#3A3A3C]" />
+                              <span className="text-[9.5px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] truncate max-w-[90px] font-medium font-mono">
+                                {currentTemplate.width} × {currentTemplate.height}
                               </span>
                             </div>
                           </div>
@@ -7753,9 +7400,10 @@ export default function App() {
                           <button
                             type="button"
                             onClick={() => {
+                              // Directly call the single high-res exporter
                               exportSingleHighResPage(page, idx);
                             }}
-                            className="p-1.5 rounded-lg bg-slate-700 border border-slate-600 text-slate-400 hover:text-indigo-400 hover:border-indigo-500/50 hover:bg-indigo-500/10 transition cursor-pointer shadow-sm group-hover:scale-105"
+                            className="p-1.5 rounded-lg bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:text-[#6C5CE7] dark:hover:text-[#6C5CE7] hover:border-[#6C5CE7] dark:hover:border-[#6C5CE7]/50 hover:bg-[#252528]/50 dark:hover:bg-[#252528]/60 transition cursor-pointer shadow-sm group-hover:scale-105"
                             title="Sadece bu sayfayı yüksek çözünürlükte indir"
                           >
                             <Download className="w-3.5 h-3.5" />
@@ -7766,66 +7414,66 @@ export default function App() {
                   })}
                 </div>
               ) : (
-                <div className="p-6 text-center border-2 border-dashed border-slate-700/60 rounded-2xl bg-slate-800/30">
-                  <FileText className="w-8 h-8 text-slate-600 mx-auto mb-2" />
-                  <p className="text-xs text-slate-400 font-bold">Aktif sayfa bulunmuyor</p>
-                  <p className="text-[10px] text-slate-600 mt-1 font-semibold">Fotoğrafları yükleyerek ilk sayfaları üretebilirsiniz.</p>
+                <div className="workspace-active-page">
+                  <TemplateThumbnail template={editingTemplate} data={activeTab === 'phase1' ? undefined : activeGraphicData}/>
+                  <div><strong>{activeTab === 'phase1' ? `${activePageIndex + 1} · ${activeTemplatePage.name}` : '01 · Kapak'}</strong><span>{currentTemplate.width} × {currentTemplate.height} px</span></div>
+                  <Check size={15}/>
                 </div>
               )}
             </div>
           </div>
 
           {/* PRINT & EXPORT PANEL */}
-          <div className="pt-5 border-t border-slate-800 space-y-4">
+          <div className="pt-6 border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] space-y-5">
             
-            <div className="space-y-3">
-              <span className="section-header">İHRACAT STANDARTLARI</span>
+            <div className="space-y-4">
+              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wide block px-1">Çıktı Ayarları</span>
               
               {/* Output format selectors */}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setExportFormat('png')}
-                  className={`py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                  className={`py-2 rounded-[12px] text-xs font-medium border transition-all cursor-pointer ${
                     exportFormat === 'png'
-                      ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400'
-                      : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-slate-300'
+                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 text-[#6C5CE7] dark:text-[#6C5CE7]'
+                      : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80'
                   }`}
                 >
-                  PNG (Kusursuz)
+                  PNG (Kayıpsız)
                 </button>
                 <button
                   onClick={() => setExportFormat('jpeg')}
-                  className={`py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                  className={`py-2 rounded-[12px] text-xs font-medium border transition-all cursor-pointer ${
                     exportFormat === 'jpeg'
-                      ? 'bg-indigo-600/10 border-indigo-500 text-indigo-400'
-                      : 'bg-slate-900/50 border-slate-800 text-slate-400 hover:text-slate-300'
+                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 text-[#6C5CE7] dark:text-[#6C5CE7]'
+                      : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80'
                   }`}
                 >
-                  JPEG (Sıkışmış)
+                  JPEG (Optimize)
                 </button>
               </div>
 
               {/* Scale DPI multipliers */}
-              <div>
-                <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                  <span>Çözünürlük Kalitesi</span>
-                  <span className="font-mono text-slate-400">
-                    {exportScale === 1 ? '72 DPI (Web)' : exportScale === 1.5 ? '150 DPI (Önizleme)' : '300 DPI (Baskı)'}
+              <div className="space-y-2">
+                <div className="flex justify-between text-[10px] text-[rgba(255,255,255,0.72)] px-1">
+                  <span>Çözünürlük Ölçeği</span>
+                  <span className="font-mono text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]">
+                    {Math.round(currentTemplate.width * exportScale)} × {Math.round(currentTemplate.height * exportScale)} px
                   </span>
                 </div>
-                <div className="grid grid-cols-3 gap-1">
+                <div className="grid grid-cols-3 gap-1.5">
                   {[
                     { label: 'Web (1x)', val: 1.0 },
                     { label: 'Yüksek (1.5x)', val: 1.5 },
-                    { label: 'Baskı (2x)', val: 2.0 }
+                    { label: 'En iyi (2x)', val: 2.0 }
                   ].map(sc => (
                     <button
                       key={sc.val}
                       onClick={() => setExportScale(sc.val)}
-                      className={`py-1 rounded text-[10px] border transition cursor-pointer ${
+                      className={`py-1.5 rounded-[10px] text-[10px] border transition-all cursor-pointer ${
                         exportScale === sc.val
-                          ? 'bg-slate-800 border-indigo-500 text-indigo-400 font-bold'
-                          : 'bg-slate-900/30 border-slate-850 text-slate-500 hover:text-slate-400'
+                          ? 'bg-[#252528] border-[rgba(255,255,255,0.08)] dark:bg-[#6C5CE7] dark:border-[#6C5CE7] text-[rgba(255,255,255,0.95)] font-medium'
+                          : 'bg-[#1D1D1F] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80'
                       }`}
                     >
                       {sc.label}
@@ -7836,21 +7484,21 @@ export default function App() {
             </div>
 
             {/* Core download action */}
-            <div className="space-y-2">
+            <div className="space-y-2.5">
               <button
                 onClick={exportHighResGraphic}
                 disabled={isExporting || isExportingZip}
-                className="w-full flex items-center justify-center space-x-2 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 text-xs font-extrabold shadow-lg shadow-emerald-500/10 transition cursor-pointer disabled:opacity-55"
+                className="w-full flex items-center justify-center space-x-2 py-3 rounded-[14px] bg-[#1D1D1F] hover:bg-[#252528] dark:bg-[#6C5CE7] dark:hover:bg-[#6C5CE7] text-[rgba(255,255,255,0.95)] text-[13px] font-medium shadow-[0_4px_14px_rgba(0,0,0,0.1)] dark:shadow-[rgba(108,92,231,0.2)]/20 transition-all cursor-pointer disabled:opacity-50"
               >
                 {isExporting ? (
                   <>
-                    <span className="w-3.5 h-3.5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin"></span>
-                    <span>Grafik İşleniyor (300 DPI)...</span>
+                    <span className="w-4 h-4 border-2 border-[rgba(255,255,255,0.08)] border-t-white rounded-full animate-spin"></span>
+                    <span>İşleniyor...</span>
                   </>
                 ) : (
                   <>
                     <Download className="w-4 h-4" />
-                    <span>{generatedPages.length > 0 ? 'Tüm Sayfaları Sırayla İndir' : 'Grafik Üret ve İndir'}</span>
+                    <span>{generatedPages.length > 0 ? 'Tüm Sayfaları İndir' : 'Görseli İndir'}</span>
                   </>
                 )}
               </button>
@@ -7859,17 +7507,17 @@ export default function App() {
                 <button
                   onClick={exportHighResZip}
                   disabled={isExporting || isExportingZip}
-                  className="w-full flex items-center justify-center space-x-2 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-600 hover:from-indigo-500 hover:to-blue-500 text-white text-xs font-extrabold shadow-lg shadow-indigo-600/10 transition cursor-pointer disabled:opacity-55"
+                  className="w-full flex items-center justify-center space-x-2 py-3 rounded-[14px] bg-[#1D1D1F] hover:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:bg-[#3A3A3C] dark:hover:bg-[#3A3A3C]/80 dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[13px] font-medium shadow-sm transition-all cursor-pointer disabled:opacity-50"
                 >
                   {isExportingZip ? (
                     <>
-                      <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                      <span>ZIP Hazırlanıyor...</span>
+                      <span className="w-4 h-4 border-2 border-[rgba(255,255,255,0.08)] border-t-slate-600 rounded-full animate-spin"></span>
+                      <span className="truncate">{exportStatusText || 'Arşivleniyor...'}</span>
                     </>
                   ) : (
                     <>
-                      <FolderArchive className="w-4 h-4 text-white" />
-                      <span>Çoklu Şablonu ZIP Olarak İndir</span>
+                      <FolderArchive className="w-4 h-4 text-[rgba(255,255,255,0.72)]" />
+                      <span>ZIP Olarak İndir</span>
                     </>
                   )}
                 </button>
@@ -7877,84 +7525,103 @@ export default function App() {
             </div>
           </div>
 
+          {exportFiles.length > 0 && <section className="workspace-export-results" aria-label="Hazırlanan dosyalar">
+            <p role="status"><CheckCircle2 size={15}/>{exportFiles.length} dosya hazır</p>
+            <span>İndirme başlamadıysa dosyaya tıklayın.</span>
+            {exportFiles.map(file => <div key={file.url}>{file.type.startsWith('image/') && <img className="export-result-preview" src={file.url} alt={file.name + ' çıktı önizlemesi'}/>}<a href={file.url} download={file.name}><Download size={14}/><span>{file.name}</span></a></div>)}
+          </section>}
+
           {/* Minimalist Footer Signature */}
-          <div className="pt-4 text-center border-t border-slate-800 shrink-0">
-            <span className="text-[9px] font-bold text-slate-600 font-mono tracking-widest uppercase">
+          <div className="pt-4 text-center border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shrink-0">
+            <span className="text-[9px] font-bold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-mono tracking-widest uppercase">
               GRAFİK OTOMASYON MOTORU © 2026
             </span>
           </div>
 
         </div>
 
+        {/* Floating Export Progress Toast */}
+        {(isExporting || isExportingZip) && exportStatusText && (
+          <div className="fixed bottom-6 right-6 z-50 bg-[#1D1D1F]/95 backdrop-blur-md border border-white/20 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center space-x-3.5 max-w-md animate-fade-in pointer-events-none">
+            <div className="w-5 h-5 rounded-full border-2 border-[#6C5CE7] border-t-transparent animate-spin shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-bold text-white truncate">Dışa Aktarılıyor...</p>
+              <p className="text-[11px] text-white/80 mt-0.5">{exportStatusText}</p>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <div id="mobile-nav-bar" className="lg:hidden bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/80 flex items-center justify-around pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] px-2 z-30 shrink-0 select-none" style={{ boxShadow: '0 -1px 0 rgba(99,102,241,0.1)' }}>
+      <div id="mobile-nav-bar" className="lg:hidden bg-[#1D1D1F] border-t border-[rgba(255,255,255,0.08)] flex items-center justify-around pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] px-2 z-30 shrink-0 select-none">
         <button
           onClick={() => setMobileView('editor')}
-          className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-4 py-2 rounded-xl ${
-            mobileView === 'editor' 
-              ? 'text-indigo-400 font-bold bg-indigo-500/15 shadow-lg shadow-indigo-500/10' 
-              : 'text-slate-500 hover:text-slate-300'
+          className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
+            mobileView === 'editor' ? 'text-[#6C5CE7] font-bold bg-[#6C5CE7]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
           }`}
         >
-          <Sliders className="w-5 h-5" />
-          <span className="text-[10px]">Şablon</span>
+          <Sliders className="w-4 h-4" />
+          <span className="text-[10px]">Şablon / Editör</span>
         </button>
 
         <button
           onClick={() => setMobileView('canvas')}
-          className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-4 py-2 rounded-xl ${
-            mobileView === 'canvas'
-              ? 'text-indigo-400 font-bold bg-indigo-500/15 shadow-lg shadow-indigo-500/10'
-              : 'text-slate-500 hover:text-slate-300'
+          className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
+            mobileView === 'canvas' ? 'text-[#6C5CE7] font-bold bg-[#6C5CE7]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
           }`}
         >
-          <Sparkles className="w-5 h-5" />
-          <span className="text-[10px]">Tuval</span>
+          <Sparkles className="w-4 h-4" />
+          <span className="text-[10px]">Önizleme</span>
         </button>
 
         <button
           onClick={() => setMobileView('export')}
-          className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-4 py-2 rounded-xl ${
-            mobileView === 'export'
-              ? 'text-emerald-400 font-bold bg-emerald-500/15 shadow-lg shadow-emerald-500/10'
-              : 'text-slate-500 hover:text-slate-300'
+          className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
+            mobileView === 'export' ? 'text-[#6C5CE7] font-bold bg-[#6C5CE7]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
           }`}
         >
-          <Download className="w-5 h-5" />
-          <span className="text-[10px]">Aktar</span>
+          <Download className="w-4 h-4" />
+          <span className="text-[10px]">Dışa Aktar</span>
+        </button>
+
+        <button
+          onClick={() => setIsToolsModalOpen(true)}
+          className="flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg text-amber-400 font-bold hover:text-amber-300"
+        >
+          <Wrench className="w-4 h-4 text-amber-400 animate-pulse" />
+          <span className="text-[10px]">Araçlar</span>
         </button>
       </div>
 
       {/* CUSTOM CONFIRM DIALOG MODAL */}
       <AnimatePresence>
         {confirmDialog && confirmDialog.isOpen && (
-          <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-[#1D1D1F]/80 dark:bg-[#1D1D1F]/80 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-6 shadow-2xl space-y-6"
+              className="clay-card dark:bg-[#1D1D1F] dark:border-[rgba(255,255,255,0.08)] rounded-3xl border-0 max-w-sm w-full p-6 space-y-6"
             >
               <div className="space-y-2">
-                <h3 className="text-sm font-bold text-slate-100 flex items-center space-x-2">
+                <h3 className="text-sm font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] flex items-center space-x-2">
                   {confirmDialog.type === 'warning' ? (
-                    <span className="p-1.5 bg-amber-500/10 text-amber-400 rounded-lg">
+                    <span className="p-1.5 bg-[#FF9F0A]/10 text-[#FF9F0A] rounded-lg">
                       <HelpCircle className="w-4 h-4" />
                     </span>
                   ) : confirmDialog.type === 'info' ? (
-                    <span className="p-1.5 bg-indigo-500/10 text-indigo-400 rounded-lg">
+                    <span className="p-1.5 bg-[#6C5CE7]/10 text-[#6C5CE7] rounded-lg">
                       <Info className="w-4 h-4" />
                     </span>
                   ) : (
-                    <span className="p-1.5 bg-red-500/10 text-red-400 rounded-lg">
+                    <span className="p-1.5 bg-[#FF453A]/10 text-[#FF453A] rounded-lg">
                       <Trash2 className="w-4 h-4" />
                     </span>
                   )}
                   <span>{confirmDialog.title}</span>
                 </h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
+                <p className="text-xs text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] leading-relaxed">
                   {confirmDialog.message}
                 </p>
               </div>
@@ -7963,7 +7630,7 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setConfirmDialog(null)}
-                  className="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer transition"
+                  className="px-4 py-2 rounded-lg bg-[#252528] hover:bg-[#2C2C2E] text-[rgba(255,255,255,0.72)] text-xs font-semibold cursor-pointer transition"
                 >
                   {confirmDialog.cancelText || 'İptal'}
                 </button>
@@ -7972,12 +7639,12 @@ export default function App() {
                   onClick={() => {
                     confirmDialog.onConfirm();
                   }}
-                  className={`px-4 py-2 rounded-lg text-white text-xs font-semibold cursor-pointer transition ${
+                  className={`px-4 py-2 rounded-lg text-[rgba(255,255,255,0.95)] text-xs font-semibold cursor-pointer transition ${
                     confirmDialog.type === 'warning'
-                      ? 'bg-amber-600 hover:bg-amber-500'
+                      ? 'bg-[#FF9F0A] hover:bg-[#FF9F0A]'
                       : confirmDialog.type === 'info'
-                      ? 'bg-indigo-600 hover:bg-indigo-500'
-                      : 'bg-red-600 hover:bg-red-500'
+                      ? 'bg-[#6C5CE7] hover:bg-[#6C5CE7]'
+                      : 'bg-[#FF453A] hover:bg-[#FF453A]'
                   }`}
                 >
                   {confirmDialog.confirmText || 'Evet, Sil'}
@@ -7991,23 +7658,23 @@ export default function App() {
       {/* iOS IMAGE DOWNLOAD OVERLAY MODAL */}
       <AnimatePresence>
         {iosExportImages && (
-          <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[9999] flex items-center justify-center p-4 overflow-y-auto">
+          <div className="fixed inset-0 bg-[#1D1D1F]/85 dark:bg-[#1D1D1F]/85 backdrop-blur-md z-[9999] flex items-center justify-center p-4 overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 20, scale: 0.95 }}
-              className="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl flex flex-col my-8"
+              className="clay-card dark:bg-[#1D1D1F] dark:border-[rgba(255,255,255,0.08)] rounded-3xl border-0 max-w-2xl w-full p-6 flex flex-col my-8"
             >
-              <div className="flex justify-between items-start border-b border-slate-800 pb-4 mb-4">
+              <div className="flex justify-between items-start border-b border-[rgba(255,255,255,0.08)]/50 dark:border-[rgba(255,255,255,0.08)] pb-4 mb-4">
                 <div className="flex items-center space-x-3">
-                  <div className="p-2 bg-indigo-500/10 text-indigo-400 rounded-xl">
+                  <div className="p-2 bg-[#6C5CE7]/10 text-[#6C5CE7] dark:text-[#6C5CE7] rounded-xl">
                     <Smartphone className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-sm sm:text-base font-extrabold text-slate-100">
+                    <h3 className="text-sm sm:text-base font-extrabold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)]">
                       Görselleri Albüme Kaydet
                     </h3>
-                    <p className="text-[10px] sm:text-xs text-slate-400 mt-0.5">
+                    <p className="text-[10px] sm:text-xs text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] mt-0.5">
                       iOS kısıtlamaları nedeniyle çoklu indirmeler albüme otomatik kaydedilemez.
                     </p>
                   </div>
@@ -8015,18 +7682,18 @@ export default function App() {
                 <button
                   type="button"
                   onClick={() => setIosExportImages(null)}
-                  className="p-1.5 rounded-lg bg-slate-800 text-slate-400 hover:text-slate-200 cursor-pointer"
+                  className="p-1.5 rounded-lg bg-[#252528] text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
 
               {/* IOS SAVE INSTRUCTION ALERT */}
-              <div className="bg-gradient-to-r from-indigo-950 to-slate-900 border border-indigo-500/20 rounded-xl p-4 mb-4 text-xs space-y-2 leading-relaxed text-left">
-                <span className="font-bold text-indigo-400 block uppercase tracking-wider text-[10px]">⚠️ Albüme Fotoğraf Olarak Kaydetme Adımları:</span>
-                <ol className="list-decimal list-inside space-y-1.5 text-slate-300">
-                  <li>Aşağıdaki görsellerden kaydetmek istediğinizin üzerine <strong className="text-white bg-indigo-500/20 px-1 py-0.5 rounded">basılı tutun (uzun basın)</strong>.</li>
-                  <li>Açılan menüden <strong className="text-white">"Fotoğraflara Ekle"</strong> veya <strong className="text-white">"Görüntüyü Kaydet"</strong> seçeneğini seçin.</li>
+              <div className="bg-gradient-to-r from-[#252528] to-[#1D1D1F] border border-[#6C5CE7]/20 rounded-xl p-4 mb-4 text-xs space-y-2 leading-relaxed text-left">
+                <span className="font-bold text-[#6C5CE7] block uppercase tracking-wider text-[10px]">⚠️ Albüme Fotoğraf Olarak Kaydetme Adımları:</span>
+                <ol className="list-decimal list-inside space-y-1.5 text-[rgba(255,255,255,0.72)]">
+                  <li>Aşağıdaki görsellerden kaydetmek istediğinizin üzerine <strong className="text-[rgba(255,255,255,0.95)] bg-[#6C5CE7]/20 px-1 py-0.5 rounded">basılı tutun (uzun basın)</strong>.</li>
+                  <li>Açılan menüden <strong className="text-[rgba(255,255,255,0.95)]">"Fotoğraflara Ekle"</strong> veya <strong className="text-[rgba(255,255,255,0.95)]">"Görüntüyü Kaydet"</strong> seçeneğini seçin.</li>
                   <li>Görsel anında telefonunuzun fotoğraf albümüne eklenecektir. Her sayfa için bu işlemi tekrarlayın.</li>
                 </ol>
               </div>
@@ -8034,12 +7701,12 @@ export default function App() {
               {/* IMAGE SCROLLABLE LIST */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[50vh] overflow-y-auto pr-1">
                 {iosExportImages.map((img, idx) => (
-                  <div key={idx} className="bg-slate-950/60 border border-slate-800 rounded-xl p-3 flex flex-col space-y-2">
+                  <div key={idx} className="bg-[#1D1D1F]/60 border border-[rgba(255,255,255,0.08)] rounded-xl p-3 flex flex-col space-y-2">
                     <div className="flex justify-between items-center">
-                      <span className="text-[11px] font-bold text-slate-300">{img.name}</span>
-                      <span className="text-[9px] font-mono text-slate-500">Uzun Basıp Kaydedin</span>
+                      <span className="text-[11px] font-bold text-[rgba(255,255,255,0.72)]">{img.name}</span>
+                      <span className="text-[9px] font-mono text-[rgba(255,255,255,0.72)]">Uzun Basıp Kaydedin</span>
                     </div>
-                    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-slate-900 border border-slate-800/80 group">
+                    <div className="relative aspect-video w-full overflow-hidden rounded-lg bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)]/80 group">
                       <img
                         src={img.url}
                         alt={img.name}
@@ -8047,8 +7714,8 @@ export default function App() {
                         referrerPolicy="no-referrer"
                       />
                       <div className="absolute inset-0 bg-black/45 opacity-100 flex items-center justify-center transition pointer-events-none">
-                        <span className="text-[10px] text-white font-extrabold bg-slate-900/80 px-2 py-1 rounded-full border border-slate-800/80 flex items-center space-x-1.5">
-                          <Smartphone className="w-3 h-3 text-indigo-400 animate-pulse" />
+                        <span className="text-[10px] text-[rgba(255,255,255,0.95)] font-extrabold bg-[#1D1D1F]/80 px-2 py-1 rounded-full border border-[rgba(255,255,255,0.08)]/80 flex items-center space-x-1.5">
+                          <Smartphone className="w-3 h-3 text-[#6C5CE7] animate-pulse" />
                           <span>Görsele Basılı Tutun</span>
                         </span>
                       </div>
@@ -8057,15 +7724,287 @@ export default function App() {
                 ))}
               </div>
 
-              <div className="flex justify-end pt-4 border-t border-slate-800 mt-4">
+              <div className="flex justify-end pt-4 border-t border-[rgba(255,255,255,0.08)] mt-4">
                 <button
                   type="button"
                   onClick={() => setIosExportImages(null)}
-                  className="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold cursor-pointer transition shadow-lg shadow-indigo-600/10"
+                  className="px-5 py-2 rounded-xl bg-[#6C5CE7] hover:bg-[#6C5CE7] text-[rgba(255,255,255,0.95)] text-xs font-extrabold cursor-pointer transition shadow-lg shadow-[rgba(108,92,231,0.2)]/10"
                 >
                   Tamam, Kapat
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+        {/* ARAÇLAR & YOUTUBE MP3/MP4 İNDİRİCİ MODAL */}
+        {isToolsModalOpen && (
+          <div className="fixed inset-0 bg-[#1D1D1F]/85 backdrop-blur-md z-[99999] flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 15 }}
+              className="bg-[#1D1D1F] border border-[rgba(255,255,255,0.12)] rounded-3xl max-w-2xl w-full p-5 sm:p-7 shadow-2xl space-y-6 my-auto text-left relative overflow-hidden"
+            >
+              {/* Top Decorative Background Glow */}
+              <div className="absolute -top-24 -right-24 w-60 h-60 bg-red-500/15 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-amber-500/15 rounded-full blur-3xl pointer-events-none" />
+
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] pb-4">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2.5 rounded-2xl bg-gradient-to-tr from-red-600 via-orange-500 to-amber-500 shadow-md text-white">
+                    <Wrench className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="text-lg font-black text-white tracking-tight">Araçlar & Medya İndirici</h3>
+                      <span className="bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] px-2 py-0.5 rounded-full font-bold uppercase">
+                        Sınırsız & Ücretsiz
+                      </span>
+                    </div>
+                    <p className="text-xs text-[rgba(255,255,255,0.72)] font-medium mt-0.5">
+                      YouTube videolarını ve müziklerini <strong>Full HD</strong> ve <strong>320kbps</strong> kalitede hızlıca indirin.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsToolsModalOpen(false)}
+                  className="p-2 rounded-xl text-[rgba(255,255,255,0.72)] hover:text-white hover:bg-white/10 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Input Area */}
+              <div className="space-y-3">
+                <label className="block text-xs font-bold text-[rgba(255,255,255,0.95)] flex items-center justify-between">
+                  <span>YouTube Video URL / Linki</span>
+                  <span className="text-[10px] text-amber-400 font-mono">Full HD (1080p Max) Otomatik</span>
+                </label>
+                <div className="flex items-center space-x-2">
+                  <div className="relative flex-1">
+                    <input
+                      type="text"
+                      value={ytUrl}
+                      onChange={(e) => {
+                        setYtUrl(e.target.value);
+                        if (e.target.value.includes('youtube.com') || e.target.value.includes('youtu.be')) {
+                          handleFetchYtInfo(e.target.value);
+                        }
+                      }}
+                      placeholder="https://www.youtube.com/watch?v=... veya https://youtu.be/..."
+                      className="w-full bg-[#252528] border border-[rgba(255,255,255,0.12)] rounded-2xl px-4 py-3 text-xs text-white placeholder:text-[rgba(255,255,255,0.4)] focus:outline-none focus:border-orange-500 transition shadow-inner pr-20"
+                    />
+                    {ytUrl && (
+                      <button
+                        onClick={() => {
+                          setYtUrl('');
+                          setYtInfo(null);
+                          setYtError(null);
+                        }}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-[rgba(255,255,255,0.5)] hover:text-white p-1"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleFetchYtInfo()}
+                    disabled={ytLoading || !ytUrl.trim()}
+                    className="px-4 py-3 bg-[#252528] hover:bg-[#323236] border border-[rgba(255,255,255,0.12)] text-white text-xs font-bold rounded-2xl transition disabled:opacity-50 flex items-center space-x-1.5 cursor-pointer shrink-0"
+                  >
+                    {ytLoading ? <Loader2 className="w-4 h-4 animate-spin text-orange-400" /> : <Sparkles className="w-4 h-4 text-orange-400" />}
+                    <span className="hidden sm:inline">İncele</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Video Info Preview Card */}
+              {ytInfo && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-[#252528]/80 border border-[rgba(255,255,255,0.1)] rounded-2xl p-3.5 flex items-center space-x-4 shadow-sm"
+                >
+                  <div className="relative w-28 sm:w-36 aspect-video shrink-0 rounded-xl overflow-hidden bg-black border border-white/10 group">
+                    <img src={ytInfo.thumbnail} alt={ytInfo.title} className="w-full h-full object-cover" />
+                    <span className="absolute bottom-1 right-1 bg-red-600/90 text-white text-[9px] font-black px-1.5 py-0.5 rounded shadow">
+                      FULL HD
+                    </span>
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-orange-400">
+                      {ytInfo.author}
+                    </span>
+                    <h4 className="text-xs sm:text-sm font-bold text-white leading-tight line-clamp-2">
+                      {ytInfo.title}
+                    </h4>
+                    <a
+                      href={`https://www.youtube.com/watch?v=${ytInfo.videoId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-[rgba(255,255,255,0.6)] hover:text-white flex items-center space-x-1 transition"
+                    >
+                      <ExternalLink className="w-3 h-3 text-red-500" />
+                      <span>YouTube'da Aç</span>
+                    </a>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* Error Message */}
+              {ytError && (
+                <div className="p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-400 text-xs font-semibold flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{ytError}</span>
+                </div>
+              )}
+
+              {/* Format Selection (MP4 / MP3) */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-[rgba(255,255,255,0.95)]">
+                  İndirme Formatı ve Kalite Seçeneği
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setYtFormat('mp4')}
+                    className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between space-y-2 transition cursor-pointer ${
+                      ytFormat === 'mp4'
+                        ? 'bg-gradient-to-br from-red-600/20 to-orange-500/20 border-orange-500 text-white shadow-lg'
+                        : 'bg-[#252528] border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] hover:border-[rgba(255,255,255,0.2)]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Video className={`w-4 h-4 ${ytFormat === 'mp4' ? 'text-orange-400' : ''}`} />
+                        <span className="text-xs font-bold text-white">MP4 Video</span>
+                      </div>
+                      <span className="text-[9px] bg-orange-500/20 text-orange-400 font-extrabold px-1.5 py-0.5 rounded-md border border-orange-500/30">
+                        FULL HD
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-[rgba(255,255,255,0.6)] leading-tight">
+                      Görüntü + Ses (1080p En Yüksek Kalite)
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setYtFormat('mp3')}
+                    className={`p-3.5 rounded-2xl border text-left flex flex-col justify-between space-y-2 transition cursor-pointer ${
+                      ytFormat === 'mp3'
+                        ? 'bg-gradient-to-br from-amber-600/20 to-yellow-500/20 border-amber-400 text-white shadow-lg'
+                        : 'bg-[#252528] border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] hover:border-[rgba(255,255,255,0.2)]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <Music className={`w-4 h-4 ${ytFormat === 'mp3' ? 'text-amber-400' : ''}`} />
+                        <span className="text-xs font-bold text-white">MP3 Ses</span>
+                      </div>
+                      <span className="text-[9px] bg-amber-500/20 text-amber-400 font-extrabold px-1.5 py-0.5 rounded-md border border-amber-500/30">
+                        320 KBPS
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-[rgba(255,255,255,0.6)] leading-tight">
+                      Sadece Ses Dosyası (Yüksek Kalite MP3)
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Start Download Button */}
+              <button
+                type="button"
+                onClick={handleStartYtDownload}
+                disabled={ytDownloading || !ytUrl.trim()}
+                className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white text-xs font-black tracking-wide shadow-xl hover:shadow-orange-500/30 transition-all cursor-pointer flex items-center justify-center space-x-2 border border-white/20 disabled:opacity-50"
+              >
+                {ytDownloading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>İndirme Hazırlanıyor...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>{ytFormat === 'mp4' ? 'FULL HD MP4 İNDİR' : '320KBPS MP3 İNDİR'}</span>
+                  </>
+                )}
+              </button>
+
+              {/* Download Result / Direct Native Download Status */}
+              {ytDownloadResult && (
+                <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2 text-emerald-400 text-xs font-bold">
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>İndirme Başlatıldı! Dosyanız Aktarılıyor...</span>
+                    </div>
+                    <span className="text-[10px] font-mono text-emerald-300 bg-emerald-500/20 px-2 py-0.5 rounded-md">
+                      {ytDownloadResult.quality}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-[rgba(255,255,255,0.7)] leading-relaxed">
+                    Medya dosyası doğrudan cihazınızın İndirilenler klasörüne kaydedilmektedir. İndirme otomatik başlamadıysa aşağıdaki butona basabilirsiniz.
+                  </p>
+
+                  <a
+                    href={ytDownloadResult.downloadUrl}
+                    download={`${ytInfo?.title || 'youtube-media'}.${ytFormat}`}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-extrabold text-center transition flex items-center justify-center space-x-2 shadow-lg cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Dosyayı Tekrar İndir</span>
+                  </a>
+                </div>
+              )}
+
+              {/* Recent Downloads Section */}
+              {recentDownloads.length > 0 && (
+                <div className="pt-3 border-t border-[rgba(255,255,255,0.08)] space-y-2">
+                  <div className="flex items-center justify-between text-xs font-bold text-[rgba(255,255,255,0.72)]">
+                    <span>Son İndirilenler</span>
+                    <button
+                      onClick={handleClearYtHistory}
+                      className="text-[10px] text-red-400 hover:text-red-300 flex items-center space-x-1"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                      <span>Temizle</span>
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto pr-1">
+                    {recentDownloads.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2 rounded-xl bg-[#252528]/60 border border-[rgba(255,255,255,0.06)] flex items-center space-x-2 text-left"
+                      >
+                        <img src={item.thumbnail} alt="" className="w-10 h-7 object-cover rounded-lg shrink-0 bg-black" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-bold text-white truncate">{item.title}</p>
+                          <div className="flex items-center space-x-2 text-[9px] text-[rgba(255,255,255,0.5)]">
+                            <span className="font-extrabold text-orange-400">{item.format}</span>
+                            <span>•</span>
+                            <span>{item.date}</span>
+                          </div>
+                        </div>
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 text-[rgba(255,255,255,0.6)] hover:text-white bg-white/5 hover:bg-white/15 rounded-lg transition"
+                          title="Tekrar İndir"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </motion.div>
           </div>
         )}

@@ -1,0 +1,6 @@
+{
+  "name": "Grafik Otomasyon Motoru",
+  "description": "Kullanıcı tanımlı şablonlarla otomatik, yüksek çözünürlüklü ve özelleştirilebilir grafik tasarım üretim platformu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

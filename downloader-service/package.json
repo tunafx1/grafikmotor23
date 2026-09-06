@@ -1,0 +1,14 @@
+{
+  "name": "grafik-motoru-downloader-service",
+  "version": "1.0.0",
+  "description": "Standalone high-performance yt-dlp direct media download microservice",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
+  },
+  "type": "module"
+}

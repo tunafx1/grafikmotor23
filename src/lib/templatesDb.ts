@@ -147,6 +147,7 @@ function mapTemplatePage(p: any): any {
     id: p.id,
     name: p.name,
     pageRole: p.pageRole || null,
+    backgroundImageUrl: p.backgroundImageUrl || null,
     regions: Array.isArray(p.regions) ? p.regions.map(mapRegion) : [],
     fixedElements: Array.isArray(p.fixedElements) ? p.fixedElements.map(mapFixedElement) : []
   };
@@ -174,10 +175,10 @@ export async function getCloudTemplates(): Promise<DesignTemplate[]> {
       const pages = Array.isArray(data.pages) ? data.pages.map(mapTemplatePage) : null;
 
       const palette = data.palette || {
-        primary: data.primaryColor || '#4F46E5',
-        accent: data.accentColor || '#F59E0B',
-        text: data.textColor || '#0F172A',
-        bg: '#F8FAFC'
+        primary: data.primaryColor || '#6C5CE7',
+        accent: data.accentColor || '#FF9F0A',
+        text: data.textColor || 'rgba(255,255,255,0.95)',
+        bg: '#1D1D1F'
       };
       if (data.palette && data.palette.boldHighlight) {
         palette.boldHighlight = data.palette.boldHighlight;
@@ -223,7 +224,7 @@ export async function saveCloudTemplate(template: DesignTemplate): Promise<void>
       name: template.name,
       width: Number(template.width),
       height: Number(template.height),
-      backgroundColor: template.backgroundColor || '#FFFFFF',
+      backgroundColor: template.backgroundColor || '#1D1D1F',
       backgroundGradient: template.backgroundGradient || null,
       backgroundImageUrl: template.backgroundImageUrl || null,
       regions: Array.isArray(template.regions) ? template.regions.map(mapRegion) : [],
@@ -231,15 +232,15 @@ export async function saveCloudTemplate(template: DesignTemplate): Promise<void>
       pages: Array.isArray(template.pages) ? template.pages.map(mapTemplatePage) : null,
       aiSystemPrompt: template.aiSystemPrompt || null,
       palette: {
-        primary: template.palette.primary || '#4F46E5',
-        accent: template.palette.accent || '#F59E0B',
-        text: template.palette.text || '#0F172A',
-        bg: template.palette.bg || '#F8FAFC',
+        primary: template.palette.primary || '#6C5CE7',
+        accent: template.palette.accent || '#FF9F0A',
+        text: template.palette.text || 'rgba(255,255,255,0.95)',
+        bg: template.palette.bg || '#1D1D1F',
         boldHighlight: template.palette.boldHighlight || null
       },
-      primaryColor: template.palette.primary || '#4F46E5',
-      accentColor: template.palette.accent || '#F59E0B',
-      textColor: template.palette.text || '#0F172A',
+      primaryColor: template.palette.primary || '#6C5CE7',
+      accentColor: template.palette.accent || '#FF9F0A',
+      textColor: template.palette.text || 'rgba(255,255,255,0.95)',
       userId: user.uid,
       updatedAt: new Date().toISOString()
     });
@@ -300,7 +301,9 @@ export async function saveUserGraphicProject(
   userId: string,
   currentTemplateId: string,
   graphicData: any,
-  generatedPages: any[]
+  generatedPages: any[],
+  templates?: DesignTemplate[],
+  pagesByTemplate?: Record<string, any[]>
 ): Promise<void> {
   if (!isValidConfig) return;
   const path = `graphic_projects/${userId}`;
@@ -310,6 +313,8 @@ export async function saveUserGraphicProject(
       currentTemplateId,
       graphicData,
       generatedPages,
+      templates,
+      pagesByTemplate,
       updatedAt: new Date().toISOString()
     });
     await setDoc(doc(db, 'graphic_projects', userId), payload);

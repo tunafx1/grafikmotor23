@@ -3,20 +3,61 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>Antigravity | Grafik Otomasyon Motoru</title>
+    <title>Grafik Motoru - AI Tasarım Platformu</title>
+    <meta name="description" content="Grafik Motoru, yapay zeka destekli profesyonel bir grafik tasarım platformudur. Saniyeler içinde şablonlarınızı oluşturun, otomatik olarak resimlerinizi analiz edip yüksek çözünürlükte çıktılar alın." />
+    <meta name="keywords" content="Grafik Motoru, AI Tasarım, Yapay Zeka Tasarım, Otomatik Tasarım, Grafik Tasarım, Toplu Çıktı" />
+    <meta name="author" content="Grafik Motoru" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Grafik Motoru - AI Tasarım Platformu" />
+    <meta property="og:description" content="Saniyeler içinde profesyonel tasarımlar oluşturun. Yapay zeka ile otomatik boyutlandırma ve yerleştirme." />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:title" content="Grafik Motoru - AI Tasarım Platformu" />
+    <meta property="twitter:description" content="Saniyeler içinde profesyonel tasarımlar oluşturun. Yapay zeka ile otomatik boyutlandırma ve yerleştirme." />
     
     <!-- PWA & Apple Web App Settings -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Antigravity" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="apple-mobile-web-app-title" content="Grafik Motoru" />
+    <meta name="theme-color" content="#1D1D1F" />
     
     <!-- Icons & Manifest -->
     <link rel="icon" type="image/svg+xml" href="/logo.svg" />
     <link rel="apple-touch-icon" href="/logo.svg" />
     <link rel="manifest" href="/manifest.json" />
   </head>
-  <body>
+  <body class="bg-[#1D1D1F] text-[rgba(255,255,255,0.95)]">
+    <style>
+      #native-loader {
+        position: fixed; inset: 0; background-color: #1D1D1F; display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 999999; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), visibility 0.6s;
+      }
+      #native-loader.ds-hidden {
+        opacity: 0; visibility: hidden; pointer-events: none;
+      }
+      .loader-logo {
+        width: 48px; height: 48px; background: #6C5CE7; border-radius: 14px; display: flex; justify-content: center; align-items: center; color: white; font-weight: 800; font-size: 24px; box-shadow: 0 4px 20px rgba(108, 92, 231, 0.3); margin-bottom: 24px;
+      }
+      .loader-bar-container {
+        width: 140px; height: 3px; background-color: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; position: relative; margin-bottom: 12px;
+      }
+      .loader-bar-progress {
+        position: absolute; left: 0; top: 0; bottom: 0; width: 30%; background-color: #6C5CE7; border-radius: 3px; animation: ds-load 1.8s infinite ease-in-out;
+      }
+      .loader-text {
+        font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.72); letter-spacing: -0.01em; animation: ds-pulse 2s infinite ease-in-out;
+      }
+      @keyframes ds-load { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+      @keyframes ds-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+    </style>
+    <div id="native-loader">
+      <div class="loader-logo">G</div>
+      <div class="loader-bar-container"><div class="loader-bar-progress"></div></div>
+      <div class="loader-text">Uygulama hazırlanıyor...</div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -11,9 +11,9 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    // Secure owner authorization: requires a valid authenticated user (Google Auth or Anonymous Auth)
     function isAuthorizedOwner(userId) {
-      return (request.auth != null && userId == request.auth.uid) || 
-             (request.auth == null && userId is string && userId.startsWith('guest_'));
+      return request.auth != null && userId == request.auth.uid;
     }
 
     // Template validation blueprint
@@ -37,22 +37,19 @@ service cloud.firestore {
     }
 
     match /templates/{templateId} {
-      allow list: if (request.auth != null && resource.data.userId == request.auth.uid) || 
-                     (request.auth == null && resource.data.userId.startsWith('guest_'));
+      // Only authenticated owner can list, get, update, or delete their templates
+      allow list, get: if request.auth != null && resource.data.userId == request.auth.uid;
                      
-      allow get: if (request.auth != null && resource.data.userId == request.auth.uid) || 
-                    (request.auth == null && resource.data.userId.startsWith('guest_'));
-                    
       allow create: if isValidId(templateId) && isValidTemplate(request.resource.data);
       
       allow update: if isValidId(templateId) && 
-                       ((request.auth != null && resource.data.userId == request.auth.uid) || 
-                        (request.auth == null && resource.data.userId.startsWith('guest_') && resource.data.userId == request.resource.data.userId)) && 
+                       request.auth != null && 
+                       resource.data.userId == request.auth.uid && 
                        isValidTemplate(request.resource.data);
                        
       allow delete: if isValidId(templateId) && 
-                       ((request.auth != null && resource.data.userId == request.auth.uid) || 
-                        (request.auth == null && resource.data.userId.startsWith('guest_')));
+                       request.auth != null && 
+                       resource.data.userId == request.auth.uid;
     }
 
     match /graphic_projects/{userId} {

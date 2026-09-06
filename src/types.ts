@@ -68,6 +68,7 @@ export interface FixedElement {
 }
 
 export interface TemplatePage {
+  backgroundImageUrl?: string;
   id: string; // '1' (Cover/Kapak) or '2' (Collage/Kolaj)
   name: string;
   regions: Region[];
@@ -100,6 +101,17 @@ export interface DesignTemplate {
   aiSystemPrompt?: string;
 }
 
+export interface SequenceMediaItem {
+  mediaId?: string;
+  id: string;
+  type: 'image' | 'video';
+  file?: File;
+  url: string;           // Blob URL or Data URL
+  thumbnailUrl: string;  // Snapshot JPEG for canvas & AI
+  duration?: number;     // Video duration in seconds
+  originalName?: string;
+}
+
 export interface GraphicData {
   templateId: string;
   dynamicTexts: Record<string, string>; // regionId -> text
@@ -109,6 +121,11 @@ export interface GraphicData {
     offsetX: number;
     offsetY: number;
     rotation: number;
+    mediaId?: string;
+    isVideo?: boolean;
+    videoUrl?: string;
+    duration?: number;
+    thumbnailUrl?: string;
   }>; // regionId -> image options
   paletteOverrides?: {
     primary?: string;

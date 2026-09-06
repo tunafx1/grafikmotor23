@@ -1,32 +1,44 @@
 import express from 'express';
 import path from 'path';
+import { extractVideoId as extractYouTubeVideoId, streamMedia } from '../downloader-service/media-stream.js';
 import { GoogleGenAI, Type } from '@google/genai';
+import dotenv from 'dotenv';
 
-// Safe lazy initializer for Gemini API client to prevent crashing on boot if key is missing
+// Automatically load .env.local first, then .env in local/node environment
+if (!process.env.VERCEL) {
+  dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+  dotenv.config();
+}
+
+// Models and credentials are supplied by the host environment.
+const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || DEFAULT_MODEL;
 let aiClient: GoogleGenAI | null = null;
 
 function getGeminiClient(): GoogleGenAI | null {
-  if (!aiClient) {
-    let key = process.env.GEMINI_API_KEY;
-    if (!key || key === 'MY_GEMINI_API_KEY' || key.trim() === '') {
-      key = 'AQ.Ab8RN6KUtbi3xOIHoeOZx24mlGtE_FckCpN5xD6MD0ingMCpog';
-    }
-    if (key && key !== 'MY_GEMINI_API_KEY') {
-      aiClient = new GoogleGenAI({
-        apiKey: key,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          },
-        },
-      });
-    }
-  }
+  const key = process.env.GEMINI_API_KEY?.trim();
+  if (!key || key === 'MY_GEMINI_API_KEY') return null;
+  if (!aiClient) aiClient = new GoogleGenAI({apiKey: key});
   return aiClient;
 }
 
+// Color and Text validation helpers
+function isValidHexOrRgbaColor(color: any): boolean {
+  if (!color || typeof color !== 'string') return false;
+  const trimmed = color.trim();
+  return /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$/.test(trimmed) ||
+         /^rgba?\(\s*\d+\s*,\s*\d+\s*,\s*\d+(\s*,\s*[\d.]+\s*)?\)$/.test(trimmed);
+}
+
+function sanitizeAiText(text: any): string {
+  if (!text || typeof text !== 'string') return '';
+  return text.trim();
+}
+
 async function generateContentWithRetry(client: GoogleGenAI, params: any, attempt = 1): Promise<any> {
-  const currentModel = params.model || 'gemini-3.5-flash';
+  const currentModel = params.model || DEFAULT_MODEL;
+  params.model = currentModel;
+
   try {
     return await client.models.generateContent(params);
   } catch (err: any) {
@@ -36,22 +48,24 @@ async function generateContentWithRetry(client: GoogleGenAI, params: any, attemp
                                      errMsg.includes('Resource has been exhausted') || 
                                      errMsg.includes('429') || 
                                      errMsg.includes('high demand') ||
+                                     errMsg.includes('404') ||
                                      err?.status === 503 ||
-                                     err?.status === 429;
+                                     err?.status === 429 ||
+                                     err?.status === 404;
     
-    console.log(`[API Notice] Attempt ${attempt} model ${currentModel} returned: ${isRateLimitOrUnavailable ? 'TEMPORARILY_BUSY' : 'UNEXPECTED_STATUS'}`);
+    if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
+      console.log(`[API Notice] Attempt ${attempt} model ${currentModel} returned: ${isRateLimitOrUnavailable ? 'RETRYABLE_STATUS' : 'UNEXPECTED_STATUS'}`);
+    }
 
-    if (isRateLimitOrUnavailable && attempt < 4) {
-      const delay = attempt * 500;
-      console.log(`Retrying after brief wait...`);
+    if (isRateLimitOrUnavailable && attempt < 3) {
+      const delay = attempt * 600;
       await new Promise(resolve => setTimeout(resolve, delay));
       
-      if (currentModel === 'gemini-3.5-flash') {
-        console.log(`Switching model to gemini-3.1-flash-lite for fallback attempt...`);
-        params.model = 'gemini-3.1-flash-lite';
-      } else if (currentModel === 'gemini-3.1-flash-lite') {
-        console.log(`Switching model to gemini-flash-latest for fallback attempt...`);
-        params.model = 'gemini-flash-latest';
+      if (currentModel !== FALLBACK_MODEL) {
+        if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
+          console.log(`Switching model to ${FALLBACK_MODEL} for retry attempt...`);
+        }
+        params.model = FALLBACK_MODEL;
       }
 
       return generateContentWithRetry(client, params, attempt + 1);
@@ -61,197 +75,96 @@ async function generateContentWithRetry(client: GoogleGenAI, params: any, attemp
 }
 
 const app = express();
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
-// Robust routing middleware to resolve Vercel serverless function path rewrites
-app.use((req, res, next) => {
-  const originalUrlLower = (req.originalUrl || req.url || '').toLowerCase();
-  const pathLower = req.path.toLowerCase();
-  
-  console.log(`[Vercel Route Debug] Method: ${req.method}, Path: ${req.path}, URL: ${req.url}, OriginalURL: ${req.originalUrl}`);
-
-  // Route rewriting based on original URL or path patterns
-  if (originalUrlLower.includes('generate-content') || pathLower.includes('generate-content')) {
-    console.log('[Routing Middleware] Forwarding to /api/generate-content');
-    req.url = '/api/generate-content';
-  } else if (originalUrlLower.includes('analyze-collage') || pathLower.includes('analyze-collage')) {
-    console.log('[Routing Middleware] Forwarding to /api/analyze-collage');
-    req.url = '/api/analyze-collage';
-  } else if (req.method === 'POST') {
-    // If route doesn't match but it is a POST request to a generic index/api endpoint, detect by request body payload
-    const hasNiche = req.body && (req.body.niche !== undefined || req.body.styleType !== undefined);
-    const hasImages = req.body && (req.body.images !== undefined || req.body.userPrompt !== undefined);
-
-    if (hasNiche) {
-      console.log('[Routing Middleware Payload Fallback] Detected generate-content body, rewriting to /api/generate-content');
-      req.url = '/api/generate-content';
-    } else if (hasImages) {
-      console.log('[Routing Middleware Payload Fallback] Detected analyze-collage body, rewriting to /api/analyze-collage');
-      req.url = '/api/analyze-collage';
-    }
+// Normalize endpoint prefixes while preserving query parameters (video streams need them).
+app.use((req, _res, next) => {
+  const endpoint = req.path.match(/(?:^|\/)(generate-content|analyze-collage|yt-info|yt-download|yt-stream)\/?$/i)?.[1];
+  if (endpoint) {
+    const queryIndex = req.url.indexOf('?');
+    req.url = `/api/${endpoint.toLowerCase()}${queryIndex >= 0 ? req.url.slice(queryIndex) : ''}`;
   }
   next();
 });
 
-  // API Route: AI Powered content & palette generator
-  app.post(['/api/generate-content', '/generate-content'], async (req, res) => {
-    const { niche, styleType } = req.body;
-    
-    const nicheText = niche || 'Genel Girişim';
-    const styleDescription = styleType || 'modern ve minimalist';
+// Predefined fallbacks in case API Key is missing or service fails
+const fallbackResponses: Record<string, any> = {
+  fashion: {
+    title: "**Yeni Sezon** Zamansız Dokunuşlar",
+    subtitle: "PREMIUM KOLEKSİYON",
+    description: "En özel pamuk iplikleriyle işlenen, *şık ve sürdürülebilir* parçalar şimdi mağazada yerini aldı.",
+    primaryColor: "#FF453A", // Warm Terracotta
+    accentColor: "#FF9F0A",  // Sand Gold
+    textColor: "rgba(255,255,255,0.95)",    // Stone 900
+    bgColor: "#1D1D1F"       // Soft Cream
+  },
+  tech: {
+    title: "**Yapay Zeka** ile Sınırları Aşın",
+    subtitle: "YENİ NESİL OTOMASYON",
+    description: "Geleceğin algoritma mimarileri ve *büyük dil modelleri* ile iş akışlarınızı otomatikleştirin.",
+    primaryColor: "#6C5CE7", // Neon Cyan
+    accentColor: "#6C5CE7",  // Electric Blue
+    textColor: "rgba(255,255,255,0.95)",    // Light Gray
+    bgColor: "#1D1D1F"       // Deep Dark Space
+  },
+  food: {
+    title: "Tazelikten Gelen **Gurme** Lezzet",
+    subtitle: "ORGANİK & DOĞAL",
+    description: "Organik bahçelerden toplanan malzemelerle, *şeflerimizin elinden* çıkan unutulmaz bir deneyim.",
+    primaryColor: "#34C759", // Forest Green
+    accentColor: "#FF453A",  // Fresh Orange
+    textColor: "rgba(255,255,255,0.95)",    // Stone 950
+    bgColor: "#1D1D1F"       // Warm white
+  },
+  education: {
+    title: "Geleceğinizi **Kodlayarak** Şekillendirin",
+    subtitle: "UZMAN EĞİTMENLER",
+    description: "Birebir mentorluk ve *pratik projelerle* sıfırdan ileri seviyeye yazılım mühendisliği eğitimi.",
+    primaryColor: "#6C5CE7", // Indigo
+    accentColor: "#34C759",  // Emerald
+    textColor: "rgba(255,255,255,0.95)",    // Slate 900
+    bgColor: "#1D1D1F"       // Slate 50
+  },
+  minimalist: {
+    title: "Az Çoktur: **Yalın** Estetik",
+    subtitle: "ZAMANSIZ DİZAYN",
+    description: "Gürültüden arınmış, *sadeliğin ve dengenin* ön planda olduğu tasarım yolculuğu.",
+    primaryColor: "#1D1D1F", // Obsidian Black
+    accentColor: "rgba(255,255,255,0.72)",  // Muted Gray
+    textColor: "#252528",    // Deep Charcoal
+    bgColor: "#1D1D1F"       // Clean White
+  }
+};
 
-    // Premium fallbacks in case API Key is missing or service fails
-    const fallbackResponses: Record<string, any> = {
-      fashion: {
-        title: "**Yeni Sezon** Zamansız Dokunuşlar",
-        description: "En özel pamuk iplikleriyle işlenen, *şık ve sürdürülebilir* parçalar şimdi mağazada yerini aldı.",
-        primaryColor: "#7C2D12", // Warm Terracotta
-        accentColor: "#D97706",  // Sand Gold
-        textColor: "#292524",    // Stone 900
-        bgColor: "#FAF8F5"       // Soft Cream
-      },
-      tech: {
-        title: "**Yapay Zeka** ile Sınırları Aşın",
-        description: "Geleceğin algoritma mimarileri ve *büyük dil modelleri* ile iş akışlarınızı otomatikleştirin.",
-        primaryColor: "#0891B2", // Neon Cyan
-        accentColor: "#2563EB",  // Electric Blue
-        textColor: "#F3F4F6",    // Light Gray
-        bgColor: "#090D16"       // Deep Dark Space
-      },
-      food: {
-        title: "Tazelikten Gelen **Gurme** Lezzet",
-        description: "Organik bahçelerden toplanan malzemelerle, *şeflerimizin elinden* çıkan unutulmaz bir deneyim.",
-        primaryColor: "#15803D", // Forest Green
-        accentColor: "#EA580C",  // Fresh Orange
-        textColor: "#1C1917",    // Stone 950
-        bgColor: "#FDFDFB"       // Warm white
-      },
-      education: {
-        title: "Geleceğinizi **Kodlayarak** Şekillendirin",
-        description: "Birebir mentorluk ve *pratik projelerle* sıfırdan ileri seviyeye yazılım mühendisliği eğitimi.",
-        primaryColor: "#4F46E5", // Indigo
-        accentColor: "#10B981",  // Emerald
-        textColor: "#0F172A",    // Slate 900
-        bgColor: "#F8FAFC"       // Slate 50
-      },
-      minimalist: {
-        title: "Az Çoktur: **Yalın** Estetik",
-        description: "Gürültüden arınmış, *sadeliğin ve dengenin* ön planda olduğu tasarım yolculuğu.",
-        primaryColor: "#111827", // Obsidian Black
-        accentColor: "#6B7280",  // Muted Gray
-        textColor: "#1F2937",    // Deep Charcoal
-        bgColor: "#FFFFFF"       // Clean White
-      }
-    };
+// API Route: AI Powered content & palette generator with Template AI Prompt integration
+app.post(['/api/generate-content', '/generate-content'], async (req, res) => {
+  const { niche, styleType, systemPrompt, templateName, targetBrief, image } = req.body;
+  
+  const nicheText = niche || 'Genel Girişim';
+  const styleDescription = styleType || 'modern ve minimalist';
+  const selectedFallback = fallbackResponses[styleType] || fallbackResponses.minimalist;
 
-    const client = getGeminiClient();
-    if (!client) {
-      console.log('Gemini API key is not configured or placeholder detected. Returning high-quality predefined fallback.');
-      
-      // Match key or default to minimalist
-      const selectedFallback = fallbackResponses[styleType] || fallbackResponses.minimalist;
-      return res.json({ 
-        success: true, 
-        isFallback: true,
-        ...selectedFallback
-      });
+  const client = getGeminiClient();
+  if (!client) {
+    if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
+      console.warn('[AI Notice] GEMINI_API_KEY is not configured. Returning predefined fallback with reason.');
     }
+    return res.json({ 
+      success: true, 
+      isFallback: true,
+      reason: 'missing_api_key',
+      message: 'GEMINI_API_KEY ortam değişkeni tanımlanmamış. Varsayılan şablon yüklendi.',
+      ...selectedFallback
+    });
+  }
 
-    try {
-      const prompt = `Sen profesyonel bir pazarlama yazarı ve grafik tasarım uzmanısın.
-Kullanıcı için yüksek dönüşüm sağlayan bir başlık (title), açıklama (description) ve tasarım renk paleti (primaryColor, accentColor, textColor, bgColor hex renk kodları) üret.
-
-Kullanıcının sektörü/nişi: "${nicheText}"
-Şablon Tarzı: "${styleDescription}"
-
-Tasarım kuralları:
-1. Başlıkta (title) EN ÖNEMLİ 1-2 kelimeyi vurgulamak için **kalın** formatta (**kelime**) yaz.
-2. Açıklamada (description) bazı can alıcı kelimeleri *eğik* formatta (*kelime*) yaz. Başlığa kıyasla daha açıklayıcı olsun, maksimum 2 cümle olsun.
-3. Renk paleti hex formatında (#FFF000 gibi) olmalı. Seçilen tarza uygun renkler olmalı (örn: "karanlık tema" ise bgColor koyu, textColor açık olmalı; "doğal" ise toprak tonları olmalı vb.).
-
-Yanıtı kesinlikle şu JSON şemasında ver:
-{
-  "title": "string (başlık, kalın etiketleri içerir)",
-  "description": "string (açıklama, eğik etiketleri içerir)",
-  "primaryColor": "string (Hex rengi, örn: #4F46E5)",
-  "accentColor": "string (Hex rengi, örn: #F59E0B)",
-  "textColor": "string (Hex rengi, örn: #0F172A)",
-  "bgColor": "string (Hex rengi, örn: #F8FAFC)"
-}`;
-
-      const response = await generateContentWithRetry(client, {
-        model: 'gemini-3.5-flash',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              description: { type: Type.STRING },
-              primaryColor: { type: Type.STRING },
-              accentColor: { type: Type.STRING },
-              textColor: { type: Type.STRING },
-              bgColor: { type: Type.STRING }
-            },
-            required: ['title', 'description', 'primaryColor', 'accentColor', 'textColor', 'bgColor']
-          }
-        }
-      });
-
-      const data = JSON.parse(response.text || '{}');
-      return res.json({
-        success: true,
-        isFallback: false,
-        ...data
-      });
-
-    } catch (err) {
-      console.error('Error contacting Gemini API:', err);
-      // Fail gracefully with preset fallback
-      const selectedFallback = fallbackResponses[styleType] || fallbackResponses.minimalist;
-      return res.json({
-        success: true,
-        isFallback: true,
-        error: (err as Error).message,
-        ...selectedFallback
-      });
-    }
-  });
-
-  // API Route: AI Powered Image Analysis & Collage Auto-Generator
-  app.post(['/api/analyze-collage', '/analyze-collage'], async (req, res) => {
-    const { images, systemPrompt, userPrompt } = req.body;
-
-    if (!images || !Array.isArray(images) || images.length === 0) {
-      return res.status(400).json({ success: false, error: 'En az bir görsel gönderilmelidir.' });
-    }
-
-    const client = getGeminiClient();
-    if (!client) {
-      console.log('Gemini API key is not configured. Returning predefined fallback.');
-      return res.json({
-        success: true,
-        isFallback: true,
-        title: "**Harika Keşifler** Sizi Bekliyor",
-        subtitle: "*Profesyonel Tasarım* Otomasyonu",
-        description: "Görseliniz otomatik olarak analiz edildi. *Kurumsal dilinize* uygun en estetik tasarımlar hazırlandı.",
-        primaryColor: "#4F46E5",
-        accentColor: "#F59E0B",
-        textColor: "#0F172A",
-        bgColor: "#F8FAFC"
-      });
-    }
-
-    try {
-      // Process the first image for visual understanding
-      const mainImageDataUrl = images[0];
-      const match = mainImageDataUrl.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
-      
-      let imagePart: any = null;
+  try {
+    let imagePart: any = null;
+    if (image && typeof image === 'string' && image.trim() !== '') {
+      const match = image.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
       if (match) {
         imagePart = {
           inlineData: {
@@ -260,116 +173,412 @@ Yanıtı kesinlikle şu JSON şemasında ver:
           }
         };
       }
+    }
 
-      const systemInstruction = `Sen profesyonel bir sosyal medya yöneticisi, marka stratejisti ve tasarımcısın.
-Gönderilen görseli görsel zeka ile analiz et. Görselin konusunu, renklerini, hissettirdiği duyguyu ve tarzı algıla.
-Bu analize dayanarak, hem Kapak Sayfası (Cover Page) için yüksek etkileşimli bir başlık (title) ve alt başlık (subtitle) hem de Kolaj Sayfası (Collage Page) için detaylı ve açıklayıcı bir metin (description) oluştur.
+    const prompt = `Sen profesyonel bir pazarlama metin yazarı, marka stratejisti ve görsel grafik tasarım uzmanısın.
+${imagePart ? 'Gönderilen görseli görsel zeka (multimodal vision) ile dikkatle analiz et. Görselin konusunu, nesnelerini, rengini ve uyandırdığı duyguyu algıla.' : 'Kullanıcının seçtiği şablon için yüksek dönüşüm sağlayan içerikler üret.'}
+Kullanıcı için yüksek dönüşüm sağlayan bir başlık (title), alt başlık / rozet / slogan (subtitle), detaylı açıklama (description) ve tasarım renk paleti (primaryColor, accentColor, textColor, bgColor) üret.
 
-KURUMSAL DİL / BRAND PROMPT KURALLARI:
+KULLANICI VE ŞABLON BİLGİLERİ:
+- Sektör / Niş: "${nicheText}"
+- Şablon Tarzı: "${styleDescription}"
+${templateName ? `- Şablon Adı: "${templateName}"` : ''}
+${targetBrief && targetBrief.trim() !== '' ? `- Kullanıcının Özel Notu / Talebi: "${targetBrief.trim()}"` : ''}
+
+${systemPrompt && systemPrompt.trim() !== '' ? `
+================================================================================
+KRİTİK — ŞABLONUN KURUMSAL DİL / AI PROMPT KURALLARI:
+Aşağıdaki kurallara KESİNLİKLE VE ÖNCELİKLE UYULMALIDIR. Bu şablona özel kurallar genel kurallardan daha üstündür:
+"""
+${systemPrompt.trim()}
+"""
+================================================================================
+` : ''}
+
+METİN VE BİÇİMLENDİRME KURALLARI:
+1. Başlık (title): ${imagePart ? 'Görselin temasını yansıtan, dikkat çekici ve vurucu olmalı.' : 'Dikkat çekici, vurucu olmalı.'} Başlıkta en can alıcı 1-2 kelimeyi vurgulamak için **kalın** formatta (**kelime**) yaz.
+2. Alt Başlık / Rozet (subtitle): Şablonun etiket, kategori, rozet veya slogan alanına uygun, kısa ve çarpıcı bir ifade üret (3-5 kelime). İsteğe bağlı bazı kelimeleri *eğik* (*kelime*) yazabilirsin.
+3. Açıklama (description): Başlığı ve görseli tamamlayan, ikna edici açıklama metni. Can alıcı yerleri *eğik* (*kelime*) formatta yaz. Maksimum 2 cümle olsun.
+4. Renk Paleti: ${imagePart ? 'Görselin ana renklerine ve' : ''} seçilen tarza, sektöre ve kurumsal dile tam uyumlu 4 adet geçerli Hex renk kodu (#HEX) belirle.
+
+Yanıtı kesinlikle şu JSON şemasında ver:
+{
+  "title": "string (başlık, en önemli kelimeler **kalın** olmalı)",
+  "subtitle": "string (alt başlık, rozet veya kısa slogan)",
+  "description": "string (açıklama metni, bazı kelimeler *eğik* olmalı)",
+  "primaryColor": "string (Hex rengi, örn: #6C5CE7)",
+  "accentColor": "string (Hex rengi, örn: #FF9F0A)",
+  "textColor": "string (Hex rengi, örn: rgba(255,255,255,0.95))",
+  "bgColor": "string (Hex rengi, örn: #1D1D1F)"
+}`;
+
+    const contents: any[] = [];
+    if (imagePart) {
+      contents.push(imagePart);
+    }
+    contents.push({ text: prompt });
+
+    const response = await generateContentWithRetry(client, {
+      model: DEFAULT_MODEL,
+      contents: contents,
+      config: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            subtitle: { type: Type.STRING },
+            description: { type: Type.STRING },
+            primaryColor: { type: Type.STRING },
+            accentColor: { type: Type.STRING },
+            textColor: { type: Type.STRING },
+            bgColor: { type: Type.STRING }
+          },
+          required: ['title', 'subtitle', 'description', 'primaryColor', 'accentColor', 'textColor', 'bgColor']
+        }
+      }
+    });
+
+    let rawData: any = {};
+    try {
+      rawData = JSON.parse(response.text || '{}');
+    } catch (parseErr) {
+      console.warn('Gemini response was not valid JSON:', response.text);
+      return res.json({
+        success: true,
+        isFallback: true,
+        reason: 'invalid_json',
+        error: 'Model çıktısı JSON formatında çözümlenemedi.',
+        ...selectedFallback
+      });
+    }
+
+    // Validate fields and ensure valid color formats
+    const validatedData = {
+      title: sanitizeAiText(rawData.title) || selectedFallback.title,
+      subtitle: sanitizeAiText(rawData.subtitle) || selectedFallback.subtitle || '',
+      description: sanitizeAiText(rawData.description) || selectedFallback.description,
+      primaryColor: isValidHexOrRgbaColor(rawData.primaryColor) ? rawData.primaryColor.trim() : selectedFallback.primaryColor,
+      accentColor: isValidHexOrRgbaColor(rawData.accentColor) ? rawData.accentColor.trim() : selectedFallback.accentColor,
+      textColor: isValidHexOrRgbaColor(rawData.textColor) ? rawData.textColor.trim() : selectedFallback.textColor,
+      bgColor: isValidHexOrRgbaColor(rawData.bgColor) ? rawData.bgColor.trim() : selectedFallback.bgColor
+    };
+
+    return res.json({
+      success: true,
+      isFallback: false,
+      ...validatedData
+    });
+
+  } catch (err: any) {
+    console.error('Error contacting Gemini API:', err?.message || err);
+    const errMsg = err?.message || String(err);
+    const isQuota = errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Resource has been exhausted');
+    const isAuth = errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API key') || errMsg.includes('API_KEY_INVALID');
+    const reason = isQuota ? 'quota_exceeded' : (isAuth ? 'invalid_api_key' : 'gemini_error');
+
+    return res.json({
+      success: true,
+      isFallback: true,
+      reason,
+      error: errMsg,
+      ...selectedFallback
+    });
+  }
+});
+
+// API Route: AI Powered Image Analysis & Collage Auto-Generator
+app.post(['/api/analyze-collage', '/analyze-collage'], async (req, res) => {
+  const { images, systemPrompt, userPrompt, templateName } = req.body;
+
+  const topic = userPrompt && userPrompt.trim() !== '' ? userPrompt.trim() : 'Özel Tasarım';
+  const defaultCollageFallback = {
+    title: `**${topic.toUpperCase()}** Koleksiyonu`,
+    subtitle: `*${topic}* Özel Konsepti`,
+    description: `${topic} ile ilgili *en yeni tasarımlar*, trendler ve sürpriz fırsatlar sizleri bekliyor.`,
+    primaryColor: "#6C5CE7",
+    accentColor: "#FF9F0A",
+    textColor: "rgba(255,255,255,0.95)",
+    bgColor: "#1D1D1F"
+  };
+
+  const client = getGeminiClient();
+  if (!client) {
+    if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
+      console.warn('[AI Notice] GEMINI_API_KEY is not configured. Returning collage fallback.');
+    }
+    return res.json({
+      success: true,
+      isFallback: true,
+      reason: 'missing_api_key',
+      message: 'GEMINI_API_KEY ortam değişkeni tanımlanmamış. Varsayılan kolaj şablonu yüklendi.',
+      ...defaultCollageFallback
+    });
+  }
+
+  try {
+    // Process images for visual understanding if available (supports up to 3 images for multimodal context)
+    const imageParts: any[] = [];
+    if (images && Array.isArray(images)) {
+      for (const imgItem of images.slice(0, 3)) {
+        if (typeof imgItem === 'string' && imgItem.trim() !== '') {
+          const match = imgItem.match(/^data:(image\/[a-zA-Z+]+);base64,(.+)$/);
+          if (match) {
+            imageParts.push({
+              inlineData: {
+                mimeType: match[1],
+                data: match[2]
+              }
+            });
+          }
+        }
+      }
+    }
+    const hasImage = imageParts.length > 0;
+
+    const systemInstruction = `Sen profesyonel bir sosyal medya yöneticisi, marka stratejisti ve grafik tasarımcısın.
+${hasImage ? 'Gönderilen görsel(ler)i görsel zeka (multimodal vision) ile analiz et. Görsellerin konusunu, nesnelerini, renklerini, hissettirdiği duyguyu ve tarzı algıla.' : 'Kullanıcının briefi ve şablon kurumsal diline dayanarak en etkileyici sosyal medya içeriğini oluştur.'}
+Bu doğrultuda, hem Kapak Sayfası (Cover Page) için yüksek etkileşimli bir başlık (title) ve alt başlık / rozet (subtitle) hem de detaylı ve açıklayıcı bir metin (description) oluştur.
+
+================================================================================
+KRİTİK — ŞABLONUN KURUMSAL DİL / BRAND PROMPT KURALLARI:
+Aşağıdaki kurallara KESİNLİKLE VE ÖNCELİKLE UYULMALIDIR. Bu kurallar genel yönergelerden daha üstündür:
+"""
 ${systemPrompt || 'Profesyonel, samimi ve ikna edici bir ton kullan.'}
+"""
+================================================================================
 
-KULLANICININ BU GÖRSEL İÇİN ÖZEL NOTLARI / KISACA BAHSET:
-${userPrompt || 'Görsel içeriğini doğrudan yansıtacak yaratıcı bir yaklaşım benimse.'}
+KULLANICININ BU TASARIM İÇİN ÖZEL NOTLARI / KISACA BAHSET:
+${userPrompt || 'İçeriği doğrudan yansıtacak yaratıcı bir yaklaşım benimse.'}
+${templateName ? `Şablon Adı: "${templateName}"` : ''}
 
 Metin kuralları:
-1. Başlıkta (title) en can alıcı 1-2 kelimeyi vurgulamak için **kalın** formatta (**kelime**) yaz. Maksimum 6-8 kelime olsun.
-2. Alt başlıkta (subtitle) bazı kelimeleri *eğik* formatta (*kelime*) yaz. Kısa ve çarpıcı, maksimum 4-5 kelime olsun.
+1. Başlıkta (title): ${hasImage ? 'Görsel(ler)in temasını doğrudan yansıtan,' : ''} en can alıcı 1-2 kelimeyi vurgulamak için **kalın** formatta (**kelime**) yaz. Maksimum 6-8 kelime olsun.
+2. Alt başlıkta (subtitle) rozet veya slogan niteliğinde kısa ve çarpıcı bir ifade yaz (bazı kelimeleri *eğik* yazabilirsin, maksimum 4-5 kelime).
 3. Açıklamada (description) bazı kelimeleri *eğik* formatta (*kelime*) yaz. Başlıktan daha detaylı olsun, maksimum 2 cümle olsun.
 4. Görsele ve kurumsal renklere en çok uyum sağlayacak 4 renkli estetik bir palet (primaryColor, accentColor, textColor, bgColor) öner.`;
 
-      const contents: any[] = [];
-      if (imagePart) {
-        contents.push(imagePart);
-      }
-      contents.push({
-        text: `Görseli analiz et ve kurumsal dil ile özel istekleri dikkate alarak bana şu JSON formatında yanıt dön:
+    const contents: any[] = [...imageParts];
+    contents.push({
+      text: `${hasImage ? 'Görsel(ler)i analiz et, ' : ''}kurumsal dil kurallarına ve kullanıcı notlarına tam olarak uyarak şu JSON formatında yanıt dön:
 {
   "title": "string (Kapak başlığı, en önemli kelimeler **kalın** olmalı)",
-  "subtitle": "string (Kapak alt başlığı, çarpıcı, bazı kelimeler *eğik* olmalı)",
-  "description": "string (Kolaj açıklaması, detaylı, bazı kelimeler *eğik* olmalı)",
+  "subtitle": "string (Kapak alt başlığı / rozet, bazı kelimeler *eğik* olmalı)",
+  "description": "string (Açıklama metni, detaylı, bazı kelimeler *eğik* olmalı)",
   "primaryColor": "string (Hex renk kodu)",
   "accentColor": "string (Hex renk kodu)",
   "textColor": "string (Hex renk kodu)",
   "bgColor": "string (Hex renk kodu)"
 }`
-      });
+    });
 
-      const response = await generateContentWithRetry(client, {
-        model: 'gemini-3.5-flash',
-        contents: contents,
-        config: {
-          systemInstruction: systemInstruction,
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              subtitle: { type: Type.STRING },
-              description: { type: Type.STRING },
-              primaryColor: { type: Type.STRING },
-              accentColor: { type: Type.STRING },
-              textColor: { type: Type.STRING },
-              bgColor: { type: Type.STRING }
-            },
-            required: ['title', 'subtitle', 'description', 'primaryColor', 'accentColor', 'textColor', 'bgColor']
-          }
+    const response = await generateContentWithRetry(client, {
+      model: DEFAULT_MODEL,
+      contents: contents,
+      config: {
+        systemInstruction: systemInstruction,
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            title: { type: Type.STRING },
+            subtitle: { type: Type.STRING },
+            description: { type: Type.STRING },
+            primaryColor: { type: Type.STRING },
+            accentColor: { type: Type.STRING },
+            textColor: { type: Type.STRING },
+            bgColor: { type: Type.STRING }
+          },
+          required: ['title', 'subtitle', 'description', 'primaryColor', 'accentColor', 'textColor', 'bgColor']
         }
-      });
+      }
+    });
 
-      const data = JSON.parse(response.text || '{}');
-      return res.json({
-        success: true,
-        isFallback: false,
-        ...data
-      });
-
-    } catch (err) {
-      console.error('Error analyzing image with Gemini:', err);
+    let rawData: any = {};
+    try {
+      rawData = JSON.parse(response.text || '{}');
+    } catch (parseErr) {
+      console.warn('Collage Gemini response was not valid JSON:', response.text);
       return res.json({
         success: true,
         isFallback: true,
-        error: (err as Error).message,
-        title: "**Estetik Tasarım** Detayları",
-        subtitle: "*Otomatik Analiz* Modu",
-        description: "Görsel analizi sırasında bir bağlantı hatası oluştu, ancak *markanızın profesyonel çizgisi* korunarak taslak oluşturuldu.",
-        primaryColor: "#4F46E5",
-        accentColor: "#F59E0B",
-        textColor: "#0F172A",
-        bgColor: "#F8FAFC"
+        reason: 'invalid_json',
+        error: 'Model çıktısı JSON formatında çözümlenemedi.',
+        ...defaultCollageFallback
       });
     }
-  });
 
-  // Serve static files in production or hook up Vite dev server in development
-  async function setupViteOrStatic() {
+    const validatedData = {
+      title: sanitizeAiText(rawData.title) || defaultCollageFallback.title,
+      subtitle: sanitizeAiText(rawData.subtitle) || defaultCollageFallback.subtitle,
+      description: sanitizeAiText(rawData.description) || defaultCollageFallback.description,
+      primaryColor: isValidHexOrRgbaColor(rawData.primaryColor) ? rawData.primaryColor.trim() : defaultCollageFallback.primaryColor,
+      accentColor: isValidHexOrRgbaColor(rawData.accentColor) ? rawData.accentColor.trim() : defaultCollageFallback.accentColor,
+      textColor: isValidHexOrRgbaColor(rawData.textColor) ? rawData.textColor.trim() : defaultCollageFallback.textColor,
+      bgColor: isValidHexOrRgbaColor(rawData.bgColor) ? rawData.bgColor.trim() : defaultCollageFallback.bgColor
+    };
+
+    return res.json({
+      success: true,
+      isFallback: false,
+      ...validatedData
+    });
+
+  } catch (err: any) {
+    console.error('Error analyzing image with Gemini:', err?.message || err);
+    const errMsg = err?.message || String(err);
+    const isQuota = errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Resource has been exhausted');
+    const isAuth = errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API key') || errMsg.includes('API_KEY_INVALID');
+    const reason = isQuota ? 'quota_exceeded' : (isAuth ? 'invalid_api_key' : 'gemini_error');
+
+    return res.json({
+      success: true,
+      isFallback: true,
+      reason,
+      error: errMsg,
+      title: `**${topic.toUpperCase()}** Fırsatları & Rotaları`,
+      subtitle: `*${topic}* Özel Konsepti`,
+      description: `${topic} ile ilgili *en popüler detaylar*, özel sürprizler ve güncel içerikler sizleri bekliyor.`,
+      primaryColor: "#6C5CE7",
+      accentColor: "#FF9F0A",
+      textColor: "rgba(255,255,255,0.95)",
+      bgColor: "#1D1D1F"
+    });
+  }
+});
+
+// API Route: YouTube Video Info (oEmbed)
+app.post(['/api/yt-info', '/yt-info'], async (req, res) => {
+  try {
+    const { url } = req.body;
+    const videoId = extractYouTubeVideoId(url);
+    if (!videoId) {
+      return res.status(400).json({ success: false, error: 'Geçersiz YouTube URL adresi.' });
+    }
+
+    const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+    const response = await fetch(oembedUrl);
+    
+    if (!response.ok) {
+      return res.status(404).json({ success: false, error: 'Video bilgileri alınamadı. Video gizli veya mevcut değil.' });
+    }
+
+    const data = await response.json();
+    return res.json({
+      success: true,
+      videoId,
+      title: data.title,
+      author: data.author_name,
+      authorUrl: data.author_url,
+      thumbnail: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+      maxThumbnail: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`
+    });
+  } catch (err: any) {
+    console.error('Error in /api/yt-info:', err);
+    return res.status(500).json({ success: false, error: 'Sunucu hatası: ' + err.message });
+  }
+});
+
+// API Route: YouTube Direct Media Stream (yt-dlp Native Streaming)
+app.get(['/api/yt-stream', '/yt-stream'], async (req, res) => {
+  try {
+    const url = req.query.url as string;
+    const format = (req.query.format === 'mp3' || req.query.format === 'audio') ? 'mp3' : 'mp4';
+    const customTitle = (req.query.title as string) || 'youtube-media';
+    const videoId = extractYouTubeVideoId(url);
+
+    if (!videoId) {
+      return res.status(400).send('Geçersiz YouTube video adresi.');
+    }
+
+    // Check if external dedicated microservice URL is configured
+    const microserviceUrl = process.env.DOWNLOADER_SERVICE_URL;
+    if (microserviceUrl) {
+      const targetUrl = `${microserviceUrl.replace(/\/$/, '')}/download?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=${format}&title=${encodeURIComponent(customTitle)}`;
+      return res.redirect(targetUrl);
+    }
+
+    // Check if running on Vercel serverless environment without configured microservice
     if (process.env.VERCEL) {
-      // On Vercel, static files are served by Vercel CDN, and routes are handled serverlessly.
-      // Do not bind static files or listen on ports here to avoid environment-specific filesystem crashes.
-      return;
-    }
-
-    if (process.env.NODE_ENV !== 'production') {
-      const { createServer: createViteServer } = await import('vite');
-      const vite = await createViteServer({
-        server: { middlewareMode: true },
-        appType: 'spa',
-      });
-      app.use(vite.middlewares);
-    } else {
-      const distPath = path.join(process.cwd(), 'dist');
-      app.use(express.static(distPath));
-      app.get('*', (req, res) => {
-        res.sendFile(path.join(distPath, 'index.html'));
+      return res.status(503).json({
+        success: false,
+        error: 'Vercel serverless ortamında YouTube indirme işlemi için harici mikroservis (DOWNLOADER_SERVICE_URL) gereklidir. Lütfen downloader-service servisini deploy edip URL\'sini ekleyin.'
       });
     }
 
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Graphic Automation Engine Server listening at http://0.0.0.0:${PORT}`);
+    streamMedia(res, videoId, format, customTitle);
+
+  } catch (err: any) {
+    console.error('Error in /api/yt-stream:', err);
+    if (!res.headersSent) {
+      res.status(500).send('İndirme hatası: ' + err.message);
+    }
+  }
+});
+
+// API Route: YouTube Downloader (Full HD MP4 & MP3 Native Download)
+app.post(['/api/yt-download', '/yt-download'], async (req, res) => {
+  try {
+    const { url, format, title } = req.body;
+    const videoId = extractYouTubeVideoId(url);
+    if (!videoId) {
+      return res.status(400).json({ success: false, error: 'Geçersiz YouTube URL adresi.' });
+    }
+
+    // Guard for Vercel environment without DOWNLOADER_SERVICE_URL
+    if (process.env.VERCEL && !process.env.DOWNLOADER_SERVICE_URL) {
+      return res.status(503).json({
+        success: false,
+        error: 'YouTube indirme servisi henüz yapılandırılmamış. Vercel ortamında doğrudan indirme için DOWNLOADER_SERVICE_URL ortam değişkeni gereklidir.'
+      });
+    }
+
+    const targetFormat = format === 'mp3' ? 'mp3' : 'mp4';
+    const streamUrl = `/api/yt-stream?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${videoId}`)}&format=${targetFormat}&title=${encodeURIComponent(title || 'youtube-media')}`;
+
+    return res.json({
+      success: true,
+      videoId,
+      format: targetFormat,
+      downloadUrl: streamUrl,
+      isDirect: true,
+      quality: targetFormat === 'mp3' ? '320kbps Doğrudan Ses (MP3)' : 'MP4 video (kaynak kalitesine bağlı)'
+    });
+  } catch (err: any) {
+    console.error('Error in /api/yt-download:', err);
+    return res.status(500).json({ success: false, error: 'Sunucu hatası: ' + err.message });
+  }
+});
+
+// Serve static files in production or hook up Vite dev server in development
+async function setupViteOrStatic() {
+  if (process.env.VERCEL) {
+    // On Vercel, static files are served by Vercel CDN, and routes are handled serverlessly.
+    return;
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distPath = path.join(process.cwd(), 'dist');
+    app.use(express.static(distPath));
+    app.get('*', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
     });
   }
 
-  setupViteOrStatic().catch(err => {
-    console.error('Error during server startup setup:', err);
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Graphic Automation Engine Server listening at http://0.0.0.0:${PORT}`);
   });
+}
 
-  export default app;
+setupViteOrStatic().catch(err => {
+  console.error('Error during server startup setup:', err);
+});
+
+export default app;

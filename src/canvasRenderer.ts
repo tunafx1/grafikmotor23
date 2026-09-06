@@ -1,4 +1,4 @@
-import { DesignTemplate, TextStyle, Region, FixedElement } from './types';
+import { GraphicData, DesignTemplate, TextStyle, Region, FixedElement } from './types';
 
 interface TextSpan {
   text: string;
@@ -385,18 +385,13 @@ export function drawFormattedText(
 }
 
 // Core rendering executor that draws a template onto a given HTML Canvas
-export async function renderTemplateToCanvas(
+async function renderTemplateFrame(
   canvas: HTMLCanvasElement,
   template: DesignTemplate,
   dynamicTexts: Record<string, string>,
-  dynamicImages: Record<string, {
-    url: string;
-    scale: number;
-    offsetX: number;
-    offsetY: number;
-    rotation: number;
-  }>,
+  dynamicImages: GraphicData['dynamicImages'],
   options?: {
+    isExport?: boolean;
     paletteOverrides?: {
       primary?: string;
       accent?: string;
@@ -412,6 +407,8 @@ export async function renderTemplateToCanvas(
     highlightColor?: string;
     boldHighlightColor?: string;
     editingImageRegionId?: string | null;
+    targetVideoRegionId?: string;
+    renderPhase?: 'all' | 'background' | 'foreground';
   }
 ) {
   const ctx = canvas.getContext('2d');
@@ -433,50 +430,53 @@ export async function renderTemplateToCanvas(
   const bgColor = options?.paletteOverrides?.bg || template.palette.bg;
 
   // 1. Draw Canvas Background (Color, Gradient, or Image)
-  ctx.save();
-  ctx.scale(scale, scale);
+  // When rendering foreground layer for video compositing, leave background transparent
+  if (options?.renderPhase !== 'foreground') {
+    ctx.save();
+    ctx.scale(scale, scale);
 
-  if (template.backgroundGradient) {
-    const gradColors = options?.paletteOverrides?.bg 
-      ? [bgColor, '#E2E8F0'] // generic fallback shift
-      : template.backgroundGradient.colors;
-    
-    let gradient: CanvasGradient;
-    if (template.backgroundGradient.type === 'radial') {
-      gradient = ctx.createRadialGradient(
-        template.width / 2, template.height / 2, 50,
-        template.width / 2, template.height / 2, Math.max(template.width, template.height) / 2
-      );
+    if (template.backgroundGradient) {
+      const gradColors = options?.paletteOverrides?.bg 
+        ? [bgColor, '#E2E8F0'] // generic fallback shift
+        : template.backgroundGradient.colors;
+      
+      let gradient: CanvasGradient;
+      if (template.backgroundGradient.type === 'radial') {
+        gradient = ctx.createRadialGradient(
+          template.width / 2, template.height / 2, 50,
+          template.width / 2, template.height / 2, Math.max(template.width, template.height) / 2
+        );
+      } else {
+        const angleRad = ((template.backgroundGradient.angle || 0) * Math.PI) / 180;
+        const x1 = template.width / 2 - Math.cos(angleRad) * (template.width / 2);
+        const y1 = template.height / 2 - Math.sin(angleRad) * (template.height / 2);
+        const x2 = template.width / 2 + Math.cos(angleRad) * (template.width / 2);
+        const y2 = template.height / 2 + Math.sin(angleRad) * (template.height / 2);
+        gradient = ctx.createLinearGradient(x1, y1, x2, y2);
+      }
+
+      gradColors.forEach((color, idx) => {
+        gradient.addColorStop(idx / (gradColors.length - 1), color);
+      });
+
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, template.width, template.height);
     } else {
-      const angleRad = ((template.backgroundGradient.angle || 0) * Math.PI) / 180;
-      const x1 = template.width / 2 - Math.cos(angleRad) * (template.width / 2);
-      const y1 = template.height / 2 - Math.sin(angleRad) * (template.height / 2);
-      const x2 = template.width / 2 + Math.cos(angleRad) * (template.width / 2);
-      const y2 = template.height / 2 + Math.sin(angleRad) * (template.height / 2);
-      gradient = ctx.createLinearGradient(x1, y1, x2, y2);
+      ctx.fillStyle = bgColor;
+      ctx.fillRect(0, 0, template.width, template.height);
     }
 
-    gradColors.forEach((color, idx) => {
-      gradient.addColorStop(idx / (gradColors.length - 1), color);
-    });
-
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, template.width, template.height);
-  } else {
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, template.width, template.height);
-  }
-
-  // Draw background image if configured
-  if (template.backgroundImageUrl) {
-    try {
-      const bgImg = await loadImage(template.backgroundImageUrl);
-      ctx.drawImage(bgImg, 0, 0, template.width, template.height);
-    } catch (err) {
-      console.warn('Background image failed to load', err);
+    // Draw background image if configured
+    if (template.backgroundImageUrl) {
+      try {
+        const bgImg = await loadImage(template.backgroundImageUrl);
+        ctx.drawImage(bgImg, 0, 0, template.width, template.height);
+      } catch (err) {
+        console.warn('Background image failed to load', err);
+      }
     }
+    ctx.restore();
   }
-  ctx.restore();
 
   // 2. Render all non-hidden Fixed Elements and Regions
   const renderList = [
@@ -495,11 +495,23 @@ export async function renderTemplateToCanvas(
     return a.index - b.index;
   });
 
+  const videoNodeIndex = options?.targetVideoRegionId
+    ? renderList.findIndex(n => n.isRegion && n.item.id === options.targetVideoRegionId)
+    : -1;
+
   // Draw elements based on sorted order
-  for (const node of renderList) {
+  for (let i = 0; i < renderList.length; i++) {
+    const node = renderList[i];
     const id = node.item.id;
     if (options?.hiddenElements?.includes(id) || (node.item as any).hidden) {
       continue; // Skip rendering
+    }
+
+    // Layer filtering for video compositing
+    if (options?.renderPhase === 'background' && videoNodeIndex !== -1) {
+      if (i >= videoNodeIndex) continue; // Only draw elements sorted before video
+    } else if (options?.renderPhase === 'foreground' && videoNodeIndex !== -1) {
+      if (i <= videoNodeIndex) continue; // Only draw elements sorted after video
     }
 
     ctx.save();
@@ -569,7 +581,7 @@ export async function renderTemplateToCanvas(
               ctx.drawImage(img, -finalDrawWidth / 2, -finalDrawHeight / 2, finalDrawWidth, finalDrawHeight);
               
               // Draw dashed outline around the entire unclipped image bounds
-              ctx.strokeStyle = options?.highlightColor || '#4F46E5';
+              ctx.strokeStyle = options?.highlightColor || '#6C5CE7';
               ctx.lineWidth = 1.5;
               ctx.setLineDash([4, 4]);
               ctx.strokeRect(-finalDrawWidth / 2, -finalDrawHeight / 2, finalDrawWidth, finalDrawHeight);
@@ -597,13 +609,34 @@ export async function renderTemplateToCanvas(
             // Draw image centered inside translation matrix
             ctx.drawImage(img, -finalDrawWidth / 2, -finalDrawHeight / 2, finalDrawWidth, finalDrawHeight);
             ctx.restore();
+
+            // If this region contains a video and we are NOT in export mode, draw a small video indicator badge
+            if (customImgData?.isVideo && !options?.isExport) {
+              ctx.save();
+              const badgeW = 64;
+              const badgeH = 24;
+              const badgeX = reg.x + reg.width - badgeW - 12;
+              const badgeY = reg.y + reg.height - badgeH - 12;
+
+              ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+              ctx.beginPath();
+              ctx.roundRect(badgeX, badgeY, badgeW, badgeH, 12);
+              ctx.fill();
+
+              ctx.fillStyle = '#FFFFFF';
+              ctx.font = 'bold 10px sans-serif';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText('▶ MP4', badgeX + badgeW / 2, badgeY + badgeH / 2);
+              ctx.restore();
+            }
           } catch (err) {
             console.warn(`Failed to load region image: ${imageUrl}`, err);
             // Fallback warning text in canvas
-            ctx.fillStyle = '#94A3B8';
+            ctx.fillStyle = '#3A3A3C';
             ctx.fillRect(reg.x, reg.y, reg.width, reg.height);
             ctx.font = '14px sans-serif';
-            ctx.fillStyle = '#334155';
+            ctx.fillStyle = 'rgba(255,255,255,0.72)';
             ctx.fillText('Resim yüklenemedi', reg.x + 20, reg.y + reg.height / 2);
           }
         }
@@ -613,14 +646,14 @@ export async function renderTemplateToCanvas(
 
         // Override text colors if needed
         if (!textStyleCopy.isCustomColor) {
-          if (textStyleCopy.color === '#0F172A' || textStyleCopy.color === '#000000' || textStyleCopy.color === '#111827') {
+          if (textStyleCopy.color === '#0F172A' || textStyleCopy.color === '#000000' || textStyleCopy.color === '#111827' || textStyleCopy.color === 'rgba(255,255,255,0.95)') {
             textStyleCopy.color = textColor;
-          } else if (textStyleCopy.color === '#4F46E5') {
-            textStyleCopy.color = primaryColor;
+          } else if (textStyleCopy.color === '#6C5CE7' || textStyleCopy.color === '#6C5CE7') {
+            textStyleCopy.color = primaryColor || '#6C5CE7';
           }
         }
 
-        const resolvedBorderColor = reg.borderColor === '#4F46E5' ? primaryColor : (reg.borderColor === '#B45309' ? accentColor : reg.borderColor);
+        const resolvedBorderColor = (reg.borderColor === '#6C5CE7' || reg.borderColor === '#6C5CE7') ? primaryColor : ((reg.borderColor === '#FF9F0A' || reg.borderColor === '#FF9F0A') ? accentColor : reg.borderColor);
 
         drawFormattedText(
           ctx,
@@ -646,7 +679,7 @@ export async function renderTemplateToCanvas(
       // Draw Region Border (only if not fitting to text)
       const shouldDrawOuterBorder = reg.hasBorder !== false && reg.borderWidth > 0 && reg.borderColor && reg.borderColor !== 'transparent' && !(reg.type === 'text' && reg.fitBackgroundToText);
       if (shouldDrawOuterBorder) {
-        ctx.strokeStyle = reg.borderColor === '#4F46E5' ? primaryColor : (reg.borderColor === '#B45309' ? accentColor : reg.borderColor);
+        ctx.strokeStyle = (reg.borderColor === '#6C5CE7' || reg.borderColor === '#6C5CE7') ? primaryColor : ((reg.borderColor === '#FF9F0A' || reg.borderColor === '#FF9F0A') ? accentColor : reg.borderColor);
         ctx.lineWidth = reg.borderWidth;
         ctx.beginPath();
         if (reg.borderRadius > 0) {
@@ -663,7 +696,7 @@ export async function renderTemplateToCanvas(
 
       if (el.type === 'shape') {
         const color = el.backgroundColor || el.color || accentColor;
-        ctx.fillStyle = color === '#F59E0B' || color === '#B45309' ? accentColor : (color === '#4F46E5' ? primaryColor : color);
+        ctx.fillStyle = (color === '#FF9F0A' || color === '#FF9F0A' || color === '#FF9F0A') ? accentColor : ((color === '#6C5CE7' || color === '#6C5CE7') ? primaryColor : color);
         ctx.globalAlpha = 1.0;
 
         if (el.shapeType === 'rect') {
@@ -697,7 +730,7 @@ export async function renderTemplateToCanvas(
           ctx.letterSpacing = `${el.textStyle.letterSpacing}px`;
         }
         const color = el.textStyle?.color || textColor;
-        const resolvedColor = color === '#4F46E5' ? primaryColor : (color === '#451A03' || color === '#78350F' ? textColor : color);
+        const resolvedColor = color === '#6C5CE7' ? primaryColor : (color === 'rgba(255,255,255,0.72)' || color === 'rgba(255,255,255,0.72)' ? textColor : color);
 
         let iconWidth = 0;
         if (el.iconType && el.iconType !== 'none') {
@@ -750,7 +783,7 @@ export async function renderTemplateToCanvas(
         const color = el.textStyle.color || textColor;
         const resolvedColor = el.textStyle.isCustomColor
           ? color
-          : (color === '#10B981' ? '#10B981' : (color === '#4F46E5' ? primaryColor : color));
+          : (color === '#34C759' ? '#34C759' : (color === '#6C5CE7' ? primaryColor : color));
 
         ctx.fillStyle = resolvedColor;
         ctx.font = getFontString(el.textStyle.fontFamily, el.textStyle.fontSize, el.textStyle.fontWeight === 'bold', false, el.textStyle.fontWeight);
@@ -777,27 +810,29 @@ export async function renderTemplateToCanvas(
     ctx.restore();
   }
 
-  // 2.5 Draw Boundary Outlines and Selection/Resize Handles
-  ctx.save();
-  ctx.scale(scale, scale);
+  // 2.5 Draw Selection/Resize Handles ONLY when editing on canvas (Never during export)
+  if (!options?.isExport) {
+    ctx.save();
+    ctx.scale(scale, scale);
 
-  const activeHighlight = options?.highlightColor || '#4F46E5';
+    const activeHighlight = options?.highlightColor || '#6C5CE7';
 
-  // Draw a subtle dashed outline for all active, non-hidden regions (especially text fields)
-  for (const reg of template.regions) {
-    if (options?.hiddenElements?.includes(reg.id) || reg.hidden) continue;
-    
-    const isSelected = reg.id === options?.selectedNodeId;
-    ctx.beginPath();
-    ctx.rect(reg.x, reg.y, reg.width, reg.height);
-    ctx.strokeStyle = isSelected ? activeHighlight : 'rgba(148, 163, 184, 0.45)';
-    ctx.lineWidth = isSelected ? 2 : 1;
-    ctx.setLineDash(isSelected ? [] : [4, 4]);
-    ctx.stroke();
+    // Draw outline and handles ONLY for the currently selected region
+    for (const reg of template.regions) {
+      if (options?.hiddenElements?.includes(reg.id) || reg.hidden) continue;
+      
+      const isSelected = reg.id === options?.selectedNodeId;
+      if (!isSelected) continue; // DO NOT draw dashed border lines for unselected regions!
 
-    // If selected, draw circular handles at the 4 corners
-    if (isSelected) {
-      ctx.fillStyle = '#FFFFFF';
+      ctx.beginPath();
+      ctx.rect(reg.x, reg.y, reg.width, reg.height);
+      ctx.strokeStyle = activeHighlight;
+      ctx.lineWidth = 2;
+      ctx.setLineDash([]);
+      ctx.stroke();
+
+      // Draw circular handles at the 4 corners of selected region
+      ctx.fillStyle = '#3A3A3C';
       ctx.strokeStyle = activeHighlight;
       ctx.lineWidth = 2.5;
       ctx.setLineDash([]);
@@ -816,14 +851,14 @@ export async function renderTemplateToCanvas(
         ctx.stroke();
       }
     }
-  }
 
-  // Draw subtle outlines for fixed elements if selected
-  for (const el of template.fixedElements) {
-    if (options?.hiddenElements?.includes(el.id) || el.hidden) continue;
+    // Draw outlines for fixed elements ONLY when selected
+    for (const el of template.fixedElements) {
+      if (options?.hiddenElements?.includes(el.id) || el.hidden) continue;
 
-    const isSelected = el.id === options?.selectedNodeId;
-    if (isSelected) {
+      const isSelected = el.id === options?.selectedNodeId;
+      if (!isSelected) continue;
+
       ctx.beginPath();
       if (el.type === 'shape' && el.shapeType === 'circle') {
         ctx.arc(el.x, el.y, el.width / 2, 0, Math.PI * 2);
@@ -836,7 +871,7 @@ export async function renderTemplateToCanvas(
       ctx.stroke();
 
       // Draw handles
-      ctx.fillStyle = '#FFFFFF';
+      ctx.fillStyle = '#3A3A3C';
       ctx.strokeStyle = activeHighlight;
       ctx.lineWidth = 2.5;
       
@@ -854,14 +889,15 @@ export async function renderTemplateToCanvas(
         ctx.stroke();
       }
     }
-  }
 
-  ctx.restore();
+    ctx.restore();
+  }
 
   // 3. Draw alignment Grid if requested
   if (options?.showGrid) {
     ctx.save();
     ctx.scale(scale, scale);
+    const activeHighlight = options?.paletteOverrides?.accent || '#6C5CE7';
     ctx.strokeStyle = activeHighlight.startsWith('#') 
       ? `${activeHighlight}26` // Hex transparency 15%
       : 'rgba(79, 70, 229, 0.15)';
@@ -894,4 +930,27 @@ export async function renderTemplateToCanvas(
     ctx.strokeRect(40, 40, template.width - 80, template.height - 80);
     ctx.restore();
   }
+}
+
+const renderVersions = new WeakMap<HTMLCanvasElement, number>();
+const fontLoads = new Map<string, Promise<unknown>>();
+
+export async function renderTemplateToCanvas(...args: Parameters<typeof renderTemplateFrame>) {
+  const [target, template, texts, images, options] = args;
+  const version = (renderVersions.get(target) || 0) + 1;
+  renderVersions.set(target, version);
+  const styles = [...template.regions, ...template.fixedElements].map(r => r.textStyle).filter(Boolean);
+  if (document.fonts) {
+    await Promise.all(styles.map(style => {
+      const font = `${style!.fontWeight || 'normal'} 16px "${style!.fontFamily}"`;
+      if (!fontLoads.has(font)) fontLoads.set(font, document.fonts.load(font).catch(() => undefined));
+      return fontLoads.get(font);
+    }));
+  }
+  const draft = document.createElement('canvas');
+  await renderTemplateFrame(draft, template, texts, images, options);
+  if (renderVersions.get(target) !== version) return;
+  target.width = draft.width;
+  target.height = draft.height;
+  target.getContext('2d')?.drawImage(draft, 0, 0);
 }

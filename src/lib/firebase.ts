@@ -1,3 +1,4 @@
+import { storage } from './storage';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, disableNetwork, enableNetwork } from 'firebase/firestore';
 import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
@@ -41,7 +42,7 @@ const db = initializeFirestore(app, {
 }, targetDbId);
 
 // Check if quota was exceeded in a prior session to immediately go offline and avoid background write retry storms
-if (isValidConfig && typeof window !== 'undefined' && localStorage.getItem('firestore_quota_exceeded') === 'true') {
+if (isValidConfig && typeof window !== 'undefined' && storage.getItem('firestore_quota_exceeded') === 'true') {
   console.log('Detected prior Firestore quota exhaustion. Automatically initializing in offline mode.');
   disableNetwork(db).catch(err => {
     console.error('Failed to disable Firestore network during startup:', err);
@@ -61,21 +62,7 @@ if (isValidConfig && typeof window !== 'undefined') {
   }
 }
 
-// Helper function to handle anonymous sign in or fallback to guest ID
-function getOrCreateGuestId(): string {
-  let guestId = localStorage.getItem('firebase_guest_id');
-  if (!guestId) {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let rand = '';
-    for (let i = 0; i < 20; i++) {
-      rand += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    guestId = 'guest_' + rand;
-    localStorage.setItem('firebase_guest_id', guestId);
-  }
-  return guestId;
-}
-
+// Helper function to handle anonymous sign in with safe fallback
 export async function ensureUserSignIn(): Promise<{ uid: string; isAnonymous?: boolean } | null> {
   if (!isValidConfig) return null;
   try {
@@ -86,13 +73,13 @@ export async function ensureUserSignIn(): Promise<{ uid: string; isAnonymous?: b
     const userCredential = await signInAnonymously(auth);
     return userCredential.user;
   } catch (err) {
-    console.warn('Anonymous auth login failed, falling back to persistent Guest ID:', err);
-    return {
-      uid: getOrCreateGuestId(),
-      isAnonymous: true,
-    };
+    console.warn('Firebase Anonymous Auth failed or is disabled. Operating in local offline mode:', err);
+    // Gracefully switch to offline mode to avoid permission errors
+    await disableFirestoreNetwork();
+    return null;
   }
 }
+
 
 export async function loginWithGoogle(): Promise<any> {
   if (!isValidConfig) return null;
