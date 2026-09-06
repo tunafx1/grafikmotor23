@@ -2830,3 +2830,901 @@ textarea::placeholder {
     font-size: 1.8rem;
   }
 }
+
+/* ═════════════════════════════════════════════════════════════════════
+   SaaS PRODUCT DEMO MOTION GRAPHIC (Figma/Canva Clean SaaS Studio)
+   15-20s High-Fidelity UI Mockup Animation
+   Brand Colors: Primary Orange (#FF6B1A), White Panels (#FFFFFF), Soft Shadow
+   ═════════════════════════════════════════════════════════════════════ */
+
+.saas-demo-wrapper {
+  width: 100%;
+  max-width: 580px;
+  position: relative;
+  margin: 0 auto;
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+.saas-demo-wrapper.theater-mode {
+  max-width: 920px;
+}
+
+.saas-window {
+  width: 100%;
+  background: #FFFFFF;
+  border-radius: 24px;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 
+    0 24px 50px -12px rgba(15, 23, 42, 0.09),
+    0 8px 24px -4px rgba(15, 23, 42, 0.04),
+    0 0 0 1px rgba(255, 107, 26, 0.05);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+/* ── Window Chrome Bar ── */
+.saas-chrome-bar {
+  height: 42px;
+  background: #FAFBFD;
+  border-bottom: 1px solid #EDF2F7;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.saas-traffic-lights {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.saas-traffic-lights .dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.saas-traffic-lights .dot.red { background: #FF5F56; }
+.saas-traffic-lights .dot.yellow { background: #FFBD2E; }
+.saas-traffic-lights .dot.green { background: #27C93F; }
+
+.saas-chrome-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: #334155;
+}
+
+.saas-logo-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #FF6B1A, #E9570F);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.65rem;
+  font-weight: 900;
+}
+
+.saas-version-badge {
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(255, 107, 26, 0.1);
+  color: #FF6B1A;
+  font-weight: 700;
+}
+
+.saas-chrome-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.saas-download-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #F1F5F9;
+  color: #64748B;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+
+.saas-download-chip.active {
+  background: #FF6B1A;
+  color: #FFFFFF;
+  border-color: #FF6B1A;
+  box-shadow: 0 4px 12px rgba(255, 107, 26, 0.35);
+}
+
+.saas-download-chip.success {
+  background: #10B981;
+  color: #FFFFFF;
+  border-color: #10B981;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
+.saas-chip-counter {
+  background: rgba(255, 255, 255, 0.3);
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.68rem;
+}
+
+/* ── Interactive Stage Area ── */
+.saas-stage {
+  position: relative;
+  background: linear-gradient(180deg, #F8FAFC 0%, #FFFFFF 100%);
+  min-height: 440px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 14px 16px 20px;
+  overflow: hidden;
+}
+
+/* ── Top Aspect Ratio Bar (Scene 1) ── */
+.saas-aspect-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #FFFFFF;
+  padding: 4px 6px;
+  border-radius: 12px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  z-index: 10;
+  margin-bottom: 14px;
+}
+
+.saas-bar-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #94A3B8;
+  padding-left: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.saas-ratio-pills {
+  display: flex;
+  gap: 4px;
+}
+
+.saas-ratio-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748B;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.saas-ratio-pill.active {
+  background: #FFF7ED;
+  color: #FF6B1A;
+  border-color: rgba(255, 107, 26, 0.3);
+}
+
+.saas-ratio-pill .pill-id {
+  font-weight: 800;
+}
+
+.saas-ratio-pill .pill-sub {
+  font-size: 0.65rem;
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.saas-pill-glow {
+  position: absolute;
+  inset: 0;
+  border-radius: 8px;
+  box-shadow: 0 0 10px rgba(255, 107, 26, 0.25);
+  pointer-events: none;
+}
+
+/* ── Main Canvas Viewport (Scene 1 - 5) ── */
+.saas-canvas-viewport {
+  width: 100%;
+  max-width: 480px;
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  margin-bottom: 8px;
+}
+
+.saas-main-canvas {
+  background: #FFFFFF;
+  border: 2px solid #FF6B1A;
+  border-radius: 16px;
+  box-shadow: 
+    0 16px 36px -8px rgba(255, 107, 26, 0.18),
+    0 4px 12px rgba(15, 23, 42, 0.05);
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: box-shadow 0.3s ease;
+}
+
+.saas-canvas-tag {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 12;
+  background: rgba(15, 23, 42, 0.82);
+  backdrop-filter: blur(6px);
+  color: #FFFFFF;
+  font-size: 0.62rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+}
+
+.saas-canvas-corner {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: #FF6B1A;
+  z-index: 15;
+  pointer-events: none;
+}
+.saas-canvas-corner.tl { top: -2px; left: -2px; border-top: 3px solid #FF6B1A; border-left: 3px solid #FF6B1A; border-top-left-radius: 16px; }
+.saas-canvas-corner.tr { top: -2px; right: -2px; border-top: 3px solid #FF6B1A; border-right: 3px solid #FF6B1A; border-top-right-radius: 16px; }
+.saas-canvas-corner.bl { bottom: -2px; left: -2px; border-bottom: 3px solid #FF6B1A; border-left: 3px solid #FF6B1A; border-top-left-radius: 16px; }
+.saas-canvas-corner.br { bottom: -2px; right: -2px; border-bottom: 3px solid #FF6B1A; border-right: 3px solid #FF6B1A; border-bottom-right-radius: 16px; }
+
+/* Empty Drop Zone inside Canvas */
+.saas-empty-canvas {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+  background: radial-gradient(circle at center, #FFF9F5 0%, #FFFFFF 70%);
+  border: 1px dashed rgba(255, 107, 26, 0.35);
+  border-radius: 14px;
+}
+
+.saas-empty-icon-wrap {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #FFFFFF;
+  border: 1px solid rgba(255, 107, 26, 0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 8px;
+  box-shadow: 0 4px 12px rgba(255, 107, 26, 0.12);
+}
+
+.saas-empty-text {
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #1E293B;
+  margin: 0 0 2px;
+}
+
+.saas-empty-sub {
+  font-size: 0.68rem;
+  color: #94A3B8;
+  font-weight: 500;
+}
+
+/* Snapped Grid Layout (Scene 3 & 4) */
+.saas-snapped-grid {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  background: #0F172A;
+}
+
+.saas-grid-main-img {
+  position: relative;
+  border-radius: 10px;
+  overflow: hidden;
+  height: 100%;
+}
+.saas-grid-main-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.saas-img-tag {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  background: rgba(15, 23, 42, 0.8);
+  color: #FFFFFF;
+  font-size: 0.58rem;
+  font-weight: 700;
+  padding: 2px 5px;
+  border-radius: 4px;
+}
+
+.saas-grid-side-imgs {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+}
+
+.saas-grid-sub-img {
+  flex: 1;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.saas-grid-sub-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.saas-scan-laser {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #FF6B1A, #FFA26B, transparent);
+  box-shadow: 0 0 16px 4px rgba(255, 107, 26, 0.9);
+  z-index: 20;
+}
+
+/* ── Scene 5 & 6: 3 Design Results Cards ── */
+.saas-designs-gallery {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 4px;
+}
+
+.saas-result-card {
+  position: relative;
+  background: #FFFFFF;
+  border-radius: 14px;
+  border: 1.5px solid #E2E8F0;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.saas-result-card.selected {
+  border-color: #FF6B1A;
+  box-shadow: 0 0 0 2px #FF6B1A, 0 12px 24px rgba(255, 107, 26, 0.2);
+  transform: translateY(-2px);
+}
+
+.saas-result-card .card-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 10;
+  background: rgba(15, 23, 42, 0.85);
+  color: #FFFFFF;
+  font-size: 0.58rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 5px;
+}
+
+.saas-result-card .card-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 10;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #FF6B1A;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(255, 107, 26, 0.4);
+}
+
+/* Card 1: Cover */
+.card-cover-photo {
+  position: relative;
+  height: 180px;
+  width: 100%;
+  overflow: hidden;
+}
+.card-cover-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.card-cover-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.1) 0%, rgba(15, 23, 42, 0.82) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 10px;
+}
+
+.card-campaign-chip {
+  align-self: flex-start;
+  background: #FF6B1A;
+  color: #FFFFFF;
+  font-size: 0.55rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-bottom: 3px;
+  letter-spacing: 0.04em;
+}
+
+.card-title {
+  color: #FFFFFF;
+  font-size: 0.82rem;
+  font-weight: 900;
+  margin: 0;
+  line-height: 1.15;
+}
+
+.card-desc {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.62rem;
+  margin: 2px 0 0;
+}
+
+/* Card 2 & 3: Duo Photo Layouts */
+.card-duo-photos {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  height: 130px;
+  background: #F1F5F9;
+}
+.card-duo-photos .duo-half {
+  overflow: hidden;
+  height: 100%;
+}
+.card-duo-photos .duo-half img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.card-bottom-info {
+  padding: 8px 10px;
+  background: #FFFFFF;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.65rem;
+}
+.card-bottom-info strong {
+  color: #0F172A;
+  font-weight: 800;
+}
+.card-bottom-info span {
+  font-size: 0.6rem;
+}
+
+/* ── Photo Thumbnails Dock Tray (Scene 2 & 3) ── */
+.saas-photo-tray {
+  width: 100%;
+  max-width: 480px;
+  background: #FFFFFF;
+  border-radius: 16px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.05);
+  padding: 10px 14px;
+  margin-top: 4px;
+}
+
+.saas-tray-label {
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #64748B;
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.saas-thumb-list {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.saas-photo-thumb {
+  position: relative;
+  aspect-ratio: 1/1;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.08);
+  transition: all 0.25s cubic-bezier(0.2, 1, 0.3, 1);
+  background: #F1F5F9;
+}
+
+.saas-photo-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.saas-photo-thumb.selected {
+  border-color: #FF6B1A;
+  transform: translateY(-4px);
+  box-shadow: 0 6px 16px rgba(255, 107, 26, 0.28);
+}
+
+.saas-thumb-check {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #FF6B1A;
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(255, 107, 26, 0.4);
+}
+
+.saas-thumb-idx {
+  position: absolute;
+  bottom: 3px;
+  left: 3px;
+  background: rgba(15, 23, 42, 0.75);
+  color: #FFFFFF;
+  font-size: 0.52rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+/* ── AI Prompt Modal (Scene 4) ── */
+.saas-prompt-box {
+  position: absolute;
+  bottom: 24px;
+  left: 20px;
+  right: 20px;
+  z-index: 30;
+  background: #FFFFFF;
+  border-radius: 16px;
+  border: 1.5px solid #FF6B1A;
+  box-shadow: 
+    0 16px 40px -8px rgba(255, 107, 26, 0.25),
+    0 0 0 4px rgba(255, 107, 26, 0.08);
+  padding: 12px 14px;
+}
+
+.saas-prompt-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.saas-prompt-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #FF6B1A;
+  box-shadow: 0 0 8px #FF6B1A;
+}
+
+.saas-prompt-title {
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #0F172A;
+}
+
+.saas-prompt-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #FF6B1A;
+  background: rgba(255, 107, 26, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.saas-prompt-input-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.saas-prompt-input-fake {
+  flex: 1;
+  background: #FAFBFD;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+
+.saas-typewriter-caret {
+  display: inline-block;
+  width: 2px;
+  height: 14px;
+  background: #FF6B1A;
+  margin-left: 2px;
+  animation: saasCaretBlink 0.8s infinite;
+}
+
+@keyframes saasCaretBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+.saas-prompt-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: linear-gradient(135deg, #FF6B1A 0%, #E9570F 100%);
+  color: #FFFFFF;
+  border: none;
+  border-radius: 10px;
+  padding: 9px 14px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  box-shadow: 0 4px 14px rgba(255, 107, 26, 0.35);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.saas-prompt-btn.loading {
+  background: #0F172A;
+  box-shadow: none;
+}
+
+.saas-btn-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #FFFFFF;
+  border-radius: 50%;
+  animation: saasSpin 0.7s linear infinite;
+}
+
+@keyframes saasSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Virtual Vector Cursor ── */
+.saas-virtual-cursor {
+  position: absolute;
+  pointer-events: none;
+  z-index: 50;
+  transform: translate(-3px, -3px);
+  filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.25));
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.saas-cursor-badge {
+  background: #FF6B1A;
+  color: #FFFFFF;
+  font-size: 0.58rem;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(255, 107, 26, 0.3);
+  margin-top: 12px;
+}
+
+/* Download Celebration Toast */
+.saas-success-toast {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 45;
+  background: #FFFFFF;
+  border: 1px solid #10B981;
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(16, 185, 129, 0.2);
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.saas-success-toast strong {
+  display: block;
+  font-size: 0.74rem;
+  color: #0F172A;
+  font-weight: 800;
+}
+.saas-success-toast span {
+  display: block;
+  font-size: 0.62rem;
+  color: #64748B;
+}
+
+/* ── Bottom Scrubber Timeline Bar ── */
+.saas-timeline-bar {
+  background: #FFFFFF;
+  border-top: 1px solid #EDF2F7;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  position: relative;
+}
+
+.saas-controls-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.saas-ctrl-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  background: #FAFBFD;
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.saas-ctrl-btn:hover {
+  background: #F1F5F9;
+  color: #0F172A;
+  border-color: #CBD5E1;
+}
+
+.saas-time-display {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #94A3B8;
+  font-variant-numeric: tabular-nums;
+  margin-left: 2px;
+}
+
+.saas-scene-chips {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+}
+
+.saas-scene-chip {
+  border: 1px solid #E2E8F0;
+  background: #FFFFFF;
+  color: #64748B;
+  border-radius: 8px;
+  padding: 3px 8px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.saas-scene-chip.active {
+  background: #FF6B1A;
+  color: #FFFFFF;
+  border-color: #FF6B1A;
+  box-shadow: 0 2px 8px rgba(255, 107, 26, 0.3);
+}
+
+.saas-scene-chip:hover:not(.active) {
+  border-color: #CBD5E1;
+  color: #0F172A;
+}
+
+.saas-controls-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.saas-try-live-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #0F172A;
+  color: #FFFFFF;
+  border: none;
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.saas-try-live-btn:hover {
+  background: #FF6B1A;
+}
+
+/* Scrubber Progress Fill */
+.saas-timeline-progress-track {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(226, 232, 240, 0.8);
+}
+
+.saas-timeline-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #FF6B1A, #FFA26B);
+  transition: width 0.05s linear;
+}
+
+/* Responsive adjustments for mobile */
+@media (max-width: 640px) {
+  .saas-demo-wrapper {
+    max-width: 100%;
+  }
+  .saas-scene-chips .chip-name {
+    display: none;
+  }
+  .saas-ratio-pill .pill-sub {
+    display: none;
+  }
+  .saas-designs-gallery {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .card-cover-photo {
+    height: 140px;
+  }
+}
+

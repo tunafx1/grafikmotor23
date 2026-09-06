@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, useMotionValue, useSpring, AnimatePresence } from 'motion/react';
 import { ImagePlus, Sparkles, Layers, Zap } from 'lucide-react';
+import { SaaSMotionDemo } from './SaaSMotionDemo';
 
 interface LandingPageProps {
   onEnter: () => void;
-  onLogin: () => void;
+  onLogin?: () => void;
 }
 
 /* ─── Hero Animated Motion Graphic: Step-by-Step Simulated Design Studio ─── */
@@ -482,8 +483,8 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
           </motion.div>
         </div>
 
-        {/* Dynamic Hero Motion Graphic */}
-        <HeroMotionGraphic onEnter={onEnter} />
+        {/* 15-20s SaaS Product Demo Motion Graphic */}
+        <SaaSMotionDemo onEnterApp={onEnter} />
       </motion.section>
 
       {/* ═══════════ STATS ═══════════ */}

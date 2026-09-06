@@ -4054,6 +4054,7 @@ export default function App() {
     return (
       <LandingPage 
         onEnter={() => setCurrentView('portal')} 
+        onLogin={() => setCurrentView('portal')}
       />
     );
   }
