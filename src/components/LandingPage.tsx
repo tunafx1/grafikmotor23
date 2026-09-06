@@ -412,7 +412,8 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
           >
-            Sosyal medyanı <span className="lp-shimmer-text">hızlandır.</span>
+            Sosyal medyanı<br />
+            <span className="lp-hero-accent">hızlandır.</span>
           </motion.h1>
 
           <motion.div
