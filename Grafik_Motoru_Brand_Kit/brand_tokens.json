@@ -1,0 +1,16 @@
+{
+  "name": "Grafik Motoru",
+  "tagline": "Sosyal medyanı hızlandır.",
+  "fontFamily": "Outfit",
+  "fontSource": "Google Fonts",
+  "colors": {
+    "primary": "#FF6B1A",
+    "primaryHover": "#E9570F",
+    "primarySoft": "#FFF1E8",
+    "text": "#0F0F0F",
+    "secondaryText": "#667085",
+    "background": "#F6F7F9",
+    "border": "#E5E7EB",
+    "white": "#FFFFFF"
+  }
+}
