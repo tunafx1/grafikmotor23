@@ -56,6 +56,11 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
   const [isOperationNotAllowed, setIsOperationNotAllowed] = useState(false);
   const [isSimulationMode, setIsSimulationMode] = useState(false);
 
+  // Interactive Live Canvas simulation states in Left Showcase
+  const [activeFormat, setActiveFormat] = useState<'post' | 'story'>('post');
+  const [aiHeadline, setAiHeadline] = useState('Sosyal Medyanı Hızlandır');
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+
   // Handle resend countdown
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -65,11 +70,55 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
     return () => clearInterval(timer);
   }, [resendCooldown]);
 
+  // Password strength calculation
+  const getPasswordStrength = (pass: string) => {
+    if (!pass) return { score: 0, label: 'Şifre giriniz', color: '#CBD5E1', width: '0%' };
+    let score = 0;
+    if (pass.length >= 6) score += 1;
+    if (pass.length >= 8) score += 1;
+    if (/[A-Z]/.test(pass) && /[a-z]/.test(pass)) score += 1;
+    if (/[0-9]/.test(pass) || /[^A-Za-z0-9]/.test(pass)) score += 1;
+
+    switch (score) {
+      case 1:
+        return { score: 1, label: 'Zayıf', color: '#EF4444', width: '25%' };
+      case 2:
+        return { score: 2, label: 'Orta', color: '#F59E0B', width: '50%' };
+      case 3:
+        return { score: 3, label: 'Güçlü', color: '#10B981', width: '75%' };
+      case 4:
+        return { score: 4, label: 'Kusursuz', color: '#059669', width: '100%' };
+      default:
+        return { score: 0, label: 'Çok Zayıf', color: '#EF4444', width: '15%' };
+    }
+  };
+
+  const passStrength = getPasswordStrength(regPassword);
+
+  // Trigger mini AI title cycle on showcase
+  const handleRegenerateShowcase = () => {
+    if (isAiGenerating) return;
+    setIsAiGenerating(true);
+    const titles = [
+      'Geleceğin Tasarım Motoru',
+      'Sosyal Medyanı Hızlandır',
+      'Yapay Zekâ ile Kusursuz Çıktı',
+      'Tek Tıkla 4K Ultra Tasarım',
+      'Kreatif Ekiplerin Güç Merkezi'
+    ];
+    setTimeout(() => {
+      const next = titles[(titles.indexOf(aiHeadline) + 1) % titles.length];
+      setAiHeadline(next);
+      setIsAiGenerating(false);
+    }, 450);
+  };
+
   // Handle Login submission
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setSuccessNotice(null);
+    setIsOperationNotAllowed(false);
 
     if (!loginEmail.trim()) {
       setErrorMessage('Lütfen e-posta adresinizi giriniz.');
@@ -94,10 +143,10 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
         return;
       }
 
-      setSuccessNotice('Giriş başarılı! Yönlendiriliyorsunuz...');
+      setSuccessNotice('Giriş başarılı! Stüdyoya yönlendiriliyorsunuz...');
       setTimeout(() => {
         onCompleteAuth(user);
-      }, 500);
+      }, 400);
     } catch (err: any) {
       console.error('Login error:', err);
       if (err.code === 'auth/operation-not-allowed') {
@@ -143,7 +192,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
       setCurrentUserForVerify(user);
       setVerificationEmail(user.email || regEmail.trim());
       setVerificationPending(true);
-      setResendCooldown(45); // 45 seconds cooldown
+      setResendCooldown(45);
     } catch (err: any) {
       console.error('Registration error:', err);
       if (err.code === 'auth/operation-not-allowed') {
@@ -162,16 +211,16 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
     setIsLoading(true);
 
     if (isSimulationMode) {
-      setVerifyCheckStatus('✓ Test Modu: E-posta başarıyla doğrulandı! Portala giriş yapılıyor...');
+      setVerifyCheckStatus('✓ Test Modu: E-posta başarıyla doğrulandı! Stüdyoya giriş yapılıyor...');
       setTimeout(() => {
         onCompleteAuth({
           uid: 'simulated-' + Date.now(),
           email: verificationEmail,
-          displayName: regName.trim() || 'Kullanıcı',
+          displayName: regName.trim() || 'Tasarımcı',
           emailVerified: true,
           isAnonymous: false,
         } as any);
-      }, 700);
+      }, 600);
       setIsLoading(false);
       return;
     }
@@ -179,12 +228,12 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
     try {
       const updatedUser = await reloadCurrentUser();
       if (updatedUser?.emailVerified) {
-        setVerifyCheckStatus('✓ E-posta adresiniz başarıyla doğrulandı! Portala giriş yapılıyor...');
+        setVerifyCheckStatus('✓ E-posta adresiniz başarıyla doğrulandı! Stüdyoya giriş yapılıyor...');
         setTimeout(() => {
           onCompleteAuth(updatedUser);
-        }, 800);
+        }, 700);
       } else {
-        setVerifyCheckError('E-posta henüz doğrulanmamış. Lütfen gelen kutunuzdaki (ve Spam klasörünüzdeki) bağlantıya tıkladıktan sonra tekrar deneyin.');
+        setVerifyCheckError('E-posta henüz doğrulanmamış görünüyor. Lütfen gelen kutunuzdaki bağlantıya tıkladıktan sonra tekrar deneyin (Spam klasörünü de kontrol ediniz).');
       }
     } catch (err: any) {
       console.error('Reload user error:', err);
@@ -202,7 +251,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
     setIsLoading(true);
 
     if (isSimulationMode) {
-      setVerifyCheckStatus('Test Modu: Yeni doğrulama bağlantısı simüle edildi.');
+      setVerifyCheckStatus('Test Modu: Yeni doğrulama bağlantısı e-postanıza simüle edildi.');
       setResendCooldown(30);
       setIsLoading(false);
       return;
@@ -230,7 +279,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
         setSuccessNotice('Google ile giriş başarılı! Yönlendiriliyorsunuz...');
         setTimeout(() => {
           onCompleteAuth(user);
-        }, 500);
+        }, 400);
       }
     } catch (err: any) {
       console.error('Google Auth error:', err);
@@ -254,7 +303,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
     setIsForgotLoading(true);
     try {
       await sendResetPassword(forgotEmail.trim());
-      setForgotMessage('Şifre sıfırlama bağlantısı e-postanıza gönderildi. Lütfen gelen kutunuzu kontrol edin.');
+      setForgotMessage('Şifre sıfırlama bağlantısı e-postanıza iletildi. Lütfen gelen kutunuzu kontrol edin.');
     } catch (err: any) {
       console.error('Password reset error:', err);
       setForgotError(getAuthErrorMessage(err));
@@ -265,7 +314,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
 
   return (
     <div className="ap-page-root">
-      {/* Dynamic ambient mesh & background matching landing page */}
+      {/* Luxury Ambient Mesh & Engineering Grid Background */}
       <div className="lp-ambient" aria-hidden="true">
         <div className="lp-mesh lp-mesh-1" />
         <div className="lp-mesh lp-mesh-2" />
@@ -273,7 +322,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
         <div className="lp-grid" />
       </div>
 
-      {/* Floating Header */}
+      {/* Floating Glassmorphic Top Bar */}
       <header className="ap-top-bar">
         <div className="ap-top-brand" onClick={onBackToLanding} role="button" tabIndex={0}>
           <div className="lp-logo">
@@ -281,7 +330,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
           </div>
           <div>
             <h2 className="lp-brand-name">Grafik Motoru</h2>
-            <p className="lp-brand-tagline">Kurumsal Portal</p>
+            <p className="lp-brand-tagline">Kurumsal Tasarım Portalı</p>
           </div>
         </div>
 
@@ -290,26 +339,29 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
           onClick={onBackToLanding}
           title="Ana Sayfaya Dön"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
           <span>Ana Sayfaya Dön</span>
         </button>
       </header>
 
-      {/* Main Container */}
+      {/* Main Grid Container */}
       <main className="ap-main-wrap">
         <div className="ap-grid-container">
-          {/* Left Column: Value Proposition & Brand Feature Highlights */}
+          
+          {/* ═══════════════════════════════════════════════════
+              LEFT COLUMN: LUXURY LIVE STUDIO SHOWCASE
+             ═══════════════════════════════════════════════════ */}
           <motion.div 
             className="ap-left-panel"
-            initial={{ opacity: 0, x: -30 }}
+            initial={{ opacity: 0, x: -28 }}
             animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
           >
             <div className="ap-badge-pill">
               <span className="ap-badge-pulse" />
-              <span>KURUMSAL TASARIM PLATFORMU</span>
+              <span>YAPAY ZEKÂ DESTEKLİ TASARIM PLATFORMU</span>
             </div>
 
             <h1 className="ap-headline">
@@ -318,116 +370,237 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
             </h1>
 
             <p className="ap-subtext">
-              Yapay zekâ destekli sosyal medya şablonları, otomatik formatlama ve yüksek çözünürlüklü grafik motoru tek bir çatı altında.
+              Sosyal medya için şablonlarınızı tek bir merkezden oluşturun, Gemini yapay zekâsı ile içerikleri saniyeler içinde zenginleştirin ve 4K kalitede dışa aktarın.
             </p>
 
-            <div className="ap-features-list">
-              <div className="ap-feature-item">
-                <div className="ap-feature-icon">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B1A" strokeWidth="2.2">
-                    <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" />
-                  </svg>
+            {/* Interactive Live Mini Studio Mockup Card */}
+            <div className="ap-studio-card">
+              {/* Studio Window Top Bar */}
+              <div className="ap-studio-topbar">
+                <div className="ap-studio-dots">
+                  <span className="ap-dot ap-dot-red" />
+                  <span className="ap-dot ap-dot-yellow" />
+                  <span className="ap-dot ap-dot-green" />
                 </div>
-                <div>
-                  <h4>AI Tasarım & Metin Sihirbazı</h4>
-                  <p>Tek tıkla etkileyici başlıklar, kancalar ve kurumsal içerikler üretin.</p>
+                <div className="ap-studio-title-pill">
+                  <span className="ap-live-indicator" />
+                  <span>Grafik Motoru • Canlı Tuval ({activeFormat === 'post' ? '1:1 Post' : '9:16 Hikaye'})</span>
+                </div>
+                <div className="ap-studio-format-toggles">
+                  <button 
+                    type="button"
+                    className={`ap-format-pill ${activeFormat === 'post' ? 'active' : ''}`}
+                    onClick={() => setActiveFormat('post')}
+                  >
+                    1:1
+                  </button>
+                  <button 
+                    type="button"
+                    className={`ap-format-pill ${activeFormat === 'story' ? 'active' : ''}`}
+                    onClick={() => setActiveFormat('story')}
+                  >
+                    9:16
+                  </button>
                 </div>
               </div>
 
-              <div className="ap-feature-item">
-                <div className="ap-feature-icon">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B1A" strokeWidth="2.2">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                    <circle cx="8.5" cy="8.5" r="1.5" />
-                    <polyline points="21 15 16 10 5 21" />
-                  </svg>
+              {/* Studio Canvas Interior */}
+              <div className={`ap-studio-canvas ${activeFormat === 'story' ? 'is-story' : ''}`}>
+                {/* Floating Top Tool Chips */}
+                <div className="ap-canvas-tool-dock">
+                  <span className="ap-dock-chip active">✦ AI Sihirbazı</span>
+                  <span className="ap-dock-chip">Katmanlar</span>
+                  <span className="ap-dock-chip">Vektörler</span>
+                  <button 
+                    type="button" 
+                    className="ap-dock-btn-refresh" 
+                    onClick={handleRegenerateShowcase}
+                    title="Yeni Başlık Üret"
+                  >
+                    <svg className={isAiGenerating ? 'animate-spin' : ''} width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                      <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3" />
+                    </svg>
+                    <span>Yenile</span>
+                  </button>
                 </div>
-                <div>
-                  <h4>4K Ultra & Çoklu Format Çıktısı</h4>
-                  <p>Instagram, LinkedIn, X ve YouTube için pikselsiz kayıpsız dışa aktarım.</p>
-                </div>
-              </div>
 
-              <div className="ap-feature-item">
-                <div className="ap-feature-icon">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FF6B1A" strokeWidth="2.2">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  </svg>
+                {/* Simulated Poster Graphic Element */}
+                <div className="ap-canvas-content-box">
+                  <div className="ap-canvas-selection-box">
+                    <span className="ap-handle ap-handle-tl" />
+                    <span className="ap-handle ap-handle-tr" />
+                    <span className="ap-handle ap-handle-bl" />
+                    <span className="ap-handle ap-handle-br" />
+                    
+                    <div className="ap-canvas-tag">
+                      <span className="ap-tag-dot" />
+                      <span>Metin Katmanı #01</span>
+                    </div>
+
+                    <h3 className="ap-canvas-dynamic-heading">
+                      {isAiGenerating ? (
+                        <span className="ap-text-loading">Gemini düşünüyor...</span>
+                      ) : (
+                        aiHeadline
+                      )}
+                    </h3>
+                    <p className="ap-canvas-dynamic-sub">
+                      Yüksek çözünürlüklü sosyal medya şablonu • Otomatik formatlama aktif
+                    </p>
+                  </div>
+
+                  {/* Simulated Floating Cursor with User Badge */}
+                  <div className="ap-canvas-user-cursor">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="#FF6B1A">
+                      <polygon points="0,0 24,9 12,12 9,24" />
+                    </svg>
+                    <span className="ap-cursor-pill">Tuna • AI Tasarımcı</span>
+                  </div>
                 </div>
-                <div>
-                  <h4>Güvenli Bulut & Ekip Şablonları</h4>
-                  <p>Tasarımlarınız anlık olarak şifrelenip bulut ortamında yedeklenir.</p>
+
+                {/* Canvas Bottom Telemetry */}
+                <div className="ap-canvas-telemetry">
+                  <div className="ap-telemetry-chip">
+                    <span className="ap-chip-dot green" />
+                    <span>Gemini 2.5 • 0.3s</span>
+                  </div>
+                  <div className="ap-telemetry-chip">
+                    <span>4K Ultra-HD Çıktı</span>
+                  </div>
+                  <div className="ap-telemetry-chip">
+                    <span>%100 Vektörel</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Quick Metrics Bar */}
-            <div className="ap-trust-pills">
-              <div className="ap-trust-pill">
-                <span className="ap-trust-check">✓</span>
-                <span>%100 Vektörel Netlik</span>
+            {/* Social Proof Avatar Row */}
+            <div className="ap-social-proof-bar">
+              <div className="ap-avatar-stack">
+                <div className="ap-avatar-img" style={{ background: 'linear-gradient(135deg, #FF6B1A, #FFA26B)' }}>T</div>
+                <div className="ap-avatar-img" style={{ background: 'linear-gradient(135deg, #3B82F6, #60A5FA)' }}>M</div>
+                <div className="ap-avatar-img" style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}>K</div>
+                <div className="ap-avatar-img" style={{ background: 'linear-gradient(135deg, #8B5CF6, #C084FC)' }}>A</div>
               </div>
-              <div className="ap-trust-pill">
-                <span className="ap-trust-check">✓</span>
-                <span>Anlık Senkronizasyon</span>
-              </div>
-              <div className="ap-trust-pill">
-                <span className="ap-trust-check">✓</span>
-                <span>Gizlilik Garantisi</span>
+              <div className="ap-proof-text">
+                <div className="ap-stars">
+                  {'★★★★★'.split('').map((s, i) => (
+                    <span key={i} className="ap-star">{s}</span>
+                  ))}
+                  <strong>4.9 / 5</strong>
+                </div>
+                <p>10.000+ tasarımcı ve kreatif ekip tarafından tercih ediliyor.</p>
               </div>
             </div>
           </motion.div>
 
-          {/* Right Column: Auth Card */}
+          {/* ═══════════════════════════════════════════════════
+              RIGHT COLUMN: MASTERPIECE AUTH CARD
+             ═══════════════════════════════════════════════════ */}
           <motion.div 
             className="ap-right-panel"
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 24 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.65, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
           >
             <div className="ap-card">
-              {/* BRAND ICON IN CARD */}
+              
+              {/* Brand Header Inside Card */}
               <div className="ap-card-brand-top">
                 <div className="ap-card-logo">
                   <img src="/grafik_motoru_icon_512.png" alt="Grafik Motoru" />
+                  <div className="ap-card-logo-glow" />
                 </div>
                 <div className="ap-card-titles">
                   <h2>Grafik Motoru Portal</h2>
-                  <p>Görsel üretim ve yönetim paneline erişin</p>
+                  <p>Görsel üretim stüdyonuza güvenle erişin</p>
                 </div>
               </div>
 
               <AnimatePresence mode="wait">
-                {/* ═══════════ VERIFICATION SCREEN ═══════════ */}
+                {/* ═══════════ STATE 1: EMAIL VERIFICATION PENDING ═══════════ */}
                 {verificationPending ? (
                   <motion.div 
                     key="verification-box"
                     className="ap-verify-screen"
-                    initial={{ opacity: 0, scale: 0.95 }}
+                    initial={{ opacity: 0, scale: 0.96 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
+                    exit={{ opacity: 0, scale: 0.96 }}
                     transition={{ duration: 0.3 }}
                   >
-                    <div className="ap-verify-icon-wrap">
-                      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#FF6B1A" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
-                        <polyline points="22,6 12,13 2,6" />
-                      </svg>
-                      <div className="ap-verify-pulse" />
+                    {/* Pulsing Sonar Envelope */}
+                    <div className="ap-verify-sonar-wrap">
+                      <div className="ap-sonar-ring ap-sonar-1" />
+                      <div className="ap-sonar-ring ap-sonar-2" />
+                      <div className="ap-sonar-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#FF6B1A" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                          <polyline points="22,6 12,13 2,6" />
+                        </svg>
+                      </div>
                     </div>
 
                     <h3 className="ap-verify-title">E-postanızı Doğrulayın</h3>
                     <p className="ap-verify-desc">
-                      Güvenliğiniz için hesabınızı aktifleştirmeden önce e-posta adresinizi doğrulamanız gerekmektedir.
+                      Hesap güvenliğinizi sağlamak için doğrulama bağlantısı e-posta adresinize gönderildi:
                     </p>
 
                     <div className="ap-verify-target-email">
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                        <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+                        <polyline points="22,6 12,13 2,6" />
+                      </svg>
                       <span>{verificationEmail}</span>
                     </div>
 
-                    <p className="ap-verify-subnote">
-                      Yukarıdaki adrese bir onay bağlantısı gönderdik. Lütfen gelen kutunuzdaki linke tıklayınız.
-                    </p>
+                    {/* 3-Step Process Pipeline */}
+                    <div className="ap-verify-pipeline">
+                      <div className="ap-pipeline-step done">
+                        <span className="ap-step-num">✓</span>
+                        <span className="ap-step-text">Kayıt Alındı</span>
+                      </div>
+                      <div className="ap-pipeline-line active" />
+                      <div className="ap-pipeline-step current">
+                        <span className="ap-step-num">2</span>
+                        <span className="ap-step-text">E-posta Onayı</span>
+                      </div>
+                      <div className="ap-pipeline-line" />
+                      <div className="ap-pipeline-step">
+                        <span className="ap-step-num">3</span>
+                        <span className="ap-step-text">Stüdyo</span>
+                      </div>
+                    </div>
+
+                    {/* Quick Mail Provider Shortcuts */}
+                    <div className="ap-mail-shortcuts">
+                      <span className="ap-shortcuts-label">Gelen kutunuzu açın:</span>
+                      <div className="ap-shortcuts-btns">
+                        <a 
+                          href="https://mail.google.com" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="ap-btn-mail-app"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24">
+                            <path fill="#EA4335" d="M12 12.713L1.5 6.25V18a2 2 0 002 2h17a2 2 0 002-2V6.25L12 12.713z" />
+                            <path fill="#4285F4" d="M22.5 6V4a2 2 0 00-2-2h-17a2 2 0 00-2 2v2l10.5 6.5L22.5 6z" />
+                          </svg>
+                          <span>Gmail</span>
+                        </a>
+                        <a 
+                          href="https://outlook.live.com" 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="ap-btn-mail-app"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24">
+                            <path fill="#0078D4" d="M22 6v12a2 2 0 01-2 2h-7V4h7a2 2 0 012 2z" />
+                            <path fill="#28A8EA" d="M13 4v16H4a2 2 0 01-2-2V6a2 2 0 012-2h9z" />
+                          </svg>
+                          <span>Outlook</span>
+                        </a>
+                      </div>
+                    </div>
 
                     {verifyCheckStatus && (
                       <div className="ap-notice ap-notice-success">
@@ -469,7 +642,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                           disabled={resendCooldown > 0 || isLoading}
                         >
                           {resendCooldown > 0 
-                            ? `Tekrar Gönder (${resendCooldown}s)` 
+                            ? `Yeni bağlantı için bekleyin (${resendCooldown}s)` 
                             : 'Tekrar Doğrulama E-postası Gönder'}
                         </button>
                       </div>
@@ -482,12 +655,12 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                           setTab('login');
                         }}
                       >
-                        ← Başka Bir Hesapla Giriş Yap
+                        ← Farklı Bir Hesapla Giriş Yap
                       </button>
                     </div>
                   </motion.div>
                 ) : (
-                  /* ═══════════ MAIN TAB VIEW (LOGIN / REGISTER) ═══════════ */
+                  /* ═══════════ STATE 2: SIGN-IN & REGISTER FORMS ═══════════ */
                   <motion.div 
                     key="tabs-view"
                     initial={{ opacity: 0 }}
@@ -495,7 +668,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                     exit={{ opacity: 0 }}
                     transition={{ duration: 0.2 }}
                   >
-                    {/* SEGMENTED TAB SWITCHER */}
+                    {/* SILKY SMOOTH SEGMENTED CONTROL */}
                     <div className="ap-segmented-tabs">
                       <button 
                         type="button" 
@@ -503,9 +676,17 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                         onClick={() => {
                           setTab('login');
                           setErrorMessage(null);
+                          setIsOperationNotAllowed(false);
                         }}
                       >
-                        Giriş Yap
+                        {tab === 'login' && (
+                          <motion.div 
+                            className="ap-seg-active-pill" 
+                            layoutId="portal-tab-indicator"
+                            transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                          />
+                        )}
+                        <span className="ap-seg-tab-label">Giriş Yap</span>
                       </button>
                       <button 
                         type="button" 
@@ -513,9 +694,17 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                         onClick={() => {
                           setTab('register');
                           setErrorMessage(null);
+                          setIsOperationNotAllowed(false);
                         }}
                       >
-                        Kayıt Ol
+                        {tab === 'register' && (
+                          <motion.div 
+                            className="ap-seg-active-pill" 
+                            layoutId="portal-tab-indicator"
+                            transition={{ type: 'spring', stiffness: 450, damping: 35 }}
+                          />
+                        )}
+                        <span className="ap-seg-tab-label">Kayıt Ol</span>
                       </button>
                     </div>
 
@@ -531,6 +720,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                       </div>
                     )}
 
+                    {/* Operation Not Allowed Notice Card (with Console Link & Simulation) */}
                     {isOperationNotAllowed && (
                       <div className="ap-operation-card">
                         <div className="ap-operation-header">
@@ -580,11 +770,13 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                       </div>
                     )}
 
-                    {/* ────── TAB 1: GİRİŞ YAP ────── */}
+                    {/* ────── TAB 1: GİRİŞ YAP (SIGN IN) ────── */}
                     {tab === 'login' && (
                       <form onSubmit={handleLoginSubmit} className="ap-form">
                         <div className="ap-field">
-                          <label htmlFor="login-email">E-posta Adresi veya Kullanıcı Adı</label>
+                          <div className="ap-label-row">
+                            <label htmlFor="login-email">E-POSTA ADRESİ VEYA KULLANICI ADI</label>
+                          </div>
                           <div className="ap-input-wrap">
                             <svg className="ap-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2">
                               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -595,7 +787,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               type="email"
                               value={loginEmail}
                               onChange={(e) => setLoginEmail(e.target.value)}
-                              placeholder="ornek@sirket.com"
+                              placeholder="adiniz@sirketiniz.com"
                               autoComplete="email"
                               required
                             />
@@ -604,7 +796,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
 
                         <div className="ap-field">
                           <div className="ap-label-row">
-                            <label htmlFor="login-password">Şifre</label>
+                            <label htmlFor="login-password">GÜVENLİ ŞİFRE</label>
                             <button 
                               type="button" 
                               className="ap-forgot-link" 
@@ -658,20 +850,20 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               checked={rememberMe} 
                               onChange={(e) => setRememberMe(e.target.checked)} 
                             />
-                            <span>Beni hatırla</span>
+                            <span>Oturumumu açık tut</span>
                           </label>
                         </div>
 
                         <button 
                           type="submit" 
-                          className="ap-btn-primary" 
+                          className="ap-btn-primary ap-btn-shimmer" 
                           disabled={isLoading}
                         >
                           {isLoading ? (
                             <span className="ap-spinner" />
                           ) : (
                             <>
-                              <span>Giriş Yap</span>
+                              <span>Portala Giriş Yap</span>
                               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="5" y1="12" x2="19" y2="12" />
                                 <polyline points="12 5 19 12 12 19" />
@@ -682,11 +874,11 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                       </form>
                     )}
 
-                    {/* ────── TAB 2: KAYIT OL ────── */}
+                    {/* ────── TAB 2: KAYIT OL (SIGN UP) ────── */}
                     {tab === 'register' && (
                       <form onSubmit={handleRegisterSubmit} className="ap-form">
                         <div className="ap-field">
-                          <label htmlFor="reg-name">Ad Soyad / Kullanıcı Adı</label>
+                          <label htmlFor="reg-name">AD SOYAD / KULLANICI ADI</label>
                           <div className="ap-input-wrap">
                             <svg className="ap-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2">
                               <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -705,7 +897,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                         </div>
 
                         <div className="ap-field">
-                          <label htmlFor="reg-email">E-posta Adresi (Doğrulanacaktır)</label>
+                          <label htmlFor="reg-email">KURUMSAL E-POSTA ADRESİ</label>
                           <div className="ap-input-wrap">
                             <svg className="ap-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2">
                               <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -716,7 +908,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               type="email"
                               value={regEmail}
                               onChange={(e) => setRegEmail(e.target.value)}
-                              placeholder="ornek@sirket.com"
+                              placeholder="adiniz@sirketiniz.com"
                               autoComplete="email"
                               required
                             />
@@ -724,7 +916,14 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                         </div>
 
                         <div className="ap-field">
-                          <label htmlFor="reg-password">Şifre Belirleyin</label>
+                          <div className="ap-label-row">
+                            <label htmlFor="reg-password">GÜVENLİ ŞİFRE</label>
+                            {regPassword && (
+                              <span className="ap-pass-strength-label" style={{ color: passStrength.color }}>
+                                {passStrength.label}
+                              </span>
+                            )}
+                          </div>
                           <div className="ap-input-wrap">
                             <svg className="ap-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2">
                               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -757,10 +956,20 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               )}
                             </button>
                           </div>
+
+                          {/* Dynamic Password Strength Progress Bar */}
+                          {regPassword && (
+                            <div className="ap-pass-meter-track">
+                              <div 
+                                className="ap-pass-meter-bar" 
+                                style={{ width: passStrength.width, background: passStrength.color }} 
+                              />
+                            </div>
+                          )}
                         </div>
 
                         <div className="ap-field">
-                          <label htmlFor="reg-password-confirm">Şifre Tekrarı</label>
+                          <label htmlFor="reg-password-confirm">ŞİFRE TEKRARI</label>
                           <div className="ap-input-wrap">
                             <svg className="ap-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2">
                               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
@@ -770,10 +979,24 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               type={showRegPassword ? "text" : "password"}
                               value={regPasswordConfirm}
                               onChange={(e) => setRegPasswordConfirm(e.target.value)}
-                              placeholder="Şifrenizi doğrulayın"
+                              placeholder="Şifrenizi tekrar doğrulayın"
                               autoComplete="new-password"
                               required
                             />
+                            {regPasswordConfirm && (
+                              <span className="ap-match-indicator">
+                                {regPassword === regPasswordConfirm ? (
+                                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2.5">
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                ) : (
+                                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#EF4444" strokeWidth="2.5">
+                                    <line x1="18" y1="6" x2="6" y2="18" />
+                                    <line x1="6" y1="6" x2="18" y2="18" />
+                                  </svg>
+                                )}
+                              </span>
+                            )}
                           </div>
                         </div>
 
@@ -786,21 +1009,21 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                               required
                             />
                             <span>
-                              <span className="ap-highlight">Kullanım Koşulları</span> ve <span className="ap-highlight">Gizlilik Politikasını</span> okudum, kabul ediyorum.
+                              <span className="ap-highlight">Kullanım Koşulları</span> ve <span className="ap-highlight">Gizlilik Politikasını</span> okudum, onaylıyorum.
                             </span>
                           </label>
                         </div>
 
                         <button 
                           type="submit" 
-                          className="ap-btn-primary" 
+                          className="ap-btn-primary ap-btn-shimmer" 
                           disabled={isLoading}
                         >
                           {isLoading ? (
                             <span className="ap-spinner" />
                           ) : (
                             <>
-                              <span>Hesap Oluştur ve Doğrula</span>
+                              <span>Hesap Oluştur ve E-postamı Doğrula</span>
                               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                                 <line x1="5" y1="12" x2="19" y2="12" />
                                 <polyline points="12 5 19 12 12 19" />
@@ -811,14 +1034,14 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                       </form>
                     )}
 
-                    {/* ────── DIVIDER ────── */}
+                    {/* ────── TACTILE DIVIDER ────── */}
                     <div className="ap-divider">
                       <span className="ap-divider-line" />
-                      <span className="ap-divider-text">veya Google ile devam et</span>
+                      <span className="ap-divider-text">veya Google ile tek tıkla devam et</span>
                       <span className="ap-divider-line" />
                     </div>
 
-                    {/* ────── GOOGLE BUTTON ────── */}
+                    {/* ────── ELEVATED GOOGLE BUTTON ────── */}
                     <button 
                       type="button" 
                       className="ap-btn-google"
@@ -831,17 +1054,18 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                         <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                         <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                       </svg>
-                      <span>Google Hesabı ile Giriş Yap</span>
+                      <span>Google Hesabı ile Hızlı Giriş</span>
                     </button>
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
           </motion.div>
+
         </div>
       </main>
 
-      {/* ═══════════ FORGOT PASSWORD MODAL ═══════════ */}
+      {/* ═══════════ LUXURY FORGOT PASSWORD MODAL ═══════════ */}
       <AnimatePresence>
         {isForgotModalOpen && (
           <div className="ap-modal-overlay" onClick={() => setIsForgotModalOpen(false)}>
@@ -864,7 +1088,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
               </div>
 
               <p className="ap-modal-desc">
-                Kayıtlı e-posta adresinizi girin. Size şifrenizi güvenle sıfırlayabileceğiniz bir bağlantı göndereceğiz.
+                Kayıtlı e-posta adresinizi girin. Size şifrenizi anında ve güvenle sıfırlayabileceğiniz bir bağlantı göndereceğiz.
               </p>
 
               {forgotMessage && (
@@ -881,7 +1105,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
 
               <form onSubmit={handleForgotPassword} className="ap-form">
                 <div className="ap-field">
-                  <label htmlFor="forgot-email">E-posta Adresi</label>
+                  <label htmlFor="forgot-email">KAYITLI E-POSTA ADRESİ</label>
                   <div className="ap-input-wrap">
                     <svg className="ap-input-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2">
                       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -892,7 +1116,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                       type="email"
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
-                      placeholder="ornek@sirket.com"
+                      placeholder="adiniz@sirketiniz.com"
                       required
                     />
                   </div>
@@ -908,7 +1132,7 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                   </button>
                   <button 
                     type="submit" 
-                    className="ap-btn-primary"
+                    className="ap-btn-primary ap-btn-shimmer"
                     disabled={isForgotLoading}
                   >
                     {isForgotLoading ? <span className="ap-spinner" /> : 'Sıfırlama Bağlantısı Gönder'}

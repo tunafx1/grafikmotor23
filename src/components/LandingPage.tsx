@@ -757,17 +757,26 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
 
           {/* Social Proof */}
           <motion.div
-            className="lp-social-proof"
+            className="lp-social-proof-wrap"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.7, duration: 0.6 }}
           >
             <div className="lp-avatars">
-              <div className="lp-avatar" style={{ background: '#FF6B1A' }}>G</div>
-              <div className="lp-avatar" style={{ background: '#FFA26B' }}>M</div>
-              <div className="lp-avatar" style={{ background: '#E9570F' }}>T</div>
+              <div className="lp-avatar" style={{ background: 'linear-gradient(135deg, #FF6B1A, #FFA26B)' }}>T</div>
+              <div className="lp-avatar" style={{ background: 'linear-gradient(135deg, #3B82F6, #60A5FA)' }}>M</div>
+              <div className="lp-avatar" style={{ background: 'linear-gradient(135deg, #10B981, #34D399)' }}>K</div>
+              <div className="lp-avatar" style={{ background: 'linear-gradient(135deg, #8B5CF6, #C084FC)' }}>A</div>
             </div>
-            <span>Sosyal medya yöneticileri ve kreatif ekipler için geliştirildi</span>
+            <div className="lp-proof-info">
+              <div className="lp-proof-stars">
+                {'★★★★★'.split('').map((s, idx) => (
+                  <span key={idx}>{s}</span>
+                ))}
+                <strong>4.9 / 5</strong>
+              </div>
+              <span className="lp-proof-caption">10.000+ tasarımcı ve ajans tarafından tercih ediliyor</span>
+            </div>
           </motion.div>
         </div>
 
