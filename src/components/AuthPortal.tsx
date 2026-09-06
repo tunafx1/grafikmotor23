@@ -1011,8 +1011,8 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
                   <div style={{ fontSize: '12px', color: '#166534', opacity: 0.95 }}>
                     <p style={{ margin: '0 0 6px 0' }}>📬 <strong>E-posta ulaşmadıysa dikkat ediniz:</strong></p>
                     <ul style={{ margin: 0, paddingLeft: '18px' }}>
-                      <li>Lütfen <strong>Spam / Gereksiz</strong> ve <strong>Tanıtımlar (Promotions)</strong> klasörlerini kontrol edin (Gönderici: <em>noreply@grafik-motoru.firebaseapp.com</em>).</li>
-                      <li>Güvenlik politikası gereği, yalnızca sistemde <strong>daha önce 'Kayıt Ol' adımıyla oluşturulmuş</strong> hesaplara e-posta iletilir. Eğer hesabınız yoksa veya <strong>Google ile giriş</strong> yaptıysanız şifre sıfırlama gönderilmez.</li>
+                      <li>Lütfen <strong>Spam / Gereksiz</strong> ve <strong>Tanıtımlar (Promotions)</strong> klasörlerini kontrol edin.</li>
+                      <li>Hesabınızın e-posta adresini kullandığınızdan emin olun. Google ile kayıt olduysanız Google ile giriş yapıp <strong>Hesap &amp; Profil</strong> bölümünden de şifre oluşturabilirsiniz.</li>
                     </ul>
                   </div>
                   <button

@@ -1,4 +1,5 @@
 import { storage } from './storage';
+import { saveAccountPassword } from './accountPassword';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, disableNetwork, enableNetwork } from 'firebase/firestore';
 import { 
@@ -12,9 +13,6 @@ import {
   sendEmailVerification,
   sendPasswordResetEmail,
   updateProfile,
-  updatePassword,
-  linkWithCredential,
-  EmailAuthProvider,
   User
 } from 'firebase/auth';
 import { getAnalytics, Analytics } from 'firebase/analytics';
@@ -168,6 +166,7 @@ export async function reloadCurrentUser(): Promise<User | null> {
  */
 export async function sendResetPassword(email: string): Promise<void> {
   if (!isValidConfig) throw Object.assign(new Error('Firebase configuration missing'), {code:'auth/configuration-not-found'});
+  auth.languageCode = 'tr';
   await sendPasswordResetEmail(auth, email.trim());
 }
 
@@ -182,20 +181,7 @@ export async function setOrUpdateAccountPassword(newPassword: string): Promise<{
     throw Object.assign(new Error('Aktif bir kullanıcı oturumu bulunamadı.'), { code: 'auth/no-current-user' });
   }
 
-  const hasPasswordProvider = currentUser.providerData.some(p => p.providerId === 'password');
-
-  if (hasPasswordProvider) {
-    await updatePassword(currentUser, newPassword);
-    return { isLinked: false };
-  } else {
-    if (!currentUser.email) {
-      throw Object.assign(new Error('Kullanıcının e-posta adresi bulunamadı.'), { code: 'auth/invalid-email' });
-    }
-    const credential = EmailAuthProvider.credential(currentUser.email, newPassword);
-    await linkWithCredential(currentUser, credential);
-    await currentUser.reload();
-    return { isLinked: true };
-  }
+  return saveAccountPassword(currentUser, newPassword);
 }
 
 /**
@@ -233,6 +219,14 @@ export function getAuthErrorMessage(error: any): string {
       return 'E-posta adresiniz henüz doğrulanmamış. Lütfen gelen kutunuzdaki linke tıklayın.';
     case 'auth/requires-recent-login':
       return 'Güvenlik nedeniyle şifre belirlemeden önce lütfen oturumunuzu kapatıp tekrar giriş yapın.';
+    case 'auth/unauthorized-domain':
+      return `${typeof window !== 'undefined' ? window.location.hostname : 'Bu site'} adresi Firebase Google girişine izin verilen alan adları arasında değil. Firebase Console → Authentication → Settings → Authorized domains bölümüne bu alan adını ekleyin.`;
+    case 'auth/popup-blocked':
+      return 'Google doğrulama penceresi engellendi. Bu site için açılır pencerelere izin verin veya e-posta bağlantısını kullanın.';
+    case 'auth/user-mismatch':
+      return 'Farklı bir Google hesabı seçildi. Profilinizdeki e-posta adresine ait Google hesabını seçin.';
+    case 'auth/password-does-not-meet-requirements':
+      return 'Şifreniz güvenlik koşullarını karşılamıyor. Daha uzun, büyük/küçük harf, rakam ve özel karakter içeren bir şifre deneyin.';
     case 'auth/credential-already-in-use':
       return 'Bu kimlik bilgisi başka bir hesap tarafından kullanılıyor.';
     default:

@@ -20,26 +20,34 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
   const [isLoading, setIsLoading] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [refreshedUser, setRefreshedUser] = useState<typeof user>(user);
+  const [providerIds, setProviderIds] = useState<string[]>([]);
 
-  // Reload user from Firebase each time the modal opens to get fresh providerData
+  // Firebase mutates User in place. Store a provider snapshot so React rerenders.
   useEffect(() => {
-    if (isOpen && user) {
-      setRefreshedUser(user); // set immediately with current
+    if (!isOpen || !user) return;
+    let cancelled = false;
+    setPassword('');
+    setPasswordConfirm('');
+    setSuccessMessage(null);
+    setErrorMessage(null);
+    setProviderIds(user.providerData.map(p => p.providerId));
+    const refresh = () => {
       reloadCurrentUser().then(fresh => {
-        if (fresh) {
-          setRefreshedUser(fresh);
-          console.log('[ProfileModal] providers:', fresh.providerData.map(p => p.providerId));
+        if (!cancelled && fresh?.uid === user.uid) {
+          setProviderIds(fresh.providerData.map(p => p.providerId));
         }
       }).catch(console.warn);
-    }
-  }, [isOpen]);
+    };
+    refresh();
+    window.addEventListener('focus', refresh);
+    return () => { cancelled = true; window.removeEventListener('focus', refresh); };
+  }, [isOpen, user?.uid]);
 
   if (!isOpen || !user) return null;
 
-  const activeUser = refreshedUser || user;
-  const hasPasswordProvider = activeUser.providerData.some(p => p.providerId === 'password');
-  const hasGoogleProvider = activeUser.providerData.some(p => p.providerId === 'google.com');
+  const activeUser = user;
+  const hasPasswordProvider = providerIds.includes('password');
+  const hasGoogleProvider = providerIds.includes('google.com');
 
   const displayName = activeUser.displayName || 'Kullanıcı';
   const email = activeUser.email || '';
@@ -50,32 +58,6 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
     setErrorMessage(null);
     setSuccessMessage(null);
 
-    if (!hasPasswordProvider) {
-      // Google-only user: send password reset email (Firebase's recommended approach)
-      // This avoids all issues with linkWithCredential + requires-recent-login
-      if (!email) {
-        setErrorMessage('Hesabınıza bağlı bir e-posta adresi bulunamadı.');
-        return;
-      }
-      setIsLoading(true);
-      try {
-        await sendResetPassword(email);
-        setSuccessMessage(
-          `Şifre belirleme bağlantısı ${email} adresine gönderildi. ` +
-          'Lütfen e-posta kutunuzu kontrol edin (spam klasörünü de). ' +
-          'Linke tıklayarak şifrenizi belirleyin; ardından bu e-posta ve şifrenizle giriş yapabilirsiniz.'
-        );
-        if (onUserUpdated) onUserUpdated();
-      } catch (err: any) {
-        console.error('Password reset email error:', err);
-        setErrorMessage(getAuthErrorMessage(err));
-      } finally {
-        setIsLoading(false);
-      }
-      return;
-    }
-
-    // Existing password user: update password directly
     if (password.length < 6) {
       setErrorMessage('Şifreniz en az 6 karakter uzunluğunda olmalıdır.');
       return;
@@ -88,11 +70,14 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
 
     setIsLoading(true);
     try {
-      await setOrUpdateAccountPassword(password);
-      setSuccessMessage('Şifreniz başarıyla güncellendi.');
+      const result = await setOrUpdateAccountPassword(password);
+      setSuccessMessage(result.isLinked
+        ? `Şifreniz oluşturuldu. Artık ${email} adresi ve bu şifreyle de aynı hesabınıza giriş yapabilirsiniz.`
+        : 'Şifreniz başarıyla güncellendi.');
+      setProviderIds(ids => ids.includes('password') ? ids : [...ids, 'password']);
       setPassword('');
       setPasswordConfirm('');
-      if (onUserUpdated) onUserUpdated();
+      if (onUserUpdated) Promise.resolve(onUserUpdated()).catch(console.warn);
     } catch (err: any) {
       console.error('Password update error:', err);
       setErrorMessage(getAuthErrorMessage(err));
@@ -278,7 +263,7 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
             <p style={{ margin: '0 0 14px 0', fontSize: '12px', color: 'rgba(255, 255, 255, 0.65)', lineHeight: 1.5 }}>
               {hasPasswordProvider 
                 ? 'E-posta ve şifrenizle giriş yaparken kullandığınız şifreyi buradan güncelleyebilirsiniz.' 
-                : `Hesabınız Google ile bağlı. "Şifre Belirleme Bağlantısı Gönder" butonuna tıkladığınızda ${email} adresine bir link gönderilecek. O link aracılığıyla şifrenizi belirleyin; ardından Google'a ek olarak e-posta ve şifrenizle de giriş yapabilirsiniz.`}
+                : `Yeni şifrenizi yazın ve açılan Google penceresinde ${email} hesabınızı doğrulayın. Sonrasında Google veya e-posta ve şifreyle aynı hesabınıza giriş yapabilirsiniz.`}
             </p>
 
             {successMessage && (
@@ -315,47 +300,6 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
               </div>
             )}
 
-            {!hasPasswordProvider ? (
-              // Google-only user: send password reset email flow
-              <form onSubmit={handlePasswordSubmit}>
-                <button
-                  type="submit"
-                  disabled={isLoading || !!successMessage}
-                  style={{
-                    width: '100%',
-                    height: '44px',
-                    background: successMessage
-                      ? 'rgba(34, 197, 94, 0.15)'
-                      : 'linear-gradient(135deg, #FF6B00 0%, #FF8B3D 100%)',
-                    border: successMessage ? '1px solid rgba(34, 197, 94, 0.4)' : 'none',
-                    borderRadius: '10px',
-                    color: successMessage ? '#86EFAC' : '#FFFFFF',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: isLoading || !!successMessage ? 'not-allowed' : 'pointer',
-                    opacity: isLoading ? 0.7 : 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '7px',
-                    boxShadow: successMessage ? 'none' : '0 2px 8px rgba(255, 107, 0, 0.3)',
-                    transition: 'all 0.2s ease'
-                  }}
-                >
-                  {isLoading ? (
-                    <Loader2 size={16} className="animate-spin" />
-                  ) : successMessage ? (
-                    <><Check size={15} /><span>Bağlantı Gönderildi</span></>
-                  ) : (
-                    <><Mail size={15} /><span>Şifre Belirleme Bağlantısı Gönder</span></>
-                  )}
-                </button>
-                <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: 'rgba(255,255,255,0.4)', textAlign: 'center', lineHeight: 1.4 }}>
-                  Spam klasörünü de kontrol etmeyi unutmayın.
-                </p>
-              </form>
-            ) : (
-              // Password user: update password form
               <form onSubmit={handlePasswordSubmit}>
                 <div style={{ marginBottom: '10px' }}>
                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.75)', marginBottom: '5px' }}>
@@ -368,6 +312,8 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="En az 6 karakter"
                       required
+                      autoComplete="new-password"
+                      minLength={6}
                       style={{
                         width: '100%',
                         height: '42px',
@@ -408,6 +354,8 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
                       onChange={(e) => setPasswordConfirm(e.target.value)}
                       placeholder="Şifrenizi tekrar yazın"
                       required
+                      autoComplete="new-password"
+                      minLength={6}
                       style={{
                         width: '100%',
                         height: '42px',
@@ -462,7 +410,7 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
                   {isLoading ? (
                     <Loader2 size={16} className="animate-spin" />
                   ) : (
-                    <><KeyRound size={15} /><span>Şifreyi Güncelle</span></>
+                    <><KeyRound size={15} /><span>{hasPasswordProvider ? 'Şifreyi Güncelle' : 'Google ile Doğrula ve Şifre Oluştur'}</span></>
                   )}
                 </button>
 
@@ -476,7 +424,7 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
                 {/* Reset via email - prominent button */}
                 <button
                   type="button"
-                  disabled={isLoading || !!successMessage}
+                  disabled={isLoading}
                   onClick={async () => {
                     if (!email) return;
                     setIsLoading(true);
@@ -503,7 +451,7 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
                     color: 'rgba(255, 255, 255, 0.8)',
                     fontSize: '13px',
                     fontWeight: 500,
-                    cursor: isLoading || !!successMessage ? 'not-allowed' : 'pointer',
+                    cursor: isLoading ? 'not-allowed' : 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
@@ -512,13 +460,12 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
                   }}
                 >
                   <Mail size={15} />
-                  <span>Şifreyi E-posta ile Sıfırla</span>
+                  <span>{hasPasswordProvider ? 'Şifreyi E-posta ile Sıfırla' : 'Şifre Oluşturma Bağlantısı Gönder'}</span>
                 </button>
                 <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: 'rgba(255,255,255,0.35)', textAlign: 'center', lineHeight: 1.4 }}>
-                  Mevcut şifrenizi bilmiyorsanız bu yöntemi kullanın
+                  Bağlantıyla şifre belirlemek için bu yöntemi kullanabilirsiniz. Gelen kutunuzu ve spam klasörünü kontrol edin.
                 </p>
               </form>
-            )}
           </div>
 
           {/* Footer Actions */}
