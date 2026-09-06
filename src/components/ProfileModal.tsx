@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { User } from 'firebase/auth';
-import { X, ShieldCheck, KeyRound, LogOut, Check, Eye, EyeOff, Loader2, Sparkles } from 'lucide-react';
-import { setOrUpdateAccountPassword, getAuthErrorMessage } from '../lib/firebase';
+import { X, ShieldCheck, KeyRound, LogOut, Check, Eye, EyeOff, Loader2, Sparkles, Mail } from 'lucide-react';
+import { setOrUpdateAccountPassword, sendResetPassword, getAuthErrorMessage } from '../lib/firebase';
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -35,6 +35,32 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
     setErrorMessage(null);
     setSuccessMessage(null);
 
+    if (!hasPasswordProvider) {
+      // Google-only user: send password reset email (Firebase's recommended approach)
+      // This avoids all issues with linkWithCredential + requires-recent-login
+      if (!email) {
+        setErrorMessage('Hesabınıza bağlı bir e-posta adresi bulunamadı.');
+        return;
+      }
+      setIsLoading(true);
+      try {
+        await sendResetPassword(email);
+        setSuccessMessage(
+          `Şifre belirleme bağlantısı ${email} adresine gönderildi. ` +
+          'Lütfen e-posta kutunuzu kontrol edin (spam klasörünü de). ' +
+          'Linke tıklayarak şifrenizi belirleyin; ardından bu e-posta ve şifrenizle giriş yapabilirsiniz.'
+        );
+        if (onUserUpdated) onUserUpdated();
+      } catch (err: any) {
+        console.error('Password reset email error:', err);
+        setErrorMessage(getAuthErrorMessage(err));
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
+    // Existing password user: update password directly
     if (password.length < 6) {
       setErrorMessage('Şifreniz en az 6 karakter uzunluğunda olmalıdır.');
       return;
@@ -47,17 +73,13 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
 
     setIsLoading(true);
     try {
-      const res = await setOrUpdateAccountPassword(password);
-      if (res.isLinked) {
-        setSuccessMessage('Harika! Şifreniz başarıyla oluşturuldu ve hesabınıza bağlandı. Artık hem Google ile hem de e-posta ve bu şifrenizle giriş yapabilirsiniz.');
-      } else {
-        setSuccessMessage('Şifreniz başarıyla güncellendi.');
-      }
+      await setOrUpdateAccountPassword(password);
+      setSuccessMessage('Şifreniz başarıyla güncellendi.');
       setPassword('');
       setPasswordConfirm('');
       if (onUserUpdated) onUserUpdated();
     } catch (err: any) {
-      console.error('Password linking error:', err);
+      console.error('Password update error:', err);
       setErrorMessage(getAuthErrorMessage(err));
     } finally {
       setIsLoading(false);
@@ -232,7 +254,7 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
             marginBottom: '20px'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
-              <KeyRound size={16} className="text-[#FF6B1A]" />
+              <KeyRound size={16} style={{ color: '#FF6B1A' }} />
               <h4 style={{ margin: 0, fontSize: '14px', fontWeight: 600, color: '#FFFFFF' }}>
                 {hasPasswordProvider ? 'Şifrenizi Güncelleyin' : 'Hesabınıza Şifre Tanımlayın'}
               </h4>
@@ -241,7 +263,7 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
             <p style={{ margin: '0 0 14px 0', fontSize: '12px', color: 'rgba(255, 255, 255, 0.65)', lineHeight: 1.5 }}>
               {hasPasswordProvider 
                 ? 'E-posta ve şifrenizle giriş yaparken kullandığınız şifreyi buradan güncelleyebilirsiniz.' 
-                : 'Hesabınız Google ile bağlı. Aşağıdan bir şifre belirleyerek sonraki oturumlarınızda Google butonunun yanı sıra e-posta ve şifrenizle de doğrudan giriş yapabilirsiniz.'}
+                : `Hesabınız Google ile bağlı. "Şifre Belirleme Bağlantısı Gönder" butonuna tıkladığınızda ${email} adresine bir link gönderilecek. O link aracılığıyla şifrenizi belirleyin; ardından Google'a ek olarak e-posta ve şifrenizle de giriş yapabilirsiniz.`}
             </p>
 
             {successMessage && (
@@ -253,7 +275,7 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
                 padding: '10px 12px',
                 borderRadius: '10px',
                 marginBottom: '14px',
-                lineHeight: 1.4,
+                lineHeight: 1.5,
                 display: 'flex',
                 alignItems: 'flex-start',
                 gap: '8px'
@@ -278,133 +300,158 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
               </div>
             )}
 
-            <form onSubmit={handlePasswordSubmit}>
-              <div style={{ marginBottom: '10px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.75)', marginBottom: '5px' }}>
-                  {hasPasswordProvider ? 'Yeni Şifre' : 'Belirlemek İstediğiniz Şifre'}
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="En az 6 karakter"
-                    required
-                    style={{
-                      width: '100%',
-                      height: '42px',
-                      padding: '0 40px 0 12px',
-                      background: '#141416',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      borderRadius: '10px',
-                      color: '#FFFFFF',
-                      fontSize: '13px',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    style={{
-                      position: 'absolute',
-                      right: '10px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      color: 'rgba(255, 255, 255, 0.45)',
-                      cursor: 'pointer',
-                      padding: '4px',
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
-                    aria-label="Şifreyi göster/gizle"
-                  >
-                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
+            {!hasPasswordProvider ? (
+              // Google-only user: send password reset email flow
+              <form onSubmit={handlePasswordSubmit}>
+                <button
+                  type="submit"
+                  disabled={isLoading || !!successMessage}
+                  style={{
+                    width: '100%',
+                    height: '44px',
+                    background: successMessage
+                      ? 'rgba(34, 197, 94, 0.15)'
+                      : 'linear-gradient(135deg, #FF6B00 0%, #FF8B3D 100%)',
+                    border: successMessage ? '1px solid rgba(34, 197, 94, 0.4)' : 'none',
+                    borderRadius: '10px',
+                    color: successMessage ? '#86EFAC' : '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: isLoading || !!successMessage ? 'not-allowed' : 'pointer',
+                    opacity: isLoading ? 0.7 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '7px',
+                    boxShadow: successMessage ? 'none' : '0 2px 8px rgba(255, 107, 0, 0.3)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  {isLoading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : successMessage ? (
+                    <><Check size={15} /><span>Bağlantı Gönderildi</span></>
+                  ) : (
+                    <><Mail size={15} /><span>Şifre Belirleme Bağlantısı Gönder</span></>
+                  )}
+                </button>
+                <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: 'rgba(255,255,255,0.4)', textAlign: 'center', lineHeight: 1.4 }}>
+                  Spam klasörünü de kontrol etmeyi unutmayın.
+                </p>
+              </form>
+            ) : (
+              // Password user: update password form
+              <form onSubmit={handlePasswordSubmit}>
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.75)', marginBottom: '5px' }}>
+                    Yeni Şifre
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="En az 6 karakter"
+                      required
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        padding: '0 40px 0 12px',
+                        background: '#141416',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        borderRadius: '10px',
+                        color: '#FFFFFF',
+                        fontSize: '13px',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute', right: '10px', top: '50%',
+                        transform: 'translateY(-50%)', background: 'none', border: 'none',
+                        color: 'rgba(255, 255, 255, 0.45)', cursor: 'pointer',
+                        padding: '4px', display: 'flex', alignItems: 'center'
+                      }}
+                      aria-label="Şifreyi göster/gizle"
+                    >
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.75)', marginBottom: '5px' }}>
-                  Şifre Tekrar
-                </label>
-                <div style={{ position: 'relative' }}>
-                  <input
-                    type={showConfirm ? 'text' : 'password'}
-                    value={passwordConfirm}
-                    onChange={(e) => setPasswordConfirm(e.target.value)}
-                    placeholder="Şifrenizi tekrar yazın"
-                    required
-                    style={{
-                      width: '100%',
-                      height: '42px',
-                      padding: '0 40px 0 12px',
-                      background: '#141416',
-                      border: '1px solid rgba(255, 255, 255, 0.12)',
-                      borderRadius: '10px',
-                      color: '#FFFFFF',
-                      fontSize: '13px',
-                      outline: 'none',
-                      boxSizing: 'border-box'
-                    }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirm(!showConfirm)}
-                    style={{
-                      position: 'absolute',
-                      right: '10px',
-                      top: '50%',
-                      transform: 'translateY(-50%)',
-                      background: 'none',
-                      border: 'none',
-                      color: 'rgba(255, 255, 255, 0.45)',
-                      cursor: 'pointer',
-                      padding: '4px',
-                      display: 'flex',
-                      alignItems: 'center'
-                    }}
-                    aria-label="Şifreyi tekrar göster/gizle"
-                  >
-                    {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
-                  </button>
+                <div style={{ marginBottom: '14px' }}>
+                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 600, color: 'rgba(255, 255, 255, 0.75)', marginBottom: '5px' }}>
+                    Şifre Tekrar
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showConfirm ? 'text' : 'password'}
+                      value={passwordConfirm}
+                      onChange={(e) => setPasswordConfirm(e.target.value)}
+                      placeholder="Şifrenizi tekrar yazın"
+                      required
+                      style={{
+                        width: '100%',
+                        height: '42px',
+                        padding: '0 40px 0 12px',
+                        background: '#141416',
+                        border: '1px solid rgba(255, 255, 255, 0.12)',
+                        borderRadius: '10px',
+                        color: '#FFFFFF',
+                        fontSize: '13px',
+                        outline: 'none',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm(!showConfirm)}
+                      style={{
+                        position: 'absolute', right: '10px', top: '50%',
+                        transform: 'translateY(-50%)', background: 'none', border: 'none',
+                        color: 'rgba(255, 255, 255, 0.45)', cursor: 'pointer',
+                        padding: '4px', display: 'flex', alignItems: 'center'
+                      }}
+                      aria-label="Şifreyi tekrar göster/gizle"
+                    >
+                      {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              <button
-                type="submit"
-                disabled={isLoading || !password}
-                style={{
-                  width: '100%',
-                  height: '42px',
-                  background: 'linear-gradient(135deg, #FF6B00 0%, #FF8B3D 100%)',
-                  border: 'none',
-                  borderRadius: '10px',
-                  color: '#FFFFFF',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  cursor: isLoading || !password ? 'not-allowed' : 'pointer',
-                  opacity: isLoading || !password ? 0.6 : 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  boxShadow: '0 2px 8px rgba(255, 107, 0, 0.3)',
-                  transition: 'all 0.15s ease'
-                }}
-              >
-                {isLoading ? (
-                  <Loader2 size={16} className="animate-spin" />
-                ) : (
-                  <>
-                    <KeyRound size={15} />
-                    <span>{hasPasswordProvider ? 'Şifreyi Güncelle' : 'Şifre Oluştur ve Hesaba Bağla'}</span>
-                  </>
-                )}
-              </button>
-            </form>
+                <button
+                  type="submit"
+                  disabled={isLoading || !password}
+                  style={{
+                    width: '100%',
+                    height: '42px',
+                    background: 'linear-gradient(135deg, #FF6B00 0%, #FF8B3D 100%)',
+                    border: 'none',
+                    borderRadius: '10px',
+                    color: '#FFFFFF',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: isLoading || !password ? 'not-allowed' : 'pointer',
+                    opacity: isLoading || !password ? 0.6 : 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    boxShadow: '0 2px 8px rgba(255, 107, 0, 0.3)',
+                    transition: 'all 0.15s ease'
+                  }}
+                >
+                  {isLoading ? (
+                    <Loader2 size={16} className="animate-spin" />
+                  ) : (
+                    <><KeyRound size={15} /><span>Şifreyi Güncelle</span></>
+                  )}
+                </button>
+              </form>
+            )}
           </div>
 
           {/* Footer Actions */}
