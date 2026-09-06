@@ -465,6 +465,45 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
                     <><KeyRound size={15} /><span>Şifreyi Güncelle</span></>
                   )}
                 </button>
+
+                {/* Reset via email fallback - shown for users who can't login with current password */}
+                <div style={{ marginTop: '10px', textAlign: 'center' }}>
+                  <button
+                    type="button"
+                    disabled={isLoading || !!successMessage}
+                    onClick={async () => {
+                      if (!email) return;
+                      setIsLoading(true);
+                      setErrorMessage(null);
+                      setSuccessMessage(null);
+                      try {
+                        await sendResetPassword(email);
+                        setSuccessMessage(
+                          `Şifre sıfırlama bağlantısı ${email} adresine gönderildi. ` +
+                          'Linke tıklayarak yeni şifrenizi belirleyin; ardından e-posta ve yeni şifrenizle giriş yapabilirsiniz.'
+                        );
+                      } catch (err: any) {
+                        setErrorMessage(getAuthErrorMessage(err));
+                      } finally {
+                        setIsLoading(false);
+                      }
+                    }}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'rgba(255, 255, 255, 0.45)',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      textDecoration: 'underline',
+                      textUnderlineOffset: '2px',
+                      padding: '2px 0',
+                      transition: 'color 0.15s ease'
+                    }}
+                  >
+                    <Mail size={11} style={{ display: 'inline', marginRight: '4px', verticalAlign: 'middle' }} />
+                    Mevcut şifrenizi bilmiyorsanız e-posta ile sıfırlayın
+                  </button>
+                </div>
               </form>
             )}
           </div>
