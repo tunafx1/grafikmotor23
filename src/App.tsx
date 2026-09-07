@@ -2622,59 +2622,107 @@ export default function App() {
     });
   };
 
-  // Center selected layer on canvas
+  // Align selected layer on canvas (center, align sides, snap margins)
+  const handleAlignElement = (
+    id: string,
+    alignment: 'left' | 'safe-left' | 'center-x' | 'right' | 'safe-right' | 'top' | 'safe-top' | 'center-y' | 'bottom' | 'safe-bottom' | 'center-both' | 'fit-width' | 'fit-width-safe' | 'fit-canvas'
+  ) => {
+    const canvasW = currentTemplate.width || 1080;
+    const canvasH = currentTemplate.height || 1080;
+    const safePadding = 40;
+
+    const reg = editingTemplate.regions.find(r => r.id === id);
+    if (reg) {
+      if (reg.locked) return;
+      let newX = reg.x;
+      let newY = reg.y;
+      let newW = reg.width;
+      let newH = reg.height;
+
+      switch (alignment) {
+        case 'left': newX = 0; break;
+        case 'safe-left': newX = safePadding; break;
+        case 'center-x': newX = Math.round((canvasW - reg.width) / 2); break;
+        case 'right': newX = Math.round(canvasW - reg.width); break;
+        case 'safe-right': newX = Math.round(canvasW - reg.width - safePadding); break;
+        case 'top': newY = 0; break;
+        case 'safe-top': newY = safePadding; break;
+        case 'center-y': newY = Math.round((canvasH - reg.height) / 2); break;
+        case 'bottom': newY = Math.round(canvasH - reg.height); break;
+        case 'safe-bottom': newY = Math.round(canvasH - reg.height - safePadding); break;
+        case 'center-both':
+          newX = Math.round((canvasW - reg.width) / 2);
+          newY = Math.round((canvasH - reg.height) / 2);
+          break;
+        case 'fit-width':
+          newX = 0;
+          newW = canvasW;
+          break;
+        case 'fit-width-safe':
+          newX = safePadding;
+          newW = Math.max(80, canvasW - (safePadding * 2));
+          break;
+        case 'fit-canvas':
+          newX = 0;
+          newY = 0;
+          newW = canvasW;
+          newH = canvasH;
+          break;
+      }
+
+      handleRegionPropertiesChange(id, { x: newX, y: newY, width: newW, height: newH });
+      return;
+    }
+
+    const el = editingTemplate.fixedElements.find(e => e.id === id);
+    if (el) {
+      if (el.locked) return;
+      const isCircle = el.type === 'shape' && el.shapeType === 'circle';
+      let newX = el.x;
+      let newY = el.y;
+      let newW = el.width;
+      let newH = el.height;
+
+      switch (alignment) {
+        case 'left': newX = isCircle ? Math.round(el.width / 2) : 0; break;
+        case 'safe-left': newX = isCircle ? Math.round(safePadding + el.width / 2) : safePadding; break;
+        case 'center-x': newX = isCircle ? Math.round(canvasW / 2) : Math.round((canvasW - el.width) / 2); break;
+        case 'right': newX = isCircle ? Math.round(canvasW - el.width / 2) : Math.round(canvasW - el.width); break;
+        case 'safe-right': newX = isCircle ? Math.round(canvasW - el.width / 2 - safePadding) : Math.round(canvasW - el.width - safePadding); break;
+        case 'top': newY = isCircle ? Math.round(el.height / 2) : 0; break;
+        case 'safe-top': newY = isCircle ? Math.round(safePadding + el.height / 2) : safePadding; break;
+        case 'center-y': newY = isCircle ? Math.round(canvasH / 2) : Math.round((canvasH - el.height) / 2); break;
+        case 'bottom': newY = isCircle ? Math.round(canvasH - el.height / 2) : Math.round(canvasH - el.height); break;
+        case 'safe-bottom': newY = isCircle ? Math.round(canvasH - el.height / 2 - safePadding) : Math.round(canvasH - el.height - safePadding); break;
+        case 'center-both':
+          newX = isCircle ? Math.round(canvasW / 2) : Math.round((canvasW - el.width) / 2);
+          newY = isCircle ? Math.round(canvasH / 2) : Math.round((canvasH - el.height) / 2);
+          break;
+        case 'fit-width':
+          newX = isCircle ? Math.round(canvasW / 2) : 0;
+          newW = canvasW;
+          break;
+        case 'fit-width-safe':
+          newX = isCircle ? Math.round(canvasW / 2) : safePadding;
+          newW = Math.max(80, canvasW - (safePadding * 2));
+          break;
+        case 'fit-canvas':
+          newX = isCircle ? Math.round(canvasW / 2) : 0;
+          newY = isCircle ? Math.round(canvasH / 2) : 0;
+          newW = canvasW;
+          newH = canvasH;
+          break;
+      }
+
+      handleFixedElementPropertiesChange(id, { x: newX, y: newY, width: newW, height: newH });
+    }
+  };
+
   const centerSelectedLayer = (axis: 'horizontal' | 'vertical' | 'both') => {
     if (!selectedNodeId) return;
-
-    setTemplates(prev => {
-      const updated = prev.map(t => {
-        if (t.id === currentTemplateId) {
-          // Check regions
-          let hasRegion = false;
-          const updatedRegions = t.regions.map(r => {
-            if (r.id === selectedNodeId) {
-              hasRegion = true;
-              let newX = r.x;
-              let newY = r.y;
-              if (axis === 'horizontal' || axis === 'both') {
-                newX = Math.round((t.width - r.width) / 2);
-              }
-              if (axis === 'vertical' || axis === 'both') {
-                newY = Math.round((t.height - r.height) / 2);
-              }
-              return { ...r, x: newX, y: newY };
-            }
-            return r;
-          });
-
-          if (hasRegion) {
-            return { ...t, regions: updatedRegions };
-          }
-
-          // Check fixed elements
-          const updatedElements = t.fixedElements.map(el => {
-            if (el.id === selectedNodeId) {
-              let newX = el.x;
-              let newY = el.y;
-              if (axis === 'horizontal' || axis === 'both') {
-                newX = Math.round((t.width - el.width) / 2);
-              }
-              if (axis === 'vertical' || axis === 'both') {
-                newY = Math.round((t.height - el.height) / 2);
-              }
-              return { ...el, x: newX, y: newY };
-            }
-            return el;
-          });
-
-          return { ...t, fixedElements: updatedElements };
-        }
-        return t;
-      });
-
-      saveTemplatesToLocalStorage(updated);
-      return updated;
-    });
+    if (axis === 'horizontal') handleAlignElement(selectedNodeId, 'center-x');
+    else if (axis === 'vertical') handleAlignElement(selectedNodeId, 'center-y');
+    else handleAlignElement(selectedNodeId, 'center-both');
   };
 
   // Create new completely blank user template
@@ -4680,8 +4728,12 @@ export default function App() {
           updateActiveImageProp={updateActiveImageProp}
           handleRegionTextStyleChange={handleRegionTextStyleChange}
           handleRegionPropertyChange={handleRegionPropertyChange}
+          handleRegionPropertiesChange={handleRegionPropertiesChange}
           handleFixedElementPropertyChange={handleFixedElementPropertyChange}
+          handleFixedElementPropertiesChange={handleFixedElementPropertiesChange}
           handleFixedElementChange={handleFixedElementChange}
+          handleAlignElement={handleAlignElement}
+          onAlignElement={handleAlignElement}
           handleDynamicImageUpload={(regionId, file) => handleDynamicImageUpload(regionId, file)}
           onOpenCrop={handleCropPanTrigger}
           handleCropPanTrigger={handleCropPanTrigger}

@@ -27,9 +27,37 @@ import {
   Copy,
   Upload,
   Download,
-  X
+  X,
+  AlignStartVertical,
+  AlignCenterVertical,
+  AlignEndVertical,
+  AlignStartHorizontal,
+  AlignCenterHorizontal,
+  AlignEndHorizontal,
+  ArrowLeftToLine,
+  ArrowRightToLine,
+  ArrowUpToLine,
+  ArrowDownToLine,
+  Crosshair,
+  MoveHorizontal
 } from 'lucide-react';
 import { DesignTemplate, Region, FixedElement, TextStyle } from '../types';
+
+export type AlignmentPreset = 
+  | 'left' 
+  | 'safe-left' 
+  | 'center-x' 
+  | 'right' 
+  | 'safe-right' 
+  | 'top' 
+  | 'safe-top' 
+  | 'center-y' 
+  | 'bottom' 
+  | 'safe-bottom' 
+  | 'center-both' 
+  | 'fit-width' 
+  | 'fit-width-safe'
+  | 'fit-canvas';
 
 export interface RightInspectorPanelProps {
   selectedNodeId: string | null;
@@ -48,8 +76,12 @@ export interface RightInspectorPanelProps {
   updateActiveImageProp?: (regionId: string, prop: any, value: any) => void;
   handleRegionTextStyleChange?: (regionId: string, prop: keyof TextStyle, value: any) => void;
   handleRegionPropertyChange?: (regionId: string, prop: keyof Region, value: any) => void;
+  handleRegionPropertiesChange?: (regionId: string, updates: Partial<Region>) => void;
   handleFixedElementPropertyChange?: (elementId: string, prop: keyof FixedElement, value: any) => void;
+  handleFixedElementPropertiesChange?: (elementId: string, updates: Partial<FixedElement>) => void;
   handleFixedElementChange?: (elementId: string, prop: string, value: any) => void;
+  handleAlignElement?: (id: string, alignment: AlignmentPreset) => void;
+  onAlignElement?: (id: string, alignment: AlignmentPreset) => void;
   handleDynamicImageUpload?: (regionId: string, file: File) => void;
   onOpenCrop?: (regionId: string) => void;
   handleCropPanTrigger?: (regionId: string) => void;
@@ -67,6 +99,270 @@ export interface RightInspectorPanelProps {
   handleToggleLock?: (id: string) => void;
   onToggleLock?: (id: string) => void;
   onExportClick?: () => void;
+}
+
+interface ElementAlignmentSectionProps {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  isLocked?: boolean;
+  canvasWidth: number;
+  canvasHeight: number;
+  isCircle?: boolean;
+  onToggleLock?: (id: string) => void;
+  onAlign: (alignment: AlignmentPreset) => void;
+  onUpdateProps: (updates: { x?: number; y?: number; width?: number; height?: number }) => void;
+}
+
+function ElementAlignmentSection({
+  id,
+  x,
+  y,
+  width,
+  height,
+  isLocked,
+  canvasWidth,
+  canvasHeight,
+  isCircle,
+  onToggleLock,
+  onAlign,
+  onUpdateProps
+}: ElementAlignmentSectionProps) {
+  return (
+    <div className="pt-3 border-t border-[rgba(255,255,255,0.08)] space-y-3">
+      {/* Section Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center space-x-1.5">
+          <Sliders size={13} className="text-[#FF6B1A]" />
+          <label className="text-[11px] font-bold text-[rgba(255,255,255,0.85)] uppercase tracking-wider block">
+            Hizalama & Tuval Konumu
+          </label>
+        </div>
+        <span className="text-[10px] font-mono text-[rgba(255,255,255,0.45)] bg-white/5 px-2 py-0.5 rounded">
+          X:{Math.round(x)} Y:{Math.round(y)}
+        </span>
+      </div>
+
+      {/* Locked Layer Notice */}
+      {isLocked && (
+        <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/25 flex items-center justify-between text-xs text-amber-300">
+          <span className="flex items-center gap-1.5 font-medium text-[11px]">
+            <Lock size={12} className="text-amber-400 shrink-0" />
+            Katman kilitli. Hizalamak için kilidi açın.
+          </span>
+          {onToggleLock && (
+            <button
+              type="button"
+              onClick={() => onToggleLock(id)}
+              className="px-2 py-0.5 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-[10px] font-bold text-white transition cursor-pointer"
+            >
+              Kilidi Aç
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* 6-Button Quick Alignment Matrix */}
+      <div className="space-y-1.5">
+        <div className="flex items-center justify-between text-[10px] text-[rgba(255,255,255,0.5)] font-semibold uppercase tracking-wider">
+          <span>Tuvale Hizala</span>
+          <span className="text-[9px] lowercase font-normal text-[rgba(255,255,255,0.4)]">tek tıkla yerleşim</span>
+        </div>
+        <div className="grid grid-cols-6 gap-1 bg-[#1D1D1F] p-1.5 rounded-xl border border-[rgba(255,255,255,0.08)]">
+          {/* 1. Sola Yasla */}
+          <button
+            type="button"
+            onClick={() => onAlign('left')}
+            disabled={isLocked}
+            title="Sola Yasla (Sol Kenar: 0px)"
+            className="h-8 rounded-lg flex items-center justify-center text-[rgba(255,255,255,0.7)] hover:text-white hover:bg-[#FF6B1A]/20 hover:border-[#FF6B1A]/40 border border-transparent transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed active:scale-90"
+          >
+            <ArrowLeftToLine size={15} />
+          </button>
+
+          {/* 2. Yatayda Ortala */}
+          <button
+            type="button"
+            onClick={() => onAlign('center-x')}
+            disabled={isLocked}
+            title="Yatayda Ortala (Tuvalin Ortası)"
+            className="h-8 rounded-lg flex items-center justify-center text-[rgba(255,255,255,0.7)] hover:text-white hover:bg-[#FF6B1A]/20 hover:border-[#FF6B1A]/40 border border-transparent transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed active:scale-90"
+          >
+            <AlignCenterHorizontal size={15} />
+          </button>
+
+          {/* 3. Sağa Yasla */}
+          <button
+            type="button"
+            onClick={() => onAlign('right')}
+            disabled={isLocked}
+            title="Sağa Yasla (Sağ Kenar)"
+            className="h-8 rounded-lg flex items-center justify-center text-[rgba(255,255,255,0.7)] hover:text-white hover:bg-[#FF6B1A]/20 hover:border-[#FF6B1A]/40 border border-transparent transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed active:scale-90"
+          >
+            <ArrowRightToLine size={15} />
+          </button>
+
+          {/* 4. Üste Yasla */}
+          <button
+            type="button"
+            onClick={() => onAlign('top')}
+            disabled={isLocked}
+            title="Üste Yasla (Üst Kenar: 0px)"
+            className="h-8 rounded-lg flex items-center justify-center text-[rgba(255,255,255,0.7)] hover:text-white hover:bg-[#FF6B1A]/20 hover:border-[#FF6B1A]/40 border border-transparent transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed active:scale-90"
+          >
+            <ArrowUpToLine size={15} />
+          </button>
+
+          {/* 5. Dikeyde Ortala */}
+          <button
+            type="button"
+            onClick={() => onAlign('center-y')}
+            disabled={isLocked}
+            title="Dikeyde Ortala (Tuvalin Ortası)"
+            className="h-8 rounded-lg flex items-center justify-center text-[rgba(255,255,255,0.7)] hover:text-white hover:bg-[#FF6B1A]/20 hover:border-[#FF6B1A]/40 border border-transparent transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed active:scale-90"
+          >
+            <AlignCenterVertical size={15} />
+          </button>
+
+          {/* 6. Alta Yasla */}
+          <button
+            type="button"
+            onClick={() => onAlign('bottom')}
+            disabled={isLocked}
+            title="Alta Yasla (Alt Kenar)"
+            className="h-8 rounded-lg flex items-center justify-center text-[rgba(255,255,255,0.7)] hover:text-white hover:bg-[#FF6B1A]/20 hover:border-[#FF6B1A]/40 border border-transparent transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed active:scale-90"
+          >
+            <ArrowDownToLine size={15} />
+          </button>
+        </div>
+      </div>
+
+      {/* Ready-Made Presets (Hazır Ayarlar) */}
+      <div className="space-y-1.5">
+        <span className="text-[10px] text-[rgba(255,255,255,0.5)] font-semibold uppercase tracking-wider block">
+          Hazır Yerleşim Ayarları
+        </span>
+        <div className="grid grid-cols-2 gap-1.5">
+          {/* Tam Ortala */}
+          <button
+            type="button"
+            onClick={() => onAlign('center-both')}
+            disabled={isLocked}
+            className="px-2.5 py-1.5 rounded-xl bg-[#1D1D1F] hover:bg-white/10 border border-[rgba(255,255,255,0.08)] text-[11px] font-semibold text-white flex items-center space-x-1.5 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed active:scale-95"
+            title="Hem yatay hem dikey tam merkezde ortala"
+          >
+            <Crosshair size={13} className="text-[#FF6B1A] shrink-0" />
+            <span className="truncate">Tam Ortala</span>
+          </button>
+
+          {/* Genişliğe Sığdır */}
+          <button
+            type="button"
+            onClick={() => onAlign('fit-width')}
+            disabled={isLocked}
+            className="px-2.5 py-1.5 rounded-xl bg-[#1D1D1F] hover:bg-white/10 border border-[rgba(255,255,255,0.08)] text-[11px] font-semibold text-white flex items-center space-x-1.5 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed active:scale-95"
+            title="Öğeyi tam tuval genişliğine yay (100% Genişlik)"
+          >
+            <Maximize2 size={13} className="text-[#34C759] shrink-0" />
+            <span className="truncate">Genişliğe Sığdır</span>
+          </button>
+
+          {/* Sola Yasla (40px Pay) */}
+          <button
+            type="button"
+            onClick={() => onAlign('safe-left')}
+            disabled={isLocked}
+            className="px-2.5 py-1.5 rounded-xl bg-[#1D1D1F] hover:bg-white/10 border border-[rgba(255,255,255,0.08)] text-[11px] font-medium text-[rgba(255,255,255,0.85)] hover:text-white flex items-center space-x-1.5 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed active:scale-95"
+            title="Sol kenar payına (40px) yasla"
+          >
+            <ArrowLeftToLine size={13} className="text-[rgba(255,255,255,0.5)] shrink-0" />
+            <span className="truncate">Sola Yasla (40px)</span>
+          </button>
+
+          {/* Sağa Yasla (40px Pay) */}
+          <button
+            type="button"
+            onClick={() => onAlign('safe-right')}
+            disabled={isLocked}
+            className="px-2.5 py-1.5 rounded-xl bg-[#1D1D1F] hover:bg-white/10 border border-[rgba(255,255,255,0.08)] text-[11px] font-medium text-[rgba(255,255,255,0.85)] hover:text-white flex items-center space-x-1.5 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed active:scale-95"
+            title="Sağ kenar payına (40px) yasla"
+          >
+            <ArrowRightToLine size={13} className="text-[rgba(255,255,255,0.5)] shrink-0" />
+            <span className="truncate">Sağa Yasla (40px)</span>
+          </button>
+
+          {/* Kenar Paylı Genişlik */}
+          <button
+            type="button"
+            onClick={() => onAlign('fit-width-safe')}
+            disabled={isLocked}
+            className="col-span-2 px-2.5 py-1.5 rounded-xl bg-[#1D1D1F] hover:bg-white/10 border border-[rgba(255,255,255,0.08)] text-[11px] font-medium text-[rgba(255,255,255,0.85)] hover:text-white flex items-center justify-center space-x-1.5 transition cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed active:scale-95"
+            title="İki taraftan 40px kenar boşluğu bırakarak genişliğe sığdır"
+          >
+            <MoveHorizontal size={13} className="text-[#FF9F0A] shrink-0" />
+            <span>Kenar Paylı Genişlik (40px Boşluk)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Coordinate & Dimension Precision Inputs (X, Y, W, H) */}
+      <div className="space-y-1.5 pt-1">
+        <div className="flex items-center justify-between text-[10px] text-[rgba(255,255,255,0.5)] font-semibold uppercase tracking-wider">
+          <span>Konum & Boyut (px)</span>
+          <span className="text-[9px] lowercase font-normal text-[rgba(255,255,255,0.4)]">hassas ayar</span>
+        </div>
+        <div className="grid grid-cols-4 gap-1.5">
+          <div className="bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-xl p-1.5 flex flex-col items-center">
+            <span className="text-[9px] text-[rgba(255,255,255,0.4)] font-mono uppercase">X (Sol)</span>
+            <input
+              type="number"
+              value={Math.round(x)}
+              disabled={isLocked}
+              onChange={(e) => onUpdateProps({ x: Number(e.target.value) })}
+              className="w-full text-center bg-transparent text-xs font-mono font-bold text-white focus:outline-none disabled:opacity-40"
+            />
+          </div>
+
+          <div className="bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-xl p-1.5 flex flex-col items-center">
+            <span className="text-[9px] text-[rgba(255,255,255,0.4)] font-mono uppercase">Y (Üst)</span>
+            <input
+              type="number"
+              value={Math.round(y)}
+              disabled={isLocked}
+              onChange={(e) => onUpdateProps({ y: Number(e.target.value) })}
+              className="w-full text-center bg-transparent text-xs font-mono font-bold text-white focus:outline-none disabled:opacity-40"
+            />
+          </div>
+
+          <div className="bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-xl p-1.5 flex flex-col items-center">
+            <span className="text-[9px] text-[rgba(255,255,255,0.4)] font-mono uppercase">Genişlik</span>
+            <input
+              type="number"
+              min={10}
+              value={Math.round(width)}
+              disabled={isLocked}
+              onChange={(e) => onUpdateProps({ width: Math.max(10, Number(e.target.value)) })}
+              className="w-full text-center bg-transparent text-xs font-mono font-bold text-white focus:outline-none disabled:opacity-40"
+            />
+          </div>
+
+          <div className="bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-xl p-1.5 flex flex-col items-center">
+            <span className="text-[9px] text-[rgba(255,255,255,0.4)] font-mono uppercase">Yükseklik</span>
+            <input
+              type="number"
+              min={10}
+              value={Math.round(height)}
+              disabled={isLocked}
+              onChange={(e) => onUpdateProps({ height: Math.max(10, Number(e.target.value)) })}
+              className="w-full text-center bg-transparent text-xs font-mono font-bold text-white focus:outline-none disabled:opacity-40"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const FONT_OPTIONS = [
@@ -117,6 +413,10 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
     onDuplicateNode,
     handleToggleLock,
     onToggleLock,
+    handleRegionPropertiesChange,
+    handleFixedElementPropertiesChange,
+    handleAlignElement,
+    onAlignElement,
     onExportClick
   } = props;
 
@@ -150,6 +450,136 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
 
   const templateWidth = editingTemplate?.width || currentTemplate?.width || 1080;
   const templateHeight = editingTemplate?.height || currentTemplate?.height || 1080;
+
+  // Unified batch update for region
+  const onUpdateRegionProps = (id: string, updates: Partial<Region>) => {
+    if (handleRegionPropertiesChange) {
+      handleRegionPropertiesChange(id, updates);
+      return;
+    }
+    if (handleRegionPropertyChange) {
+      (Object.keys(updates) as (keyof Region)[]).forEach((k) => {
+        handleRegionPropertyChange(id, k, updates[k]);
+      });
+    }
+  };
+
+  // Unified batch update for fixed elements
+  const onUpdateFixedProps = (id: string, updates: Partial<FixedElement>) => {
+    if (handleFixedElementPropertiesChange) {
+      handleFixedElementPropertiesChange(id, updates);
+      return;
+    }
+    if (handleFixedElementPropertyChange) {
+      (Object.keys(updates) as (keyof FixedElement)[]).forEach((k) => {
+        handleFixedElementPropertyChange(id, k, updates[k]);
+      });
+    } else if (handleFixedElementChange) {
+      Object.entries(updates).forEach(([k, v]) => {
+        handleFixedElementChange(id, k, v);
+      });
+    }
+  };
+
+  // Unified element alignment handler
+  const onAlign = (id: string, alignment: AlignmentPreset) => {
+    if (onAlignElement) {
+      onAlignElement(id, alignment);
+      return;
+    }
+    if (handleAlignElement) {
+      handleAlignElement(id, alignment);
+      return;
+    }
+
+    const canvasW = templateWidth;
+    const canvasH = templateHeight;
+    const safePadding = 40;
+
+    const reg = regionList.find(r => r.id === id);
+    if (reg) {
+      if (reg.locked) return;
+      let newX = reg.x;
+      let newY = reg.y;
+      let newW = reg.width;
+      let newH = reg.height;
+
+      switch (alignment) {
+        case 'left': newX = 0; break;
+        case 'safe-left': newX = safePadding; break;
+        case 'center-x': newX = Math.round((canvasW - reg.width) / 2); break;
+        case 'right': newX = Math.round(canvasW - reg.width); break;
+        case 'safe-right': newX = Math.round(canvasW - reg.width - safePadding); break;
+        case 'top': newY = 0; break;
+        case 'safe-top': newY = safePadding; break;
+        case 'center-y': newY = Math.round((canvasH - reg.height) / 2); break;
+        case 'bottom': newY = Math.round(canvasH - reg.height); break;
+        case 'safe-bottom': newY = Math.round(canvasH - reg.height - safePadding); break;
+        case 'center-both':
+          newX = Math.round((canvasW - reg.width) / 2);
+          newY = Math.round((canvasH - reg.height) / 2);
+          break;
+        case 'fit-width':
+          newX = 0;
+          newW = canvasW;
+          break;
+        case 'fit-width-safe':
+          newX = safePadding;
+          newW = Math.max(80, canvasW - (safePadding * 2));
+          break;
+        case 'fit-canvas':
+          newX = 0;
+          newY = 0;
+          newW = canvasW;
+          newH = canvasH;
+          break;
+      }
+      onUpdateRegionProps(id, { x: newX, y: newY, width: newW, height: newH });
+      return;
+    }
+
+    const el = fixedList.find(e => e.id === id);
+    if (el) {
+      if (el.locked) return;
+      const isCircle = el.type === 'shape' && el.shapeType === 'circle';
+      let newX = el.x;
+      let newY = el.y;
+      let newW = el.width;
+      let newH = el.height;
+
+      switch (alignment) {
+        case 'left': newX = isCircle ? Math.round(el.width / 2) : 0; break;
+        case 'safe-left': newX = isCircle ? Math.round(safePadding + el.width / 2) : safePadding; break;
+        case 'center-x': newX = isCircle ? Math.round(canvasW / 2) : Math.round((canvasW - el.width) / 2); break;
+        case 'right': newX = isCircle ? Math.round(canvasW - el.width / 2) : Math.round(canvasW - el.width); break;
+        case 'safe-right': newX = isCircle ? Math.round(canvasW - el.width / 2 - safePadding) : Math.round(canvasW - el.width - safePadding); break;
+        case 'top': newY = isCircle ? Math.round(el.height / 2) : 0; break;
+        case 'safe-top': newY = isCircle ? Math.round(safePadding + el.height / 2) : safePadding; break;
+        case 'center-y': newY = isCircle ? Math.round(canvasH / 2) : Math.round((canvasH - el.height) / 2); break;
+        case 'bottom': newY = isCircle ? Math.round(canvasH - el.height / 2) : Math.round(canvasH - el.height); break;
+        case 'safe-bottom': newY = isCircle ? Math.round(canvasH - el.height / 2 - safePadding) : Math.round(canvasH - el.height - safePadding); break;
+        case 'center-both':
+          newX = isCircle ? Math.round(canvasW / 2) : Math.round((canvasW - el.width) / 2);
+          newY = isCircle ? Math.round(canvasH / 2) : Math.round((canvasH - el.height) / 2);
+          break;
+        case 'fit-width':
+          newX = isCircle ? Math.round(canvasW / 2) : 0;
+          newW = canvasW;
+          break;
+        case 'fit-width-safe':
+          newX = isCircle ? Math.round(canvasW / 2) : safePadding;
+          newW = Math.max(80, canvasW - (safePadding * 2));
+          break;
+        case 'fit-canvas':
+          newX = isCircle ? Math.round(canvasW / 2) : 0;
+          newY = isCircle ? Math.round(canvasH / 2) : 0;
+          newW = canvasW;
+          newH = canvasH;
+          break;
+      }
+      onUpdateFixedProps(id, { x: newX, y: newY, width: newW, height: newH });
+    }
+  };
 
   if (isOpen === false) return null;
 
@@ -420,14 +850,29 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 </div>
               </div>
 
-              {/* Collapsible Advanced Settings */}
+              {/* Element Alignment & Canvas Placement */}
+              <ElementAlignmentSection
+                id={r.id}
+                x={r.x}
+                y={r.y}
+                width={r.width}
+                height={r.height}
+                isLocked={r.locked}
+                canvasWidth={templateWidth}
+                canvasHeight={templateHeight}
+                onToggleLock={onLock}
+                onAlign={(alignment) => onAlign(r.id, alignment)}
+                onUpdateProps={(updates) => onUpdateRegionProps(r.id, updates)}
+              />
+
+              {/* Collapsible Advanced Typography Settings */}
               <div className="pt-2 border-t border-[rgba(255,255,255,0.08)]">
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(!showAdvanced)}
                   className="w-full flex items-center justify-between text-[11px] font-bold text-[rgba(255,255,255,0.6)] hover:text-white py-1 transition cursor-pointer"
                 >
-                  <span>Gelişmiş Yazı & Yerleşim Ayarları</span>
+                  <span>Gelişmiş Tipografi (Satır / Harf)</span>
                   {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                 </button>
 
@@ -466,30 +911,6 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                         className="w-full accent-[#FF6B1A]"
                       />
                     </div>
-
-                    {/* Position and Dimensions */}
-                    {handleRegionPropertyChange && (
-                      <div className="grid grid-cols-2 gap-2 pt-1 text-[11px]">
-                        <div>
-                          <span className="text-[10px] text-[rgba(255,255,255,0.5)] block">Genişlik</span>
-                          <input
-                            type="number"
-                            value={Math.round(r.width)}
-                            onChange={(e) => handleRegionPropertyChange(r.id, 'width', Number(e.target.value))}
-                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.1)] rounded-lg px-2 py-1 text-white text-xs"
-                          />
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-[rgba(255,255,255,0.5)] block">Yükseklik</span>
-                          <input
-                            type="number"
-                            value={Math.round(r.height)}
-                            onChange={(e) => handleRegionPropertyChange(r.id, 'height', Number(e.target.value))}
-                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.1)] rounded-lg px-2 py-1 text-white text-xs"
-                          />
-                        </div>
-                      </div>
-                    )}
                   </div>
                 )}
               </div>
@@ -600,6 +1021,21 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                   </div>
                 )}
               </div>
+
+              {/* Element Alignment & Canvas Placement */}
+              <ElementAlignmentSection
+                id={r.id}
+                x={r.x}
+                y={r.y}
+                width={r.width}
+                height={r.height}
+                isLocked={r.locked}
+                canvasWidth={templateWidth}
+                canvasHeight={templateHeight}
+                onToggleLock={onLock}
+                onAlign={(alignment) => onAlign(r.id, alignment)}
+                onUpdateProps={(updates) => onUpdateRegionProps(r.id, updates)}
+              />
             </div>
           );
         })()}
@@ -654,6 +1090,22 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                   className="w-full accent-[#FF6B1A]"
                 />
               </div>
+
+              {/* Element Alignment & Canvas Placement */}
+              <ElementAlignmentSection
+                id={el.id}
+                x={el.x}
+                y={el.y}
+                width={el.width}
+                height={el.height}
+                isLocked={el.locked}
+                isCircle={el.type === 'shape' && el.shapeType === 'circle'}
+                canvasWidth={templateWidth}
+                canvasHeight={templateHeight}
+                onToggleLock={onLock}
+                onAlign={(alignment) => onAlign(el.id, alignment)}
+                onUpdateProps={(updates) => onUpdateFixedProps(el.id, updates)}
+              />
 
               {/* Lock toggle */}
               <div className="pt-2 border-t border-[rgba(255,255,255,0.08)]">

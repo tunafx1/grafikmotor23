@@ -179,3 +179,63 @@ test('locked layer passes through to topmost unlocked layer on canvas hit test',
   assert.equal(hit3, null);
 });
 
+test('canvas ready-made alignment presets calculate correctly and protect locked layers', () => {
+  const canvasW = 1080;
+  const canvasH = 1080;
+  const safePadding = 40;
+
+  function calculateAlignment(
+    reg: { x: number; y: number; width: number; height: number; locked?: boolean },
+    alignment: string
+  ) {
+    if (reg.locked) return { ...reg };
+    let newX = reg.x;
+    let newY = reg.y;
+    let newW = reg.width;
+    let newH = reg.height;
+
+    switch (alignment) {
+      case 'left': newX = 0; break;
+      case 'safe-left': newX = safePadding; break;
+      case 'center-x': newX = Math.round((canvasW - reg.width) / 2); break;
+      case 'right': newX = Math.round(canvasW - reg.width); break;
+      case 'safe-right': newX = Math.round(canvasW - reg.width - safePadding); break;
+      case 'top': newY = 0; break;
+      case 'safe-top': newY = safePadding; break;
+      case 'center-y': newY = Math.round((canvasH - reg.height) / 2); break;
+      case 'bottom': newY = Math.round(canvasH - reg.height); break;
+      case 'safe-bottom': newY = Math.round(canvasH - reg.height - safePadding); break;
+      case 'center-both':
+        newX = Math.round((canvasW - reg.width) / 2);
+        newY = Math.round((canvasH - reg.height) / 2);
+        break;
+      case 'fit-width':
+        newX = 0;
+        newW = canvasW;
+        break;
+      case 'fit-width-safe':
+        newX = safePadding;
+        newW = Math.max(80, canvasW - (safePadding * 2));
+        break;
+    }
+    return { x: newX, y: newY, width: newW, height: newH };
+  }
+
+  const rect = { x: 120, y: 300, width: 300, height: 100, locked: false };
+
+  assert.deepEqual(calculateAlignment(rect, 'left'), { x: 0, y: 300, width: 300, height: 100 });
+  assert.deepEqual(calculateAlignment(rect, 'safe-left'), { x: 40, y: 300, width: 300, height: 100 });
+  assert.deepEqual(calculateAlignment(rect, 'center-x'), { x: 390, y: 300, width: 300, height: 100 });
+  assert.deepEqual(calculateAlignment(rect, 'right'), { x: 780, y: 300, width: 300, height: 100 });
+  assert.deepEqual(calculateAlignment(rect, 'safe-right'), { x: 740, y: 300, width: 300, height: 100 });
+  assert.deepEqual(calculateAlignment(rect, 'center-both'), { x: 390, y: 490, width: 300, height: 100 });
+  assert.deepEqual(calculateAlignment(rect, 'fit-width'), { x: 0, y: 300, width: 1080, height: 100 });
+  assert.deepEqual(calculateAlignment(rect, 'fit-width-safe'), { x: 40, y: 300, width: 1000, height: 100 });
+
+  // Locked item must NOT change
+  const lockedRect = { ...rect, locked: true };
+  assert.deepEqual(calculateAlignment(lockedRect, 'center-both'), lockedRect);
+  assert.deepEqual(calculateAlignment(lockedRect, 'left'), lockedRect);
+});
+
+
