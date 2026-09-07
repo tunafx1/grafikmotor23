@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, Loader2, HardDrive, Pencil, Undo2, Redo2 } from 'lucide-react';
+import { ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, Loader2, HardDrive, Pencil, Undo2, Redo2, Sparkles } from 'lucide-react';
 import { ProfileModal } from './ProfileModal';
 
 type Props = {
@@ -11,6 +11,8 @@ type Props = {
   onRename?: (newName: string) => void;
   onUserUpdated?: () => void;
   onOpenTemplates?: () => void;
+  onOpenBatch?: () => void;
+  isBatchActive?: boolean;
   onUndo?: () => void;
   onRedo?: () => void;
   canUndo?: boolean;
@@ -96,6 +98,24 @@ export function WorkspaceHeader(p: Props) {
             </button>
           )}
         </div>
+
+        {/* Prominent Primary CTA: Toplu Tasarım Üret (Sitenin Asıl Amacı) */}
+        {p.onOpenBatch && (
+          <button
+            type="button"
+            onClick={p.onOpenBatch}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-extrabold tracking-wide transition-all shadow-md active:scale-95 cursor-pointer select-none ${
+              p.isBatchActive
+                ? 'bg-[#FF6B1A] text-white ring-2 ring-[#FF6B1A]/40 shadow-[#FF6B1A]/30 scale-105'
+                : 'bg-gradient-to-r from-[#FF6B1A] to-[#FF8843] hover:from-[#FF782D] hover:to-[#FFA066] text-white shadow-[#FF6B1A]/25 hover:scale-105'
+            }`}
+            title="Sitenin Asıl Amacı: Toplu fotoğraf yükle, AI komutu ver ve seçili şablona tasarımlar oluştur"
+          >
+            <Sparkles size={14} className="animate-pulse text-amber-200" />
+            <span>Toplu Tasarım Üret</span>
+            <span className="hidden sm:inline-block text-[9px] bg-black/25 px-1.5 py-0.5 rounded-full font-mono text-amber-100">AI</span>
+          </button>
+        )}
 
         <div className="workspace-header-actions">
           {/* Undo / Redo */}

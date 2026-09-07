@@ -4425,6 +4425,7 @@ export default function App() {
       <LandingPage 
         isLoggedIn={isLoggedIn}
         onEnter={() => {
+          setWorkspaceScreen('create');
           if (isLoggedIn) {
             storage.setItem('gm_current_view', 'editor');
             setCurrentView('editor');
@@ -4434,6 +4435,7 @@ export default function App() {
           }
         }} 
         onLogin={() => {
+          setWorkspaceScreen('create');
           if (isLoggedIn) {
             storage.setItem('gm_current_view', 'editor');
             setCurrentView('editor');
@@ -4458,6 +4460,7 @@ export default function App() {
           setUser(authedUser);
           storage.setItem('gm_user_logged_in', 'true');
           storage.setItem('gm_current_view', 'editor');
+          setWorkspaceScreen('create');
           setCurrentView('editor');
         }}
       />
@@ -4476,6 +4479,11 @@ export default function App() {
         onSave={() => saveDataToCloud()} onTools={() => setIsToolsModalOpen(true)}
         onExport={() => setIsExportModalOpen(true)}
         exportPanelOpen={isExportModalOpen}
+        onOpenBatch={() => {
+          setTemplateEditing(false);
+          setWorkspaceScreen('create');
+        }}
+        isBatchActive={workspaceScreen === 'create'}
         onRename={(newName) => {
           if (!newName.trim()) return;
           setTemplates(prev => prev.map(t => t.id === currentTemplateId ? { ...t, name: newName.trim() } : t));
@@ -4522,7 +4530,31 @@ export default function App() {
         onNewTemplate={() => { setTemplateEditing(true); createNewTemplate(); setWorkspaceScreen('editor'); setLeftDrawerTab('templates'); }}
         onEditTemplate={id => { setTemplateEditing(true); setActivePageIndex(0); setCurrentTemplateId(id); setActiveGeneratedPageIndex(0); setWorkspaceScreen('editor'); setSelectedNodeId(null); setLeftDrawerTab('layers'); }}
         onExport={() => setIsExportModalOpen(true)} onScreen={screen => { setTemplateEditing(false); setWorkspaceScreen(screen); }}/>
-      {workspaceScreen === 'editor' && <div className="production-editor-actions"><button onClick={() => { setTemplateEditing(false); setWorkspaceScreen(templateEditing ? 'templates' : 'results'); }}>{templateEditing ? '← Şablonlarım' : '← Tüm sonuçlar'}</button><button onClick={() => setWorkspaceScreen('create')}>Yeni toplu üretim</button><span>{templateEditing ? 'Şablon düzenleniyor' : 'Çalışma düzenleniyor · Ana şablon korunur'}</span></div>}
+      {workspaceScreen === 'editor' && (
+        <div className="production-editor-actions bg-[#222225] border-b border-white/10 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 text-xs shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+            <button
+              onClick={() => { setTemplateEditing(false); setWorkspaceScreen(templateEditing ? 'templates' : 'results'); }}
+              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition font-medium cursor-pointer"
+            >
+              {templateEditing ? '← Şablonlarım' : '← Tüm Sonuçlar Galerisi'}
+            </button>
+            <button
+              onClick={() => { setTemplateEditing(false); setWorkspaceScreen('create'); }}
+              className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-[#FF6B1A] to-[#FF8843] hover:from-[#FF782D] hover:to-[#FFA066] text-white font-extrabold flex items-center gap-1.5 shadow-md shadow-[#FF6B1A]/25 transition active:scale-95 cursor-pointer"
+              title="Toplu fotoğraf seç, AI komutu ver ve seçili şablona yeni tasarımlar üret"
+            >
+              <Sparkles size={14} className="animate-pulse text-amber-200" />
+              <span>✨ Yeni Toplu Üretim Başlat</span>
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-white/60 font-mono text-[11px]">
+              {templateEditing ? '🎨 Şablon düzenleniyor' : '📄 Çalışma düzenleniyor · Ana şablon korunur'}
+            </span>
+          </div>
+        </div>
+      )}
 
       {workspaceScreen === 'editor' && aiError && <div role="alert" className="workspace-warning">{aiError}</div>}
       {/* WORKSPACE AREA: 3-COLUMN MODERN CANVAS LAYOUT */}
@@ -4533,6 +4565,11 @@ export default function App() {
           activeTab={leftDrawerTab}
           onTabChange={setLeftDrawerTab}
           onSelectTab={setLeftDrawerTab}
+          onOpenBatchProduction={() => {
+            setTemplateEditing(false);
+            setWorkspaceScreen('create');
+          }}
+          isBatchActive={workspaceScreen === 'create'}
           templates={templates}
           currentTemplateId={currentTemplateId}
           onSelectTemplate={(id) => {

@@ -23,7 +23,8 @@ import {
   ExternalLink,
   Loader2,
   Check,
-  X
+  X,
+  Sparkles
 } from 'lucide-react';
 import { DesignTemplate, Region, FixedElement } from '../types';
 
@@ -33,6 +34,8 @@ export interface LeftToolDrawerProps {
   activeTab: ToolDrawerTab;
   onTabChange?: (tab: ToolDrawerTab) => void;
   onSelectTab?: (tab: ToolDrawerTab) => void;
+  onOpenBatchProduction?: () => void;
+  isBatchActive?: boolean;
   templates: DesignTemplate[];
   currentTemplateId: string;
   onSelectTemplate: (templateId: string) => void;
@@ -81,6 +84,8 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
     activeTab,
     onTabChange,
     onSelectTab,
+    onOpenBatchProduction,
+    isBatchActive,
     templates = [],
     currentTemplateId,
     onSelectTemplate,
@@ -211,6 +216,26 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
         className="w-14 bg-[#1D1D1F] border-r border-[rgba(255,255,255,0.08)] flex flex-col items-center py-3 space-y-2 shrink-0 z-20"
         aria-label="Araç çubuğu"
       >
+        {/* SİTENİN ASIL AMACI: TOPLU ÜRETİM BUTONU */}
+        {onOpenBatchProduction && (
+          <>
+            <button
+              type="button"
+              onClick={onOpenBatchProduction}
+              className={`w-11 h-11 rounded-xl flex flex-col items-center justify-center transition cursor-pointer active:scale-95 group shadow-lg ${
+                isBatchActive
+                  ? 'bg-[#FF6B1A] text-white ring-2 ring-[#FF6B1A]/50 shadow-[#FF6B1A]/40 scale-105'
+                  : 'bg-gradient-to-b from-[#FF6B1A] to-[#E05307] text-white shadow-[#FF6B1A]/20 hover:scale-105'
+              }`}
+              title="✨ Toplu Tasarım Üret (Sitenin Asıl Amacı: Fotoğraflar + AI + Şablon)"
+            >
+              <Sparkles size={18} className="animate-pulse text-amber-200" />
+              <span className="text-[7.5px] mt-0.5 font-black tracking-tight leading-none text-white">ÜRETİM</span>
+            </button>
+            <div className="w-6 h-[1px] bg-white/10 my-0.5" />
+          </>
+        )}
+
         <button
           type="button"
           onClick={() => handleToolClick('templates')}
@@ -313,11 +338,22 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
             {/* 1. TEMPLATES DRAWER */}
             {activeTab === 'templates' && (
               <div className="space-y-3">
+                {onOpenBatchProduction && (
+                  <button
+                    type="button"
+                    onClick={onOpenBatchProduction}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#FF6B1A] to-[#FF8843] hover:from-[#FF782D] hover:to-[#FFA066] text-white text-xs font-extrabold flex items-center justify-center gap-2 transition cursor-pointer shadow-md shadow-[#FF6B1A]/20 active:scale-98"
+                  >
+                    <Sparkles size={15} className="animate-pulse text-amber-200" />
+                    <span>Şablonla Toplu Tasarım Üret</span>
+                  </button>
+                )}
+
                 {onCreateTemplate && (
                   <button
                     type="button"
                     onClick={onCreateTemplate}
-                    className="w-full py-2.5 px-3 rounded-xl bg-[#FF6B1A] hover:bg-[#FF6B1A]/90 text-white text-xs font-bold flex items-center justify-center space-x-1.5 transition cursor-pointer shadow active:scale-98"
+                    className="w-full py-2 px-3 rounded-xl bg-[#2C2C2E] hover:bg-[#38383C] text-white text-xs font-bold flex items-center justify-center space-x-1.5 transition cursor-pointer shadow active:scale-98 border border-white/10"
                   >
                     <Plus size={14} />
                     <span>Yeni Şablon Oluştur</span>
@@ -435,18 +471,36 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
                         </div>
 
                         {/* Primary Action Button */}
-                        <div className="mt-2.5 pt-2 border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between">
-                          {isSelected ? (
-                            <span className="text-[11px] text-[#34C759] font-bold flex items-center gap-1">
-                              <Check size={12} /> Aktif Çalışma
-                            </span>
-                          ) : (
+                        <div className="mt-2.5 pt-2 border-t border-[rgba(255,255,255,0.06)] flex flex-col gap-2">
+                          <div className="flex items-center justify-between">
+                            {isSelected ? (
+                              <span className="text-[11px] text-[#34C759] font-bold flex items-center gap-1">
+                                <Check size={12} /> Aktif Düzenleme
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => onSelectTemplate(temp.id)}
+                                className="text-[11px] text-[rgba(255,255,255,0.7)] hover:text-white font-medium transition cursor-pointer"
+                              >
+                                Tek Sayfayı Aç →
+                              </button>
+                            )}
+                          </div>
+
+                          {onOpenBatchProduction && (
                             <button
                               type="button"
-                              onClick={() => onSelectTemplate(temp.id)}
-                              className="w-full py-1.5 px-2.5 rounded-lg bg-[#252528] hover:bg-[#FF6B1A] text-white hover:text-white text-xs font-semibold transition cursor-pointer text-center active:scale-98"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectTemplate(temp.id);
+                                onOpenBatchProduction();
+                              }}
+                              className="w-full py-1.5 px-2.5 rounded-lg bg-[#FF6B1A]/20 hover:bg-[#FF6B1A] text-[#FF9F0A] hover:text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer active:scale-98 shadow-sm"
+                              title="Bu şablonu seçerek toplu fotoğraf üretim ekranına git"
                             >
-                              Bu Şablonla Çalış
+                              <Sparkles size={12} />
+                              <span>Bu Şablonla Toplu Üret</span>
                             </button>
                           )}
                         </div>
@@ -525,8 +579,19 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
                   className="w-full py-3 px-3 rounded-xl border border-dashed border-[rgba(255,255,255,0.2)] hover:border-[#FF6B1A] hover:bg-[#FF6B1A]/10 text-white text-xs font-semibold flex flex-col items-center justify-center space-y-1 transition cursor-pointer active:scale-98"
                 >
                   <ImageIcon size={18} className="text-[#FF6B1A]" />
-                  <span>Cihazdan Fotoğraf Yükle</span>
+                  <span>Cihazdan Tekil Fotoğraf Yükle</span>
                 </button>
+
+                {onOpenBatchProduction && (
+                  <button
+                    type="button"
+                    onClick={onOpenBatchProduction}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#FF6B1A]/25 to-[#FF9F0A]/20 border border-[#FF6B1A]/40 hover:border-[#FF6B1A] text-white text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer shadow-sm active:scale-98"
+                  >
+                    <Sparkles size={14} className="text-[#FF9F0A]" />
+                    <span>Toplu Fotoğraf Üretimini Başlat →</span>
+                  </button>
+                )}
 
                 {/* YouTube Link Downloader Tool */}
                 {(onOpenMediaDownloader || onOpenYouTubeModal) && (
@@ -687,13 +752,36 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
             {/* 5. AI ASSISTANT DRAWER */}
             {activeTab === 'ai' && (
               <div className="space-y-4">
+                {onOpenBatchProduction && (
+                  <div className="p-3.5 rounded-xl bg-gradient-to-br from-[#FF6B1A]/20 via-[#FF9F0A]/10 to-transparent border border-[#FF6B1A]/35 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded bg-[#FF6B1A] text-white">SİTENİN ASIL AMACI</span>
+                      <Sparkles size={15} className="text-[#FF9F0A] animate-pulse" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white">⚡ Toplu Fotoğraf & AI Tasarımı</h4>
+                      <p className="text-[11px] text-[rgba(255,255,255,0.7)] mt-1 leading-relaxed">
+                        Çoklu fotoğraf yükleyin, tek bir AI komutu verin; seçili şablonunuza göre tüm sayfalarınız tek seferde hazırlansın.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onOpenBatchProduction}
+                      className="w-full py-2.5 px-3 rounded-lg bg-gradient-to-r from-[#FF6B1A] to-[#FF8843] hover:from-[#FF782D] hover:to-[#FFA066] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-md shadow-[#FF6B1A]/20 active:scale-98"
+                    >
+                      <Sparkles size={13} />
+                      <span>Toplu Tasarım Üretimini Başlat →</span>
+                    </button>
+                  </div>
+                )}
+
                 <div className="p-3 rounded-xl bg-gradient-to-br from-[#FF6B1A]/10 to-[#FF9F0A]/10 border border-[#FF6B1A]/20 space-y-1">
                   <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
                     <WandSparkles size={14} className="text-[#FF6B1A]" />
-                    <span>AI Sayfa Metinleri Üretici</span>
+                    <span>Mevcut Sayfanın Metinlerini Üret</span>
                   </h4>
                   <p className="text-[11px] text-[rgba(255,255,255,0.6)] leading-relaxed">
-                    Sayfanızdaki tüm başlık ve açıklamaları şablon bağlamına ve vereceğiniz brief'e göre tek tıkla üretin.
+                    Yalnızca açık olan sayfanızdaki başlık ve açıklamaları AI komutuna göre yeniden yazar.
                   </p>
                 </div>
 

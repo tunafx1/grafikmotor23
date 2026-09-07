@@ -9,10 +9,77 @@ import './BatchWorkspace.css';
 
 export type WorkspaceScreen = 'create' | 'results' | 'works' | 'templates' | 'editor';
 export function ProductionNavigation({ screen, disabled, onChange }: { screen: WorkspaceScreen; disabled: boolean; onChange: (screen: WorkspaceScreen) => void }) {
-  return <nav className="production-nav" aria-label="Çalışma alanı"><div>{([['create', 'Toplu Oluştur'], ['works', 'Çalışmalarım'], ['templates', 'Şablonlarım']] as const).map(([id, title]) =>
-    <button key={id} disabled={disabled} aria-current={screen === id ? 'page' : undefined} onClick={() => onChange(id)}>{title}</button>)}</div>
-    {(screen === 'editor' || screen === 'results') && <span>{screen === 'editor' ? 'Sayfayı düzenle' : 'Üretim sonuçları'}</span>}
-  </nav>;
+  return (
+    <nav className="production-nav" aria-label="Çalışma alanı">
+      <div className="production-nav-left">
+        <button
+          disabled={disabled}
+          aria-current={screen === 'create' ? 'page' : undefined}
+          className={`production-nav-btn ${screen === 'create' ? 'active-create' : ''}`}
+          onClick={() => onChange('create')}
+          title="Toplu fotoğraf seç, AI komutu ver ve seçili şablona tasarımlar üret"
+        >
+          <Sparkles size={14} className="text-[#FF9F0A]" />
+          <strong>Toplu Oluştur (Ana Akış)</strong>
+          <span className="production-badge">ANA AMAÇ</span>
+        </button>
+
+        <button
+          disabled={disabled}
+          aria-current={screen === 'results' ? 'page' : undefined}
+          className="production-nav-btn"
+          onClick={() => onChange('results')}
+          title="En son üretilen sayfaları incele"
+        >
+          <span>Üretim Sonuçları</span>
+        </button>
+
+        <button
+          disabled={disabled}
+          aria-current={screen === 'works' ? 'page' : undefined}
+          className="production-nav-btn"
+          onClick={() => onChange('works')}
+          title="Önceki üretimlerin ve kayıtlı çalışmaların"
+        >
+          <span>Çalışmalarım</span>
+        </button>
+
+        <button
+          disabled={disabled}
+          aria-current={screen === 'templates' ? 'page' : undefined}
+          className="production-nav-btn"
+          onClick={() => onChange('templates')}
+          title="Tasarım şablonlarını incele ve düzenle"
+        >
+          <span>Şablonlarım</span>
+        </button>
+
+        <button
+          disabled={disabled}
+          aria-current={screen === 'editor' ? 'page' : undefined}
+          className={`production-nav-btn ${screen === 'editor' ? 'active-editor' : ''}`}
+          onClick={() => onChange('editor')}
+          title="Tuval üzerinde tek sayfa detaylı düzenleyici"
+        >
+          <span>Tek Sayfa Düzenleyici</span>
+        </button>
+      </div>
+
+      <div className="production-nav-right">
+        {screen === 'editor' && (
+          <span className="text-xs text-amber-400 font-semibold flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            <span>Detaylı Sayfa Düzenleyici Açık</span>
+          </span>
+        )}
+        {screen === 'create' && (
+          <span className="text-xs text-white/70 hidden sm:inline-block">
+            ⚡ Fotoğraflar + AI Komutu → Seçili Şablona Toplu Üretim
+          </span>
+        )}
+      </div>
+    </nav>
+  );
 }
 
 export function BatchWorkspace(p: {
@@ -62,7 +129,16 @@ export function BatchWorkspace(p: {
   const pages = p.projects[p.current.id] || [];
   return <section className="batch-workspace" hidden={p.screen === 'editor'}>
     {p.screen === 'create' && <div className="production-container">
-      <div className="production-heading"><span className="production-eyebrow">FOTOĞRAFLARINDAN TASARIMLARA</span><h1>Bir komut. Birlikte hazır tasarımlar.</h1><p>Fotoğraflarını ekle, şablonunu seç ve ne anlatmak istediğini yaz.</p></div>
+      <div className="production-heading">
+        <div className="flex items-center gap-2 mb-2 flex-wrap">
+          <span className="production-eyebrow">SİTENİN ASIL AMACI · BİR KOMUTLA TOPLU TASARIM</span>
+          <span className="px-2.5 py-0.5 rounded-full bg-[#FF6B1A]/20 text-[#FF9F0A] border border-[#FF6B1A]/40 text-[10px] font-extrabold tracking-wider">
+            YAPAY ZEKÂ MOTORU
+          </span>
+        </div>
+        <h1>Toplu Fotoğraflarından Tasarımlar Oluştur</h1>
+        <p>Fotoğraflarını ekle, şablonunu seç ve ne anlatmak istediğini yaz. Yapay zekâ tüm fotoğraflarını şablon düzenlerine yerleştirip metinleriyle birlikte hazır tasarımlara dönüştürsün.</p>
+      </div>
       <div className="production-grid">
         <section className="production-card"><h2><span>1</span> Fotoğraflarını ekle <small>{photos.length} / 25</small></h2>
           <input ref={fileInput} type="file" multiple accept="image/*" aria-label="Toplu fotoğraf seç" hidden onChange={e => { void addFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />

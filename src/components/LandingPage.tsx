@@ -399,7 +399,7 @@ export function LandingPage({ onEnter, onLogin, isLoggedIn }: LandingPageProps) 
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
           >
-            {isLoggedIn ? 'Stüdyoya Git →' : 'Portala Git →'}
+            {isLoggedIn ? '✨ Toplu Tasarım Stüdyosu →' : 'Giriş Yap & Başla →'}
           </motion.button>
         </div>
       </motion.header>
@@ -423,7 +423,7 @@ export function LandingPage({ onEnter, onLogin, isLoggedIn }: LandingPageProps) 
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.3 }}
           >
-            Şablonu bir kez oluştur, gerisini AI halletsin.
+            Toplu fotoğraf seç, tek AI komutu ver, şablonuna anında üretilsin.
           </motion.div>
 
           <motion.p
@@ -432,9 +432,9 @@ export function LandingPage({ onEnter, onLogin, isLoggedIn }: LandingPageProps) 
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
           >
-            Her gönderide metinleri tek tek elle değiştirmeye son verin.
-            Fotoğraflarınızı yükleyin, kısa bir açıklama girin; yapay zekâ
-            tasarımı ve içeriği saniyeler içinde tamamlasın.
+            Tek tek sayfa hazırlamaya son! 25 adede kadar fotoğrafınızı yükleyin,
+            yapay zekâya tek bir komut verin; seçtiğiniz şablon düzenlerine göre
+            tüm tasarımlarınızı başlık ve açıklamalarıyla saniyeler içinde oluştursun.
           </motion.p>
 
           <motion.div
@@ -449,7 +449,7 @@ export function LandingPage({ onEnter, onLogin, isLoggedIn }: LandingPageProps) 
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
             >
-              ✦ Hemen Başla — Ücretsiz
+              ✦ Toplu Tasarım Üret — Başla
             </motion.button>
             <motion.a
               href="#nasil-calisir"
