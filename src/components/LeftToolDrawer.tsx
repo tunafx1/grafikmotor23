@@ -29,85 +29,178 @@ import { DesignTemplate, Region, FixedElement } from '../types';
 
 export type ToolDrawerTab = 'templates' | 'add' | 'media' | 'layers' | 'ai' | null;
 
-interface LeftToolDrawerProps {
+export interface LeftToolDrawerProps {
   activeTab: ToolDrawerTab;
-  onTabChange: (tab: ToolDrawerTab) => void;
+  onTabChange?: (tab: ToolDrawerTab) => void;
+  onSelectTab?: (tab: ToolDrawerTab) => void;
   templates: DesignTemplate[];
   currentTemplateId: string;
   onSelectTemplate: (templateId: string) => void;
-  onCreateTemplate: () => void;
-  onDuplicateTemplate: (templateId: string) => void;
-  onDeleteTemplate: (templateId: string) => void;
-  onOpenTemplateEditor: (template: DesignTemplate) => void;
+  onCreateTemplate?: () => void;
+  onDuplicateTemplate?: (templateId: string) => void;
+  onDeleteTemplate?: (templateId: string) => void;
+  onOpenTemplateEditor?: (template: DesignTemplate) => void;
   onOpenRenameModal?: (template: DesignTemplate) => void;
+  onRenameTemplate?: (id: string, newName: string) => void;
   // Add tools
-  onAddTextRegion: () => void;
-  onAddImageRegion: () => void;
-  onAddShape: (type: 'rect' | 'circle') => void;
+  onAddTextRegion?: () => void;
+  onAddImageRegion?: () => void;
+  onAddShape?: (type: 'rect' | 'circle') => void;
+  onAddNewRegion?: (type: 'text' | 'image', role?: 'title' | 'body') => void;
+  onAddNewFixedElement?: (type: 'rect' | 'circle' | 'image' | 'video') => void;
   // Media tools
-  uploadedImages: string[];
-  onUploadImage: (file: File) => void;
-  onSelectMediaImage: (url: string) => void;
-  onOpenMediaDownloader: () => void;
+  uploadedImages?: string[];
+  onUploadImage?: (file: File) => void;
+  onUploadMedia?: (file: File) => void;
+  onSelectMediaImage?: (url: string) => void;
+  onOpenMediaDownloader?: () => void;
+  onOpenYouTubeModal?: () => void;
   // Layers
-  currentRegions: Region[];
-  currentFixedElements: FixedElement[];
-  selectedNodeId: string | null;
-  onSelectNode: (id: string | null) => void;
-  onToggleLock: (id: string, isLocked: boolean) => void;
-  onToggleVisibility: (id: string, isVisible: boolean) => void;
+  currentRegions?: Region[];
+  regions?: Region[];
+  currentFixedElements?: FixedElement[];
+  fixedElements?: FixedElement[];
+  selectedNodeId?: string | null;
+  onSelectNode?: (id: string | null) => void;
+  onToggleLock?: (id: string, isLocked: boolean) => void;
+  onToggleNodeLock?: (id: string) => void;
+  onToggleVisibility?: (id: string, isVisible: boolean) => void;
+  onToggleNodeVisibility?: (id: string) => void;
+  onDeleteNode?: (id: string) => void;
+  onReorderRegions?: (from: number, to: number) => void;
+  hiddenElementIds?: string[];
   // AI
-  aiSystemPrompt: string;
-  onGeneratePageTexts: (brief: string) => Promise<void>;
-  isAiLoading: boolean;
+  aiSystemPrompt?: string;
+  onGeneratePageTexts?: (brief: string) => Promise<void> | void;
+  onGenerateAiBrief?: (brief: string) => void;
+  isAiLoading?: boolean;
 }
 
-export function LeftToolDrawer({
-  activeTab,
-  onTabChange,
-  templates,
-  currentTemplateId,
-  onSelectTemplate,
-  onCreateTemplate,
-  onDuplicateTemplate,
-  onDeleteTemplate,
-  onOpenTemplateEditor,
-  onOpenRenameModal,
-  onAddTextRegion,
-  onAddImageRegion,
-  onAddShape,
-  uploadedImages,
-  onUploadImage,
-  onSelectMediaImage,
-  onOpenMediaDownloader,
-  currentRegions,
-  currentFixedElements,
-  selectedNodeId,
-  onSelectNode,
-  onToggleLock,
-  onToggleVisibility,
-  aiSystemPrompt,
-  onGeneratePageTexts,
-  isAiLoading
-}: LeftToolDrawerProps) {
+export function LeftToolDrawer(props: LeftToolDrawerProps) {
+  const {
+    activeTab,
+    onTabChange,
+    onSelectTab,
+    templates = [],
+    currentTemplateId,
+    onSelectTemplate,
+    onCreateTemplate,
+    onDuplicateTemplate,
+    onDeleteTemplate,
+    onOpenTemplateEditor,
+    onOpenRenameModal,
+    onRenameTemplate,
+    onAddTextRegion,
+    onAddImageRegion,
+    onAddShape,
+    onAddNewRegion,
+    onAddNewFixedElement,
+    uploadedImages = [],
+    onUploadImage,
+    onUploadMedia,
+    onSelectMediaImage,
+    onOpenMediaDownloader,
+    onOpenYouTubeModal,
+    currentRegions,
+    regions,
+    currentFixedElements,
+    fixedElements,
+    selectedNodeId = null,
+    onSelectNode,
+    onToggleLock,
+    onToggleNodeLock,
+    onToggleVisibility,
+    onToggleNodeVisibility,
+    onDeleteNode,
+    onReorderRegions,
+    hiddenElementIds = [],
+    aiSystemPrompt,
+    onGeneratePageTexts,
+    onGenerateAiBrief,
+    isAiLoading = false
+  } = props;
+
   const [templateMenuOpenId, setTemplateMenuOpenId] = useState<string | null>(null);
   const [aiBrief, setAiBrief] = useState('');
 
+  const changeTab = onTabChange || onSelectTab;
+
   const handleToolClick = (tab: ToolDrawerTab) => {
+    if (!changeTab) return;
     if (activeTab === tab) {
-      onTabChange(null); // Toggle close
+      changeTab(null); // Toggle close
     } else {
-      onTabChange(tab);
+      changeTab(tab);
     }
   };
 
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      onUploadImage(e.target.files[0]);
+    const uploadFn = onUploadImage || onUploadMedia;
+    if (uploadFn && e.target.files && e.target.files[0]) {
+      uploadFn(e.target.files[0]);
     }
   };
+
+  const handleAddText = () => {
+    if (onAddTextRegion) {
+      onAddTextRegion();
+    } else if (onAddNewRegion) {
+      onAddNewRegion('text', 'title');
+    }
+  };
+
+  const handleAddImage = () => {
+    if (onAddImageRegion) {
+      onAddImageRegion();
+    } else if (onAddNewRegion) {
+      onAddNewRegion('image');
+    }
+  };
+
+  const handleAddShape = (type: 'rect' | 'circle') => {
+    if (onAddShape) {
+      onAddShape(type);
+    } else if (onAddNewFixedElement) {
+      onAddNewFixedElement(type);
+    }
+  };
+
+  const handleOpenDownloader = () => {
+    if (onOpenMediaDownloader) {
+      onOpenMediaDownloader();
+    } else if (onOpenYouTubeModal) {
+      onOpenYouTubeModal();
+    }
+  };
+
+  const handleToggleLockAction = (id: string, currentlyLocked?: boolean) => {
+    if (onToggleLock) {
+      onToggleLock(id, !currentlyLocked);
+    } else if (onToggleNodeLock) {
+      onToggleNodeLock(id);
+    }
+  };
+
+  const handleToggleVisibilityAction = (id: string, currentlyHidden?: boolean) => {
+    if (onToggleVisibility) {
+      onToggleVisibility(id, !currentlyHidden);
+    } else if (onToggleNodeVisibility) {
+      onToggleNodeVisibility(id);
+    }
+  };
+
+  const handleAiAction = async () => {
+    if (onGeneratePageTexts) {
+      await onGeneratePageTexts(aiBrief);
+    } else if (onGenerateAiBrief) {
+      onGenerateAiBrief(aiBrief);
+    }
+  };
+
+  const allRegions = currentRegions || regions || [];
+  const allFixedElements = currentFixedElements || fixedElements || [];
 
   return (
     <div className="flex z-20 shrink-0 select-none">
@@ -121,7 +214,7 @@ export function LeftToolDrawer({
         <button
           type="button"
           onClick={() => handleToolClick('templates')}
-          className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition cursor-pointer ${
+          className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition cursor-pointer active:scale-95 ${
             activeTab === 'templates' 
               ? 'bg-[#FF6B1A] text-white shadow-lg shadow-[#FF6B1A]/20' 
               : 'text-[rgba(255,255,255,0.6)] hover:text-white hover:bg-white/5'
@@ -135,7 +228,7 @@ export function LeftToolDrawer({
         <button
           type="button"
           onClick={() => handleToolClick('add')}
-          className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition cursor-pointer ${
+          className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition cursor-pointer active:scale-95 ${
             activeTab === 'add' 
               ? 'bg-[#FF6B1A] text-white shadow-lg shadow-[#FF6B1A]/20' 
               : 'text-[rgba(255,255,255,0.6)] hover:text-white hover:bg-white/5'
@@ -149,7 +242,7 @@ export function LeftToolDrawer({
         <button
           type="button"
           onClick={() => handleToolClick('media')}
-          className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition cursor-pointer ${
+          className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition cursor-pointer active:scale-95 ${
             activeTab === 'media' 
               ? 'bg-[#FF6B1A] text-white shadow-lg shadow-[#FF6B1A]/20' 
               : 'text-[rgba(255,255,255,0.6)] hover:text-white hover:bg-white/5'
@@ -163,7 +256,7 @@ export function LeftToolDrawer({
         <button
           type="button"
           onClick={() => handleToolClick('layers')}
-          className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition cursor-pointer ${
+          className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition cursor-pointer active:scale-95 ${
             activeTab === 'layers' 
               ? 'bg-[#FF6B1A] text-white shadow-lg shadow-[#FF6B1A]/20' 
               : 'text-[rgba(255,255,255,0.6)] hover:text-white hover:bg-white/5'
@@ -177,7 +270,7 @@ export function LeftToolDrawer({
         <button
           type="button"
           onClick={() => handleToolClick('ai')}
-          className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition cursor-pointer ${
+          className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition cursor-pointer active:scale-95 ${
             activeTab === 'ai' 
               ? 'bg-[#FF6B1A] text-white shadow-lg shadow-[#FF6B1A]/20' 
               : 'text-[rgba(255,255,255,0.6)] hover:text-white hover:bg-white/5'
@@ -206,7 +299,7 @@ export function LeftToolDrawer({
             </h3>
             <button
               type="button"
-              onClick={() => onTabChange(null)}
+              onClick={() => changeTab && changeTab(null)}
               className="p-1 rounded-lg text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="Çekmeceyi Kapat"
             >
@@ -220,14 +313,16 @@ export function LeftToolDrawer({
             {/* 1. TEMPLATES DRAWER */}
             {activeTab === 'templates' && (
               <div className="space-y-3">
-                <button
-                  type="button"
-                  onClick={onCreateTemplate}
-                  className="w-full py-2.5 px-3 rounded-xl bg-[#FF6B1A] hover:bg-[#FF6B1A]/90 text-white text-xs font-bold flex items-center justify-center space-x-1.5 transition cursor-pointer shadow"
-                >
-                  <Plus size={14} />
-                  <span>Yeni Şablon Oluştur</span>
-                </button>
+                {onCreateTemplate && (
+                  <button
+                    type="button"
+                    onClick={onCreateTemplate}
+                    className="w-full py-2.5 px-3 rounded-xl bg-[#FF6B1A] hover:bg-[#FF6B1A]/90 text-white text-xs font-bold flex items-center justify-center space-x-1.5 transition cursor-pointer shadow active:scale-98"
+                  >
+                    <Plus size={14} />
+                    <span>Yeni Şablon Oluştur</span>
+                  </button>
+                )}
 
                 <div className="space-y-2 pt-1">
                   {templates.map(temp => {
@@ -275,43 +370,58 @@ export function LeftToolDrawer({
                                   type="button"
                                   onClick={() => {
                                     setTemplateMenuOpenId(null);
-                                    onOpenTemplateEditor(temp);
+                                    if (onOpenTemplateEditor) {
+                                      onOpenTemplateEditor(temp);
+                                    } else {
+                                      onSelectTemplate(temp.id);
+                                    }
                                   }}
                                   className="w-full px-3 py-2 text-left text-xs text-white hover:bg-white/10 flex items-center space-x-2 transition cursor-pointer"
                                 >
                                   <Sliders size={13} className="text-[rgba(255,255,255,0.7)]" />
                                   <span>Şablonu Düzenle</span>
                                 </button>
-                                {onOpenRenameModal && (
+                                {(onOpenRenameModal || onRenameTemplate) && (
                                   <button
                                     type="button"
                                     onClick={() => {
                                       setTemplateMenuOpenId(null);
-                                      onOpenRenameModal(temp);
+                                      if (onOpenRenameModal) {
+                                        onOpenRenameModal(temp);
+                                      } else if (onRenameTemplate) {
+                                        const newName = window.prompt('Şablon Adı:', temp.name);
+                                        if (newName && newName.trim()) {
+                                          onRenameTemplate(temp.id, newName.trim());
+                                        }
+                                      }
                                     }}
                                     className="w-full px-3 py-2 text-left text-xs text-white hover:bg-white/10 flex items-center space-x-2 transition cursor-pointer"
                                   >
                                     <Edit3 size={13} className="text-[rgba(255,255,255,0.7)]" />
-                                    <span>Adını ve Boyutunu Değiştir</span>
+                                    <span>Adını Değiştir</span>
                                   </button>
                                 )}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setTemplateMenuOpenId(null);
-                                    onDuplicateTemplate(temp.id);
-                                  }}
-                                  className="w-full px-3 py-2 text-left text-xs text-white hover:bg-white/10 flex items-center space-x-2 transition cursor-pointer"
-                                >
-                                  <Copy size={13} className="text-[rgba(255,255,255,0.7)]" />
-                                  <span>Kopyala</span>
-                                </button>
-                                {templates.length > 1 && (
+                                {onDuplicateTemplate && (
                                   <button
                                     type="button"
                                     onClick={() => {
                                       setTemplateMenuOpenId(null);
-                                      onDeleteTemplate(temp.id);
+                                      onDuplicateTemplate(temp.id);
+                                    }}
+                                    className="w-full px-3 py-2 text-left text-xs text-white hover:bg-white/10 flex items-center space-x-2 transition cursor-pointer"
+                                  >
+                                    <Copy size={13} className="text-[rgba(255,255,255,0.7)]" />
+                                    <span>Kopyala</span>
+                                  </button>
+                                )}
+                                {onDeleteTemplate && templates.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setTemplateMenuOpenId(null);
+                                      if (window.confirm(`"${temp.name}" şablonunu silmek istediğinizden emin misiniz?`)) {
+                                        onDeleteTemplate(temp.id);
+                                      }
                                     }}
                                     className="w-full px-3 py-2 text-left text-xs text-red-400 hover:bg-red-500/10 flex items-center space-x-2 transition cursor-pointer border-t border-[rgba(255,255,255,0.08)]"
                                   >
@@ -324,7 +434,7 @@ export function LeftToolDrawer({
                           </div>
                         </div>
 
-                        {/* Primary Action Button (G7 Fix) */}
+                        {/* Primary Action Button */}
                         <div className="mt-2.5 pt-2 border-t border-[rgba(255,255,255,0.06)] flex items-center justify-between">
                           {isSelected ? (
                             <span className="text-[11px] text-[#34C759] font-bold flex items-center gap-1">
@@ -334,7 +444,7 @@ export function LeftToolDrawer({
                             <button
                               type="button"
                               onClick={() => onSelectTemplate(temp.id)}
-                              className="w-full py-1.5 px-2.5 rounded-lg bg-[#252528] hover:bg-[#FF6B1A] text-white hover:text-white text-xs font-semibold transition cursor-pointer text-center"
+                              className="w-full py-1.5 px-2.5 rounded-lg bg-[#252528] hover:bg-[#FF6B1A] text-white hover:text-white text-xs font-semibold transition cursor-pointer text-center active:scale-98"
                             >
                               Bu Şablonla Çalış
                             </button>
@@ -356,8 +466,8 @@ export function LeftToolDrawer({
 
                 <button
                   type="button"
-                  onClick={onAddTextRegion}
-                  className="w-full p-3 rounded-xl bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] hover:border-[#FF6B1A] text-left flex items-center space-x-3 transition cursor-pointer group"
+                  onClick={handleAddText}
+                  className="w-full p-3 rounded-xl bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] hover:border-[#FF6B1A] text-left flex items-center space-x-3 transition cursor-pointer group active:scale-98"
                 >
                   <div className="w-8 h-8 rounded-lg bg-[#FF6B1A]/10 text-[#FF6B1A] flex items-center justify-center group-hover:scale-105 transition">
                     <Type size={16} />
@@ -370,8 +480,8 @@ export function LeftToolDrawer({
 
                 <button
                   type="button"
-                  onClick={onAddImageRegion}
-                  className="w-full p-3 rounded-xl bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] hover:border-[#34C759] text-left flex items-center space-x-3 transition cursor-pointer group"
+                  onClick={handleAddImage}
+                  className="w-full p-3 rounded-xl bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] hover:border-[#34C759] text-left flex items-center space-x-3 transition cursor-pointer group active:scale-98"
                 >
                   <div className="w-8 h-8 rounded-lg bg-[#34C759]/10 text-[#34C759] flex items-center justify-center group-hover:scale-105 transition">
                     <ImageIcon size={16} />
@@ -384,8 +494,8 @@ export function LeftToolDrawer({
 
                 <button
                   type="button"
-                  onClick={() => onAddShape('rect')}
-                  className="w-full p-3 rounded-xl bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] hover:border-[#FF9F0A] text-left flex items-center space-x-3 transition cursor-pointer group"
+                  onClick={() => handleAddShape('rect')}
+                  className="w-full p-3 rounded-xl bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] hover:border-[#FF9F0A] text-left flex items-center space-x-3 transition cursor-pointer group active:scale-98"
                 >
                   <div className="w-8 h-8 rounded-lg bg-[#FF9F0A]/10 text-[#FF9F0A] flex items-center justify-center group-hover:scale-105 transition">
                     <Square size={16} />
@@ -412,21 +522,23 @@ export function LeftToolDrawer({
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-3 px-3 rounded-xl border border-dashed border-[rgba(255,255,255,0.2)] hover:border-[#FF6B1A] hover:bg-[#FF6B1A]/10 text-white text-xs font-semibold flex flex-col items-center justify-center space-y-1 transition cursor-pointer"
+                  className="w-full py-3 px-3 rounded-xl border border-dashed border-[rgba(255,255,255,0.2)] hover:border-[#FF6B1A] hover:bg-[#FF6B1A]/10 text-white text-xs font-semibold flex flex-col items-center justify-center space-y-1 transition cursor-pointer active:scale-98"
                 >
                   <ImageIcon size={18} className="text-[#FF6B1A]" />
                   <span>Cihazdan Fotoğraf Yükle</span>
                 </button>
 
-                {/* YouTube Link Downloader Tool (G8 Fix) */}
-                <button
-                  type="button"
-                  onClick={onOpenMediaDownloader}
-                  className="w-full py-2.5 px-3 rounded-xl bg-[#1D1D1F] border border-[rgba(255,255,255,0.1)] hover:border-[#FF453A] text-white text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer"
-                >
-                  <Video size={15} className="text-[#FF453A]" />
-                  <span>Bağlantıdan İndir (YouTube / MP3-MP4)</span>
-                </button>
+                {/* YouTube Link Downloader Tool */}
+                {(onOpenMediaDownloader || onOpenYouTubeModal) && (
+                  <button
+                    type="button"
+                    onClick={handleOpenDownloader}
+                    className="w-full py-2.5 px-3 rounded-xl bg-[#1D1D1F] border border-[rgba(255,255,255,0.1)] hover:border-[#FF453A] text-white text-xs font-semibold flex items-center justify-center space-x-2 transition cursor-pointer active:scale-98"
+                  >
+                    <Video size={15} className="text-[#FF453A]" />
+                    <span>Bağlantıdan İndir (YouTube / MP3-MP4)</span>
+                  </button>
+                )}
 
                 {/* Uploaded Images Grid */}
                 <div className="space-y-2 pt-2 border-t border-[rgba(255,255,255,0.08)]">
@@ -443,7 +555,7 @@ export function LeftToolDrawer({
                       {uploadedImages.map((url, i) => (
                         <div
                           key={i}
-                          onClick={() => onSelectMediaImage(url)}
+                          onClick={() => onSelectMediaImage && onSelectMediaImage(url)}
                           className="relative aspect-square rounded-xl bg-[#1D1D1F] border border-[rgba(255,255,255,0.1)] overflow-hidden cursor-pointer group hover:border-[#FF6B1A]"
                         >
                           <img src={url} alt={`Yüklenen ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition" />
@@ -467,13 +579,14 @@ export function LeftToolDrawer({
 
                 <div className="space-y-1">
                   {/* Regions list */}
-                  {currentRegions.map(reg => {
+                  {allRegions.map(reg => {
                     const isSelected = reg.id === selectedNodeId;
+                    const isHidden = !!reg.hidden || hiddenElementIds.includes(reg.id);
 
                     return (
                       <div
                         key={reg.id}
-                        onClick={() => onSelectNode(reg.id)}
+                        onClick={() => onSelectNode && onSelectNode(reg.id)}
                         className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs transition cursor-pointer border ${
                           isSelected
                             ? 'bg-[#FF6B1A]/20 border-[#FF6B1A] text-white font-bold'
@@ -490,9 +603,10 @@ export function LeftToolDrawer({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onToggleLock(reg.id, !reg.locked);
+                              handleToggleLockAction(reg.id, reg.locked);
                             }}
-                            className="p-1 rounded text-[rgba(255,255,255,0.4)] hover:text-white"
+                            className="p-1 rounded text-[rgba(255,255,255,0.4)] hover:text-white transition"
+                            title={reg.locked ? "Kilidi Aç" : "Kilitle"}
                           >
                             {reg.locked ? <Lock size={12} className="text-amber-400" /> : <Unlock size={12} />}
                           </button>
@@ -500,25 +614,39 @@ export function LeftToolDrawer({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onToggleVisibility(reg.id, !reg.hidden);
+                              handleToggleVisibilityAction(reg.id, isHidden);
                             }}
-                            className="p-1 rounded text-[rgba(255,255,255,0.4)] hover:text-white"
+                            className="p-1 rounded text-[rgba(255,255,255,0.4)] hover:text-white transition"
+                            title={isHidden ? "Görünür Yap" : "Gizle"}
                           >
-                            {reg.hidden ? <EyeOff size={12} className="text-red-400" /> : <Eye size={12} />}
+                            {isHidden ? <EyeOff size={12} className="text-red-400" /> : <Eye size={12} />}
                           </button>
+                          {onDeleteNode && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteNode(reg.id);
+                              }}
+                              className="p-1 rounded text-[rgba(255,255,255,0.4)] hover:text-red-400 transition"
+                              title="Katmanı Sil"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
                   })}
 
                   {/* Fixed elements */}
-                  {currentFixedElements.map(el => {
+                  {allFixedElements.map(el => {
                     const isSelected = el.id === selectedNodeId;
 
                     return (
                       <div
                         key={el.id}
-                        onClick={() => onSelectNode(el.id)}
+                        onClick={() => onSelectNode && onSelectNode(el.id)}
                         className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs transition cursor-pointer border ${
                           isSelected
                             ? 'bg-[#FF9F0A]/20 border-[#FF9F0A] text-white font-bold'
@@ -535,9 +663,10 @@ export function LeftToolDrawer({
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              onToggleLock(el.id, !el.locked);
+                              handleToggleLockAction(el.id, el.locked);
                             }}
-                            className="p-1 rounded text-[rgba(255,255,255,0.4)] hover:text-white"
+                            className="p-1 rounded text-[rgba(255,255,255,0.4)] hover:text-white transition"
+                            title={el.locked ? "Kilidi Aç" : "Kilitle"}
                           >
                             {el.locked ? <Lock size={12} className="text-amber-400" /> : <Unlock size={12} />}
                           </button>
@@ -545,6 +674,12 @@ export function LeftToolDrawer({
                       </div>
                     );
                   })}
+
+                  {allRegions.length === 0 && allFixedElements.length === 0 && (
+                    <div className="p-4 rounded-xl bg-[#1D1D1F] text-center text-xs text-[rgba(255,255,255,0.4)]">
+                      Bu sayfada henüz katman bulunmuyor.
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -577,9 +712,9 @@ export function LeftToolDrawer({
 
                 <button
                   type="button"
-                  onClick={() => onGeneratePageTexts(aiBrief)}
-                  disabled={isAiLoading}
-                  className="w-full py-3 px-3 rounded-xl bg-gradient-to-r from-[#FF6B1A] to-[#FF9F0A] hover:opacity-90 text-white text-xs font-bold flex items-center justify-center space-x-2 transition cursor-pointer shadow-lg shadow-[#FF6B1A]/20 disabled:opacity-50"
+                  onClick={handleAiAction}
+                  disabled={isAiLoading || !aiBrief.trim()}
+                  className="w-full py-3 px-3 rounded-xl bg-gradient-to-r from-[#FF6B1A] to-[#FF9F0A] hover:opacity-90 text-white text-xs font-bold flex items-center justify-center space-x-2 transition cursor-pointer shadow-lg shadow-[#FF6B1A]/20 disabled:opacity-50 active:scale-98"
                 >
                   {isAiLoading ? (
                     <>

@@ -4396,6 +4396,7 @@ export default function App() {
         {/* 1. LEFT TOOL DRAWER (56px rail + 320px collapsible drawer) */}
         <LeftToolDrawer
           activeTab={leftDrawerTab}
+          onTabChange={setLeftDrawerTab}
           onSelectTab={setLeftDrawerTab}
           templates={templates}
           currentTemplateId={currentTemplateId}
@@ -4403,6 +4404,7 @@ export default function App() {
             setCurrentTemplateId(id);
             setSelectedNodeId(null);
           }}
+          onCreateTemplate={createNewTemplate}
           onDuplicateTemplate={handleDuplicateTemplate}
           onRenameTemplate={(id, newName) => {
             setTemplates(prev => prev.map(t => t.id === id ? { ...t, name: newName } : t));
@@ -4410,24 +4412,37 @@ export default function App() {
           onDeleteTemplate={(id) => deleteTemplate(id)}
           onAddNewRegion={(type, textRole) => addNewRegion(type, textRole)}
           onAddNewFixedElement={(type) => addNewFixedElement(type)}
+          onAddTextRegion={() => addNewRegion('text', 'title')}
+          onAddImageRegion={() => addNewRegion('image')}
+          onAddShape={(type) => addNewFixedElement(type)}
           uploadedImages={getUniqueUploadedImages()}
           onUploadMedia={handleMediaUpload}
+          onUploadImage={handleMediaUpload}
           onSelectMediaImage={(url) => {
             if (selectedNodeId) {
               updateActiveImageProp(selectedNodeId, 'url', url);
             }
           }}
+          onOpenMediaDownloader={() => setIsToolsModalOpen(true)}
           onOpenYouTubeModal={() => setIsToolsModalOpen(true)}
           regions={editingTemplate.regions || []}
+          currentRegions={editingTemplate.regions || []}
           fixedElements={editingTemplate.fixedElements || []}
+          currentFixedElements={editingTemplate.fixedElements || []}
           selectedNodeId={selectedNodeId}
           onSelectNode={(id) => setSelectedNodeId(id)}
           onToggleNodeVisibility={(id) => toggleElementVisibility(id)}
+          onToggleVisibility={(id, isVisible) => toggleElementVisibility(id)}
           onToggleNodeLock={(id) => handleToggleLock(id)}
+          onToggleLock={(id, isLocked) => handleToggleLock(id)}
           onDeleteNode={(id) => deleteElement(id)}
           onReorderRegions={(from, to) => moveRegionInList(from, to)}
           hiddenElementIds={activePageData.hiddenElements || activeGraphicData.hiddenElements || []}
           onGenerateAiBrief={(brief) => {
+            setAiCollageBrief(brief);
+            setTimeout(() => triggerAiGenerator(), 50);
+          }}
+          onGeneratePageTexts={async (brief) => {
             setAiCollageBrief(brief);
             setTimeout(() => triggerAiGenerator(), 50);
           }}
