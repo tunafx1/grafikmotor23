@@ -17,9 +17,9 @@ export function isMediaVideo(fileOrUrl: string | File): boolean {
  */
 export function compressImageFile(
   file: File,
-  maxWidth: number = 1200,
-  maxHeight: number = 1200,
-  quality: number = 0.82
+  maxWidth: number = 1000,
+  maxHeight: number = 1000,
+  quality: number = 0.76
 ): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -184,7 +184,7 @@ export async function createSequenceMediaItem(file: File): Promise<SequenceMedia
   } else {
     // Compress image to prevent huge strings in memory and localStorage quota crash
     try {
-      const compressedDataUrl = await compressImageFile(file, 1200, 1200, 0.82);
+      const compressedDataUrl = await compressImageFile(file, 1000, 1000, 0.76);
       return {
         id,
         type: 'image',

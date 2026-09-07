@@ -26,6 +26,54 @@ test('storage quota failure is reported and leaves previous data intact', () => 
   } finally { Object.assign(globalThis, {window: oldWindow}); }
 });
 
+test('storage auto-recovers by pruning disposable keys on quota exceeded', () => {
+  const events: string[] = [];
+  const oldWindow = globalThis.window;
+  const store = new Map<string, string>([
+    ['active_generated_pages', 'huge-duplicate-data'],
+    ['yt_recent_downloads', 'huge-video-history'],
+  ]);
+  let failedOnce = false;
+  Object.assign(globalThis, {window: {localStorage: {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, val: string) => {
+      if (!failedOnce && store.has('active_generated_pages')) {
+        failedOnce = true;
+        throw new Error('QuotaExceededError');
+      }
+      store.set(key, val);
+    },
+    removeItem: (key: string) => { store.delete(key); },
+  }, dispatchEvent: (event: Event) => events.push(event.type)}});
+  try {
+    // First save fails, prunes disposable keys, retries and succeeds, clearing the previous error state!
+    assert.equal(storage.setItem('project', 'new project data'), true);
+    assert.equal(store.get('project'), 'new project data');
+    assert.equal(store.has('active_generated_pages'), false);
+    assert.deepEqual(events, ['workspace-storage-restored']);
+  } finally { Object.assign(globalThis, {window: oldWindow}); }
+});
+
+test('storage dispatches workspace-storage-restored when saving succeeds after failure', () => {
+  const events: string[] = [];
+  const oldWindow = globalThis.window;
+  let fail = true;
+  Object.assign(globalThis, {window: {localStorage: {
+    getItem: () => null,
+    setItem: () => { if (fail) throw new Error('QuotaExceededError'); },
+    removeItem: () => {},
+  }, dispatchEvent: (event: Event) => events.push(event.type)}});
+  try {
+    assert.equal(storage.setItem('k', 'v1'), false);
+    assert.deepEqual(events, ['workspace-storage-error']);
+    // Now storage becomes available again
+    fail = false;
+    assert.equal(storage.setItem('k', 'v2'), true);
+    assert.deepEqual(events, ['workspace-storage-error', 'workspace-storage-restored']);
+  } finally { Object.assign(globalThis, {window: oldWindow}); }
+});
+
+
 test('late image loads cannot overwrite newer canvas renders; export scale is preserved', async () => {
   const oldDocument = globalThis.document;
   const oldImage = globalThis.Image;

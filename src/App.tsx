@@ -1261,8 +1261,24 @@ export default function App() {
   const [storageError, setStorageError] = useState<string | null>(null);
   useEffect(() => {
     const onError = () => setStorageError('Tarayıcı depolaması dolu veya kullanılamıyor. Son değişiklikler kaydedilemedi.');
+    const onRestored = () => setStorageError(null);
     window.addEventListener('workspace-storage-error', onError);
-    return () => window.removeEventListener('workspace-storage-error', onError);
+    window.addEventListener('workspace-storage-restored', onRestored);
+
+    // Auto-clean legacy duplicate storage entries on mount
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        if (storage.getItem('generated_pages_by_template')) {
+          storage.removeItem('active_generated_pages');
+        }
+        storage.clearDisposableData();
+      }
+    } catch {}
+
+    return () => {
+      window.removeEventListener('workspace-storage-error', onError);
+      window.removeEventListener('workspace-storage-restored', onRestored);
+    };
   }, []);
   const [mobileView, setMobileView] = useState<'editor' | 'canvas' | 'export'>('canvas');
   const [expandedImageSettings, setExpandedImageSettings] = useState<Record<string, boolean>>({});
@@ -1772,17 +1788,14 @@ export default function App() {
     }
   }, [graphicData]);
 
+  // Remove obsolete active_generated_pages duplicate key if present
   useEffect(() => {
     try {
-      if (generatedPages.length > 0) {
-        storage.setItem('active_generated_pages', JSON.stringify(generatedPages));
-      } else {
+      if (storage.getItem('active_generated_pages')) {
         storage.removeItem('active_generated_pages');
       }
-    } catch (e) {
-      console.warn('LocalStorage active_generated_pages save skipped (quota limit):', e);
-    }
-  }, [generatedPages]);
+    } catch {}
+  }, []);
 
   // Remove uploaded image from all layouts and shift remaining images
   const removeUploadedImage = (urlToDelete: string) => {
@@ -2004,7 +2017,7 @@ export default function App() {
     });
   };
 
-  const compressImage = (file: File, maxWidth = 1200, maxHeight = 1200, quality = 0.85): Promise<string> => {
+  const compressImage = (file: File, maxWidth = 1000, maxHeight = 1000, quality = 0.76): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -4502,7 +4515,55 @@ export default function App() {
         canUndo={undoStack.length > 0}
         canRedo={redoStack.length > 0}
       />
-      {storageError && <div className="workspace-warning" role="alert">{storageError} Çalışmanızı indirin veya buluta kaydedin.</div>}
+      {storageError && (
+        <div 
+          className="workspace-warning bg-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 sm:px-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-200 text-xs sm:text-sm z-40 transition-colors"
+          role="alert"
+        >
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 shrink-0 rounded-full bg-amber-400 animate-pulse" />
+            <span>
+              <strong>Tarayıcı Depolama Uyarısı:</strong> {storageError} Tarayıcı yerel hafızası dolu olduğu için son değişiklikler kaydedilemedi.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+            <button
+              type="button"
+              onClick={() => {
+                storage.clearDisposableData();
+                const probeKey = '__gm_probe__';
+                try {
+                  window.localStorage.setItem(probeKey, '1');
+                  window.localStorage.removeItem(probeKey);
+                  setStorageError(null);
+                } catch {
+                  storage.clearAllCache();
+                  setStorageError(null);
+                }
+              }}
+              className="px-2.5 py-1 text-xs font-bold text-amber-300 hover:text-amber-200 rounded bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 transition shrink-0"
+              title="Gereksiz önbellek dosyalarını temizleyerek yer açar"
+            >
+              Önbelleği Temizle
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsExportModalOpen(true)}
+              className="px-2.5 py-1 text-xs font-medium text-white hover:text-white rounded bg-white/10 hover:bg-white/20 transition shrink-0"
+            >
+              Çalışmayı İndir
+            </button>
+            <button
+              type="button"
+              onClick={() => setStorageError(null)}
+              className="text-xs font-bold text-amber-300 hover:text-white px-2 py-1 rounded hover:bg-white/10 transition shrink-0"
+              aria-label="Kapat"
+            >
+              ✕ Kapat
+            </button>
+          </div>
+        </div>
+      )}
       {/* CLOUD QUOTA EXCEEDED WARNING BANNER */}
       {firestoreQuotaExceeded && (
         <div className="bg-[#FF9F0A]/10 dark:bg-[#2C2C2E]/30 border-b border-[#FF9F0A]/20 px-4 py-2 sm:px-6 flex items-center justify-between gap-3 text-[#FF9F0A] z-40 transition-colors">

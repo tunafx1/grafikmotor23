@@ -101,7 +101,7 @@
 #mobile-nav-bar button { min-height: 44px; }
 .template-thumbnail { display: flex; justify-content: center; background: var(--ws-field); border-radius: 7px; overflow: hidden; margin: -3px -3px 14px; padding: 12px; height: 170px; }
 .template-thumbnail canvas { height: 100%; width: auto; max-width: 100%; object-fit: contain; box-shadow: 0 3px 12px #0002; }
-.workspace-warning { padding: 10px 20px; background: #fff1d8; color: #775013; font-size: 12px; }
+.workspace-warning { padding: 10px 20px; background: rgba(245, 158, 11, 0.15); color: #fcd34d; font-size: 13px; }
 @media (min-width: 1024px) {
   #editor-controls { width: 338px; flex: 0 0 338px; }
   #export-assets-bar { width: 248px; flex: 0 0 248px; }
