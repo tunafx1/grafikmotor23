@@ -112,3 +112,70 @@ test('YouTube parsing rejects unrelated hosts and preserves watch, short, and sh
   assert.ok(transcodeArguments('mp3').includes('libmp3lame'));
   assert.ok(transcodeArguments('mp4').includes('libx264'));
 });
+
+test('locked layer passes through to topmost unlocked layer on canvas hit test', async () => {
+  const { findTopmostUnlockedElement } = await import('../src/utils/canvasHitTest');
+
+  const template = {
+    regions: [
+      {
+        id: 'bg-image-locked',
+        name: 'Arka Plan',
+        type: 'image' as const,
+        x: 0,
+        y: 0,
+        width: 1000,
+        height: 1000,
+        zIndex: 0,
+        locked: true,
+      },
+      {
+        id: 'text-layer-unlocked',
+        name: 'Başlık',
+        type: 'text' as const,
+        x: 100,
+        y: 100,
+        width: 400,
+        height: 200,
+        zIndex: 5,
+        locked: false,
+      },
+      {
+        id: 'overlay-banner-locked',
+        name: 'Kilitli Katman Üst',
+        type: 'image' as const,
+        x: 150,
+        y: 150,
+        width: 200,
+        height: 100,
+        zIndex: 10,
+        locked: true,
+      },
+    ],
+    fixedElements: [],
+  };
+
+  // Case 1: Clicking at (200, 180) has:
+  // - overlay-banner-locked (zIndex 10, locked) -> MUST SKIP!
+  // - text-layer-unlocked (zIndex 5, unlocked) -> MUST SELECT!
+  // - bg-image-locked (zIndex 0, locked)
+  const hit1 = findTopmostUnlockedElement(template as any, 200, 180, []);
+  assert.ok(hit1);
+  assert.equal(hit1.id, 'text-layer-unlocked');
+  assert.equal(hit1.type, 'region');
+
+  // Case 2: Clicking at (50, 50) where ONLY bg-image-locked is present:
+  // bg-image-locked is locked -> MUST RETURN NULL!
+  const hit2 = findTopmostUnlockedElement(template as any, 50, 50, []);
+  assert.equal(hit2, null);
+
+  // Case 3: When text-layer-unlocked is also locked:
+  // Both overlay and text are locked at (200, 180) -> MUST RETURN NULL!
+  const templateAllLocked = {
+    ...template,
+    regions: template.regions.map(r => ({ ...r, locked: true })),
+  };
+  const hit3 = findTopmostUnlockedElement(templateAllLocked as any, 200, 180, []);
+  assert.equal(hit3, null);
+});
+

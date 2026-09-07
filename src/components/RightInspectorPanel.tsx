@@ -248,9 +248,22 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
             <div className="space-y-4">
               {/* Type identifier pill & AI generate */}
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-semibold text-[#FF6B1A] bg-[#FF6B1A]/10 px-2.5 py-0.5 rounded-full">
-                  {isTitle ? 'Başlık Metni' : 'Metin Alanı'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold text-[#FF6B1A] bg-[#FF6B1A]/10 px-2.5 py-0.5 rounded-full">
+                    {isTitle ? 'Başlık Metni' : 'Metin Alanı'}
+                  </span>
+                  {onLock && (
+                    <button
+                      type="button"
+                      onClick={() => onLock(r.id)}
+                      className="text-[11px] text-[rgba(255,255,255,0.6)] hover:text-white flex items-center gap-1 cursor-pointer"
+                      title={r.locked ? 'Kilidi Aç' : 'Kilitle'}
+                    >
+                      {r.locked ? <Lock size={12} className="text-amber-400" /> : <Unlock size={12} />}
+                      <span>{r.locked ? 'Kilitli' : 'Kilitle'}</span>
+                    </button>
+                  )}
+                </div>
                 {onAi && (
                   <button
                     type="button"

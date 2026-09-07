@@ -831,24 +831,26 @@ async function renderTemplateFrame(
       ctx.setLineDash([]);
       ctx.stroke();
 
-      // Draw circular handles at the 4 corners of selected region
-      ctx.fillStyle = '#3A3A3C';
-      ctx.strokeStyle = activeHighlight;
-      ctx.lineWidth = 2.5;
-      ctx.setLineDash([]);
+      // Draw circular handles at the 4 corners of selected region only if not locked
+      if (!reg.locked) {
+        ctx.fillStyle = '#3A3A3C';
+        ctx.strokeStyle = activeHighlight;
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([]);
 
-      const corners = [
-        { x: reg.x, y: reg.y }, // TL
-        { x: reg.x + reg.width, y: reg.y }, // TR
-        { x: reg.x, y: reg.y + reg.height }, // BL
-        { x: reg.x + reg.width, y: reg.y + reg.height } // BR
-      ];
+        const corners = [
+          { x: reg.x, y: reg.y }, // TL
+          { x: reg.x + reg.width, y: reg.y }, // TR
+          { x: reg.x, y: reg.y + reg.height }, // BL
+          { x: reg.x + reg.width, y: reg.y + reg.height } // BR
+        ];
 
-      for (const corner of corners) {
-        ctx.beginPath();
-        ctx.arc(corner.x, corner.y, 6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+        for (const corner of corners) {
+          ctx.beginPath();
+          ctx.arc(corner.x, corner.y, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
       }
     }
 
@@ -870,23 +872,25 @@ async function renderTemplateFrame(
       ctx.setLineDash([]);
       ctx.stroke();
 
-      // Draw handles
-      ctx.fillStyle = '#3A3A3C';
-      ctx.strokeStyle = activeHighlight;
-      ctx.lineWidth = 2.5;
-      
-      const corners = [
-        { x: el.x, y: el.y }, // TL
-        { x: el.x + el.width, y: el.y }, // TR
-        { x: el.x, y: el.y + el.height }, // BL
-        { x: el.x + el.width, y: el.y + el.height } // BR
-      ];
+      // Draw handles only if not locked
+      if (!el.locked) {
+        ctx.fillStyle = '#3A3A3C';
+        ctx.strokeStyle = activeHighlight;
+        ctx.lineWidth = 2.5;
+        
+        const corners = [
+          { x: el.x, y: el.y }, // TL
+          { x: el.x + el.width, y: el.y }, // TR
+          { x: el.x, y: el.y + el.height }, // BL
+          { x: el.x + el.width, y: el.y + el.height } // BR
+        ];
 
-      for (const corner of corners) {
-        ctx.beginPath();
-        ctx.arc(corner.x, corner.y, 6, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
+        for (const corner of corners) {
+          ctx.beginPath();
+          ctx.arc(corner.x, corner.y, 6, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+        }
       }
     }
 

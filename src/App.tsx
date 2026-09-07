@@ -4,6 +4,7 @@ import { MediaDownloaderDialog } from './components/MediaDownloaderDialog';
 import { LandingPage } from './components/LandingPage';
 import { AuthPortal } from './components/AuthPortal';
 import { createExportAsset, safeFileName } from './utils/exportAssets';
+import { findTopmostUnlockedElement } from './utils/canvasHitTest';
 import { storeVideo, getVideoUrl, replaceVideoUrls } from './lib/mediaStore';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1168,13 +1169,15 @@ export default function App() {
   }, [currentTemplate, activePageIndex, activeGeneratedPageIndex, generatedPages, activePageData?.templatePageId]);
 
   const editingTemplate = useMemo(() => {
+    const pageRegions = (activePageData as any)?.regions ?? activeTemplatePage.regions ?? currentTemplate.regions ?? [];
+    const pageFixed = (activePageData as any)?.fixedElements ?? activeTemplatePage.fixedElements ?? currentTemplate.fixedElements ?? [];
     return {
       ...currentTemplate,
-      backgroundImageUrl: activeTemplatePage.backgroundImageUrl ?? currentTemplate.backgroundImageUrl,
-      regions: activeTemplatePage.regions ?? currentTemplate.regions ?? [],
-      fixedElements: activeTemplatePage.fixedElements ?? currentTemplate.fixedElements ?? [],
+      backgroundImageUrl: (activePageData as any)?.backgroundImageUrl ?? activeTemplatePage.backgroundImageUrl ?? currentTemplate.backgroundImageUrl,
+      regions: pageRegions,
+      fixedElements: pageFixed,
     };
-  }, [currentTemplate, activeTemplatePage]);
+  }, [currentTemplate, activeTemplatePage, activePageData]);
 
   const [showGrid, setShowGrid] = useState<boolean>(false);
   const [showSafeMargins, setShowSafeMargins] = useState<boolean>(false);
@@ -1423,7 +1426,11 @@ export default function App() {
   const handleToggleLock = (nodeId: string) => {
     const reg = editingTemplate.regions.find(r => r.id === nodeId);
     if (reg) {
-      handleRegionPropertyChange(nodeId, 'locked', !reg.locked);
+      const nextLocked = !reg.locked;
+      handleRegionPropertyChange(nodeId, 'locked', nextLocked);
+      if (nextLocked && editingImageRegionId === nodeId) {
+        setEditingImageRegionId(null);
+      }
       return;
     }
     const el = editingTemplate.fixedElements.find(e => e.id === nodeId);
@@ -1437,6 +1444,8 @@ export default function App() {
   };
 
   const handleCropPanTrigger = (regionId: string) => {
+    const reg = editingTemplate.regions.find(r => r.id === regionId);
+    if (reg?.locked) return;
     setEditingImageRegionId(regionId);
     setSelectedNodeId(regionId);
   };
@@ -2386,11 +2395,11 @@ export default function App() {
   };
 
   const handleRegionPropertyChange = (regionId: string, prop: keyof Region, value: any) => {
-    if (activeTab !== 'phase1' && generatedPages.length) {
-      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {...page,
+    if (generatedPages.length > 0) {
+      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
+        ...page,
         regions: (page.regions ?? editingTemplate.regions).map(node => node.id === regionId ? {...node, [prop]: value} : node)
       } : page));
-      return;
     }
     setTemplates(prev => {
       const updated = prev.map(t => {
@@ -2408,8 +2417,8 @@ export default function App() {
           return {
             ...t,
             pages: updatedPages,
-            regions: updatedPages[0].regions,
-            fixedElements: updatedPages[0].fixedElements
+            regions: updatedPages[0]?.regions ?? t.regions,
+            fixedElements: updatedPages[0]?.fixedElements ?? t.fixedElements
           };
         }
         return t;
@@ -2420,11 +2429,11 @@ export default function App() {
   };
 
   const handleRegionPropertiesChange = (regionId: string, updates: Partial<Region>) => {
-    if (activeTab !== 'phase1' && generatedPages.length) {
-      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {...page,
+    if (generatedPages.length > 0) {
+      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
+        ...page,
         regions: (page.regions ?? editingTemplate.regions).map(node => node.id === regionId ? {...node, ...updates} : node)
       } : page));
-      return;
     }
     setTemplates(prev => {
       const updated = prev.map(t => {
@@ -2442,8 +2451,8 @@ export default function App() {
           return {
             ...t,
             pages: updatedPages,
-            regions: updatedPages[0].regions,
-            fixedElements: updatedPages[0].fixedElements
+            regions: updatedPages[0]?.regions ?? t.regions,
+            fixedElements: updatedPages[0]?.fixedElements ?? t.fixedElements
           };
         }
         return t;
@@ -2454,6 +2463,12 @@ export default function App() {
   };
 
   const handleFixedElementPropertiesChange = (elementId: string, updates: Partial<FixedElement>) => {
+    if (generatedPages.length > 0) {
+      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
+        ...page,
+        fixedElements: (page.fixedElements ?? editingTemplate.fixedElements).map(node => node.id === elementId ? {...node, ...updates} : node)
+      } : page));
+    }
     setTemplates(prev => {
       const updated = prev.map(t => {
         if (t.id === currentTemplateId) {
@@ -2470,8 +2485,8 @@ export default function App() {
           return {
             ...t,
             pages: updatedPages,
-            regions: updatedPages[0].regions,
-            fixedElements: updatedPages[0].fixedElements
+            regions: updatedPages[0]?.regions ?? t.regions,
+            fixedElements: updatedPages[0]?.fixedElements ?? t.fixedElements
           };
         }
         return t;
@@ -2482,11 +2497,11 @@ export default function App() {
   };
 
   const handleRegionTextStyleChange = (regionId: string, prop: keyof TextStyle, value: any) => {
-    if (activeTab !== 'phase1' && generatedPages.length) {
-      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {...page,
+    if (generatedPages.length > 0) {
+      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
+        ...page,
         regions: (page.regions ?? editingTemplate.regions).map(node => node.id === regionId ? {...node, textStyle: {...node.textStyle, [prop]: value}} : node)
       } : page));
-      return;
     }
     setTemplates(prev => {
       const updated = prev.map(t => {
@@ -2516,8 +2531,8 @@ export default function App() {
           return {
             ...t,
             pages: updatedPages,
-            regions: updatedPages[0].regions,
-            fixedElements: updatedPages[0].fixedElements
+            regions: updatedPages[0]?.regions ?? t.regions,
+            fixedElements: updatedPages[0]?.fixedElements ?? t.fixedElements
           };
         }
         return t;
@@ -2528,11 +2543,11 @@ export default function App() {
   };
 
   const handleFixedElementPropertyChange = (elementId: string, prop: keyof FixedElement, value: any) => {
-    if (activeTab !== 'phase1' && generatedPages.length) {
-      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {...page,
+    if (generatedPages.length > 0) {
+      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
+        ...page,
         fixedElements: (page.fixedElements ?? editingTemplate.fixedElements).map(node => node.id === elementId ? {...node, [prop]: value} : node)
       } : page));
-      return;
     }
     setTemplates(prev => {
       const updated = prev.map(t => {
@@ -2550,8 +2565,8 @@ export default function App() {
           return {
             ...t,
             pages: updatedPages,
-            regions: updatedPages[0].regions,
-            fixedElements: updatedPages[0].fixedElements
+            regions: updatedPages[0]?.regions ?? t.regions,
+            fixedElements: updatedPages[0]?.fixedElements ?? t.fixedElements
           };
         }
         return t;
@@ -2562,11 +2577,11 @@ export default function App() {
   };
 
   const handleFixedElementTextStyleChange = (elementId: string, prop: keyof TextStyle, value: any) => {
-    if (activeTab !== 'phase1' && generatedPages.length) {
-      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {...page,
+    if (generatedPages.length > 0) {
+      setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
+        ...page,
         fixedElements: (page.fixedElements ?? editingTemplate.fixedElements).map(node => node.id === elementId ? {...node, textStyle: {...node.textStyle, [prop]: value}} : node)
       } : page));
-      return;
     }
     setTemplates(prev => {
       const updated = prev.map(t => {
@@ -2596,8 +2611,8 @@ export default function App() {
           return {
             ...t,
             pages: updatedPages,
-            regions: updatedPages[0].regions,
-            fixedElements: updatedPages[0].fixedElements
+            regions: updatedPages[0]?.regions ?? t.regions,
+            fixedElements: updatedPages[0]?.fixedElements ?? t.fixedElements
           };
         }
         return t;
@@ -3482,12 +3497,19 @@ export default function App() {
 
   // Delete element from current template
   const deleteElement = (id: string) => {
+    if (generatedPages.length > 0) {
+      setGeneratedPages(prev => prev.map((p, idx) => idx === activeGeneratedPageIndex ? {
+        ...p,
+        regions: (p.regions ?? editingTemplate.regions).filter(r => r.id !== id),
+        fixedElements: (p.fixedElements ?? editingTemplate.fixedElements).filter(el => el.id !== id)
+      } : p));
+    }
     setTemplates(prev => {
       const updated = prev.map(t => {
         if (t.id === currentTemplateId) {
           const pageWithFallback = ensureMultiPageSupport(t);
           const updatedPages = pageWithFallback.pages!.map((p, idx) => {
-            if (idx === activePageIndex) {
+            if (p.id === activeTemplatePage.id || idx === activePageIndex) {
               return {
                 ...p,
                 regions: p.regions.filter(r => r.id !== id),
@@ -3499,8 +3521,8 @@ export default function App() {
           return {
             ...t,
             pages: updatedPages,
-            regions: updatedPages[0].regions,
-            fixedElements: updatedPages[0].fixedElements
+            regions: updatedPages[0]?.regions ?? t.regions,
+            fixedElements: updatedPages[0]?.fixedElements ?? t.fixedElements
           };
         }
         return t;
@@ -3651,7 +3673,7 @@ export default function App() {
     // If mouse image positioning is active, drag the image content instead of the frame
     if (editingImageRegionId) {
       const activeReg = (editingTemplate.regions || []).find(r => r.id === editingImageRegionId);
-      if (activeReg) {
+      if (activeReg && !activeReg.locked) {
         if (x >= activeReg.x && x <= activeReg.x + activeReg.width && y >= activeReg.y && y <= activeReg.y + activeReg.height) {
           const imgData = activePageData.dynamicImages[editingImageRegionId] || {
             offsetX: 0,
@@ -3674,6 +3696,8 @@ export default function App() {
           // Clicked outside active crop zone, exit crop mode
           setEditingImageRegionId(null);
         }
+      } else {
+        setEditingImageRegionId(null);
       }
     }
 
@@ -3717,7 +3741,7 @@ export default function App() {
       }
     }
 
-    if (isResizeAction && selectedEl && hitHandle) {
+    if (isResizeAction && selectedEl && !selectedEl.locked && hitHandle) {
       dragStartRef.current = {
         elementId: selectedNodeId!,
         elementType: selectedElType!,
@@ -3734,76 +3758,21 @@ export default function App() {
       return;
     }
 
-    // Build the visual render list hierarchy exactly as drawn on the canvas (zIndex, order, index)
-    const renderList = [
-      ...(editingTemplate.fixedElements || []).map((el, idx) => ({ item: el, isRegion: false, order: 0, index: idx, zIndex: el.zIndex ?? 0 })),
-      ...(editingTemplate.regions || []).map((reg, idx) => ({ item: reg, isRegion: true, order: 1, index: idx, zIndex: reg.zIndex ?? 0 }))
-    ];
+    // Find topmost UNLOCKED element at click coordinates (locked layers pass-through)
+    const hitTarget = findTopmostUnlockedElement(
+      editingTemplate,
+      x,
+      y,
+      activeGraphicData.hiddenElements || []
+    );
 
-    // Sort by zIndex, then order, then index (matches canvasRenderer.ts)
-    renderList.sort((a, b) => {
-      if (a.zIndex !== b.zIndex) {
-        return a.zIndex - b.zIndex;
-      }
-      if (a.order !== b.order) {
-        return a.order - b.order;
-      }
-      return a.index - b.index;
-    });
-
-    let foundId: string | null = null;
-    let foundType: 'region' | 'fixed' | null = null;
-
-    // Check hit targets in REVERSE rendering order (topmost element first)
-    for (let i = renderList.length - 1; i >= 0; i--) {
-      const node = renderList[i];
-      const el = node.item;
-
-      // Skip if hidden
-      if (activeGraphicData.hiddenElements?.includes(el.id) || el.hidden) {
-        continue;
-      }
-
-      // Skip if locked (Requirement 4: locked elements are unselectable/unmovable on canvas)
-      if (el.locked) {
-        continue;
-      }
-
-      if (node.isRegion) {
-        const reg = el as Region;
-        if (x >= reg.x && x <= reg.x + reg.width && y >= reg.y && y <= reg.y + reg.height) {
-          foundId = reg.id;
-          foundType = 'region';
-          break;
-        }
-      } else {
-        const fixed = el as FixedElement;
-        if (fixed.type === 'shape' && fixed.shapeType === 'circle') {
-          // Circle distance match
-          const dist = Math.sqrt((x - fixed.x) ** 2 + (y - fixed.y) ** 2);
-          if (dist <= fixed.width / 2) {
-            foundId = fixed.id;
-            foundType = 'fixed';
-            break;
-          }
-        } else {
-          // Standard bounding box match
-          if (x >= fixed.x && x <= fixed.x + fixed.width && y >= fixed.y && y <= fixed.y + fixed.height) {
-            foundId = fixed.id;
-            foundType = 'fixed';
-            break;
-          }
-        }
-      }
-    }
-
-    if (foundId) {
-      setSelectedNodeId(foundId);
-      const activeEl = (editingTemplate.regions || []).find(r => r.id === foundId) || (editingTemplate.fixedElements || []).find(el => el.id === foundId);
-      if (activeEl) {
+    if (hitTarget) {
+      setSelectedNodeId(hitTarget.id);
+      const activeEl = hitTarget.item;
+      if (activeEl && !activeEl.locked) {
         dragStartRef.current = {
-          elementId: foundId,
-          elementType: foundType!,
+          elementId: hitTarget.id,
+          elementType: hitTarget.type,
           startX: activeEl.x,
           startY: activeEl.y,
           mouseStartX: x,
@@ -3850,11 +3819,17 @@ export default function App() {
 
     if (dragStartRef.current.mode === 'image-pan') {
       const ref = dragStartRef.current;
+      const region = editingTemplate.regions.find(r => r.id === ref.elementId);
+      if (!region || region.locked) {
+        dragStartRef.current = null;
+        setIsDragging(false);
+        return;
+      }
+
       let newOffsetX = Math.round(ref.startX + dx);
       let newOffsetY = Math.round(ref.startY + dy);
 
       // Görselin pan (kaydırma) sınırlarını hesaplama ve clamp işlemi (bölge dışına çıkmayı önleme)
-      const region = editingTemplate.regions.find(r => r.id === ref.elementId);
       const imgData = activePageData.dynamicImages[ref.elementId];
       if (region && imgData && imgData.url) {
         const img = new Image();
@@ -3893,6 +3868,15 @@ export default function App() {
       updateActiveImageProp(ref.elementId, 'offsetY', newOffsetY);
     } else if (dragStartRef.current.mode === 'resize' && dragStartRef.current.resizeHandle) {
       const ref = dragStartRef.current;
+      const isLocked = ref.elementType === 'region'
+        ? editingTemplate.regions.find(r => r.id === ref.elementId)?.locked
+        : editingTemplate.fixedElements.find(el => el.id === ref.elementId)?.locked;
+      if (isLocked) {
+        dragStartRef.current = null;
+        setIsDragging(false);
+        return;
+      }
+
       const startX = ref.startX;
       const startY = ref.startY;
       const startWidth = ref.startWidth ?? 20;
@@ -3935,6 +3919,15 @@ export default function App() {
       }
     } else {
       // Normal dragging mode
+      const isLocked = dragStartRef.current.elementType === 'region'
+        ? editingTemplate.regions.find(r => r.id === dragStartRef.current?.elementId)?.locked
+        : editingTemplate.fixedElements.find(el => el.id === dragStartRef.current?.elementId)?.locked;
+      if (isLocked) {
+        dragStartRef.current = null;
+        setIsDragging(false);
+        return;
+      }
+
       const newX = Math.round(dragStartRef.current.startX + dx);
       const newY = Math.round(dragStartRef.current.startY + dy);
 
@@ -3967,33 +3960,32 @@ export default function App() {
     const x = relativeX * scaleX;
     const y = relativeY * scaleY;
 
-    // Find if double clicked on an image region
-    const hitImageRegion = (editingTemplate.regions || []).find(reg => {
-      if (reg.type !== 'image') return false;
-      if (activeGraphicData.hiddenElements?.includes(reg.id) || reg.hidden) return false;
-      return x >= reg.x && x <= reg.x + reg.width && y >= reg.y && y <= reg.y + reg.height;
-    });
+    // Find topmost UNLOCKED element under double click (locked layers pass-through)
+    const hitTarget = findTopmostUnlockedElement(
+      editingTemplate,
+      x,
+      y,
+      activeGraphicData.hiddenElements || []
+    );
 
-    if (hitImageRegion) {
-      setEditingImageRegionId(hitImageRegion.id);
-      setSelectedNodeId(hitImageRegion.id);
-      return;
-    }
+    if (!hitTarget) return;
 
-    // Find if double clicked on a text region
-    const hitTextRegion = (editingTemplate.regions || []).find(reg => {
-      if (reg.type !== 'text') return false;
-      if (activeGraphicData.hiddenElements?.includes(reg.id) || reg.hidden) return false;
-      return x >= reg.x && x <= reg.x + reg.width && y >= reg.y && y <= reg.y + reg.height;
-    });
-
-    if (hitTextRegion) {
-      setSelectedNodeId(hitTextRegion.id);
-      setTimeout(() => {
-        const textarea = document.getElementById('text-inspector-input') as HTMLTextAreaElement;
-        if (textarea) textarea.focus();
-      }, 50);
-      return;
+    if (hitTarget.type === 'region') {
+      const reg = hitTarget.item as Region;
+      if (reg.type === 'image') {
+        setEditingImageRegionId(reg.id);
+        setSelectedNodeId(reg.id);
+      } else if (reg.type === 'text') {
+        setSelectedNodeId(reg.id);
+        setTimeout(() => {
+          const textarea = document.getElementById('text-inspector-input') as HTMLTextAreaElement;
+          if (textarea) textarea.focus();
+        }, 50);
+      } else {
+        setSelectedNodeId(reg.id);
+      }
+    } else {
+      setSelectedNodeId(hitTarget.id);
     }
   };
 
@@ -4016,7 +4008,7 @@ export default function App() {
       const y = relativeY * scaleY;
 
       const reg = editingTemplate.regions.find(r => r.id === targetRegionId);
-      if (reg) {
+      if (reg && !reg.locked) {
         if (x >= reg.x && x <= reg.x + reg.width && y >= reg.y && y <= reg.y + reg.height) {
           e.preventDefault();
           
