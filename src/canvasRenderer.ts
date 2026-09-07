@@ -81,14 +81,14 @@ export function tokenizeSpans(spans: TextSpan[]): Token[] {
 }
 
 // Helper to construct the CSS/Canvas font string
-function getFontString(fontFamily: string, fontSize: number, isBold: boolean, isItalic: boolean, baseWeight: string = 'normal'): string {
+function getFontString(fontFamily: string, fontSize: number, isBold: boolean, isItalic: boolean, baseWeight: string = 'normal', baseStyle: string = 'normal'): string {
   let weight = baseWeight;
   if (isBold) {
     weight = '900'; // Ultra bold for strong contrast
   } else if (baseWeight === 'bold') {
     weight = '700';
   }
-  const style = isItalic ? 'italic' : 'normal';
+  const style = (isItalic || baseStyle === 'italic') ? 'italic' : 'normal';
   return `${style} ${weight} ${fontSize}px "${fontFamily}", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
 }
 
@@ -232,7 +232,7 @@ export function drawFormattedText(
     }
 
     // Set font metrics
-    ctx.font = getFontString(style.fontFamily, style.fontSize, token.isBold, token.isItalic, style.fontWeight);
+    ctx.font = getFontString(style.fontFamily, style.fontSize, token.isBold, token.isItalic, style.fontWeight, style.fontStyle);
     const measured = ctx.measureText(token.text);
     const tokenWidth = measured.width;
 
@@ -279,7 +279,7 @@ export function drawFormattedText(
       const line = lines[l];
       let lineWidth = 0;
       for (const token of line) {
-        ctx.font = getFontString(style.fontFamily, style.fontSize, token.isBold, token.isItalic, style.fontWeight);
+        ctx.font = getFontString(style.fontFamily, style.fontSize, token.isBold, token.isItalic, style.fontWeight, style.fontStyle);
         lineWidth += ctx.measureText(token.text).width;
       }
       if (lineWidth > maxLineWidth) {
@@ -334,7 +334,7 @@ export function drawFormattedText(
     // Calculate full line width for alignment calculations
     let lineWidth = 0;
     for (const token of line) {
-      ctx.font = getFontString(style.fontFamily, style.fontSize, token.isBold, token.isItalic, style.fontWeight);
+      ctx.font = getFontString(style.fontFamily, style.fontSize, token.isBold, token.isItalic, style.fontWeight, style.fontStyle);
       lineWidth += ctx.measureText(token.text).width;
     }
 
@@ -348,7 +348,7 @@ export function drawFormattedText(
 
     // Draw tokens sequentially
     for (const token of line) {
-      ctx.font = getFontString(style.fontFamily, style.fontSize, token.isBold, token.isItalic, style.fontWeight);
+      ctx.font = getFontString(style.fontFamily, style.fontSize, token.isBold, token.isItalic, style.fontWeight, style.fontStyle);
       
       // Styling and colors
       ctx.fillStyle = textColor;

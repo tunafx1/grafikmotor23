@@ -88,6 +88,10 @@ import { useProjectPages } from './hooks/useProjectPages';
 import { storage } from './lib/storage';
 import './workspace.css';
 import { CanvasVideoOverlay } from './components/CanvasVideoOverlay';
+import { LeftToolDrawer, ToolDrawerTab } from './components/LeftToolDrawer';
+import { RightInspectorPanel } from './components/RightInspectorPanel';
+import { PageFilmstrip } from './components/PageFilmstrip';
+import { ExportModal } from './components/ExportModal';
 
 const INITIAL_FALLBACK_TEMPLATE: DesignTemplate = {
   id: 'default-template-1',
@@ -813,7 +817,18 @@ export default function App() {
   const [iosExportImages, setIosExportImages] = useState<{ url: string; name: string }[] | null>(null);
   const isLoadedRef = useRef<boolean>(false);
   const [isAppLoaded, setIsAppLoaded] = useState<boolean>(true);
-  const [currentView, setCurrentView] = useState<'landing' | 'portal' | 'editor'>('landing');
+  const [currentView, setCurrentView] = useState<'landing' | 'portal' | 'editor'>(() => {
+    const wasLoggedIn = storage.getItem('gm_user_logged_in') === 'true';
+    const savedView = storage.getItem('gm_current_view');
+    if (wasLoggedIn || savedView === 'editor') return 'editor';
+    if (savedView === 'portal') return 'portal';
+    return 'landing';
+  });
+
+  useEffect(() => {
+    storage.setItem('gm_current_view', currentView);
+  }, [currentView]);
+
   const lastSavedProjectRef = useRef<string>('');
   
   // Template Catalog Inline Edit States
@@ -1245,6 +1260,218 @@ export default function App() {
     storage.setItem('vurgu_color', color);
   };
 
+  // --- UI-UX REDESIGN STATES & HELPERS ---
+  const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
+  const [leftDrawerTab, setLeftDrawerTab] = useState<ToolDrawerTab | null>('templates');
+
+  const handleDuplicateTemplate = (templateId: string) => {
+    const target = templates.find(t => t.id === templateId);
+    if (!target) return;
+    const newId = `custom-tpl-${Date.now()}`;
+    const duplicated: DesignTemplate = {
+      ...JSON.parse(JSON.stringify(target)),
+      id: newId,
+      name: `${target.name} (Kopya)`,
+      isCustom: true
+    };
+    setTemplates(prev => [duplicated, ...prev]);
+    setCurrentTemplateId(newId);
+    setSelectedNodeId(null);
+  };
+
+  const handleAddNewPage = () => {
+    if (generatedPages.length > 0) {
+      const lastPage = generatedPages[generatedPages.length - 1];
+      const newPage = {
+        id: `page-${Date.now()}`,
+        templatePageId: lastPage.templatePageId || '1',
+        name: `${generatedPages.length + 1}. Sayfa`,
+        dynamicTexts: { ...lastPage.dynamicTexts },
+        dynamicImages: { ...lastPage.dynamicImages },
+        hiddenElements: []
+      };
+      setGeneratedPages([...generatedPages, newPage]);
+      setActiveGeneratedPageIndex(generatedPages.length);
+    } else {
+      const pages = currentTemplate.pages || [];
+      const newPage: TemplatePage = {
+        id: `tpl-page-${Date.now()}`,
+        name: `${pages.length + 1}. Sayfa`,
+        regions: currentTemplate.regions ? JSON.parse(JSON.stringify(currentTemplate.regions)) : [],
+        fixedElements: currentTemplate.fixedElements ? JSON.parse(JSON.stringify(currentTemplate.fixedElements)) : []
+      };
+      const nextPages = [...pages, newPage];
+      setTemplates(prev => prev.map(t => t.id === currentTemplateId ? { ...t, pages: nextPages } : t));
+      setActivePageIndex(nextPages.length - 1);
+    }
+  };
+
+  const handleDuplicatePage = (index: number) => {
+    if (generatedPages.length > 0) {
+      const pageToDup = generatedPages[index];
+      if (!pageToDup) return;
+      const newPage = {
+        ...JSON.parse(JSON.stringify(pageToDup)),
+        id: `page-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        name: `${pageToDup.name || (index + 1) + '. Sayfa'} (Kopya)`
+      };
+      const next = [...generatedPages];
+      next.splice(index + 1, 0, newPage);
+      setGeneratedPages(next);
+      setActiveGeneratedPageIndex(index + 1);
+    } else {
+      const pages = currentTemplate.pages || [];
+      const pageToDup = pages[index] || { id: '1', name: 'Kapak', regions: currentTemplate.regions, fixedElements: currentTemplate.fixedElements };
+      const newPage: TemplatePage = {
+        ...JSON.parse(JSON.stringify(pageToDup)),
+        id: `tpl-page-${Date.now()}`,
+        name: `${pageToDup.name || (index + 1) + '. Sayfa'} (Kopya)`
+      };
+      const nextPages = [...pages];
+      nextPages.splice(index + 1, 0, newPage);
+      setTemplates(prev => prev.map(t => t.id === currentTemplateId ? { ...t, pages: nextPages } : t));
+      setActivePageIndex(index + 1);
+    }
+  };
+
+  const handleDeletePage = (index: number) => {
+    if (generatedPages.length > 0) {
+      if (generatedPages.length <= 1) return;
+      const next = generatedPages.filter((_, i) => i !== index);
+      setGeneratedPages(next);
+      setActiveGeneratedPageIndex(Math.min(index, next.length - 1));
+    } else {
+      const pages = currentTemplate.pages || [];
+      if (pages.length <= 1) return;
+      const nextPages = pages.filter((_, i) => i !== index);
+      setTemplates(prev => prev.map(t => t.id === currentTemplateId ? { ...t, pages: nextPages } : t));
+      setActivePageIndex(Math.min(index, nextPages.length - 1));
+    }
+  };
+
+  const handleReorderPages = (startIndex: number, endIndex: number) => {
+    if (generatedPages.length > 0) {
+      const result = Array.from(generatedPages);
+      const [removed] = result.splice(startIndex, 1);
+      result.splice(endIndex, 0, removed);
+      setGeneratedPages(result);
+      setActiveGeneratedPageIndex(endIndex);
+    } else {
+      const pages = currentTemplate.pages || [];
+      if (pages.length <= 1) return;
+      const result = Array.from(pages);
+      const [removed] = result.splice(startIndex, 1);
+      result.splice(endIndex, 0, removed);
+      setTemplates(prev => prev.map(t => t.id === currentTemplateId ? { ...t, pages: result } : t));
+      setActivePageIndex(endIndex);
+    }
+  };
+
+  const handleDuplicateNode = (nodeId: string) => {
+    const reg = editingTemplate.regions.find(r => r.id === nodeId);
+    if (reg) {
+      const newId = `region-${Date.now()}`;
+      const newReg = {
+        ...JSON.parse(JSON.stringify(reg)),
+        id: newId,
+        name: `${reg.name} (Kopya)`,
+        x: Math.min(reg.x + 20, currentTemplate.width - reg.width),
+        y: Math.min(reg.y + 20, currentTemplate.height - reg.height)
+      };
+      setTemplates(prev => prev.map(t => {
+        if (t.id === currentTemplateId) {
+          const pageWithFallback = ensureMultiPageSupport(t);
+          const updatedPages = pageWithFallback.pages!.map((p, idx) => {
+            if (idx === activePageIndex) {
+              return { ...p, regions: [...p.regions, newReg] };
+            }
+            return p;
+          });
+          return { ...t, pages: updatedPages, regions: updatedPages[0].regions, fixedElements: updatedPages[0].fixedElements };
+        }
+        return t;
+      }));
+      setSelectedNodeId(newId);
+      return;
+    }
+    const el = editingTemplate.fixedElements.find(e => e.id === nodeId);
+    if (el) {
+      const newId = `fixed-${Date.now()}`;
+      const newEl = {
+        ...JSON.parse(JSON.stringify(el)),
+        id: newId,
+        name: `${el.name} (Kopya)`,
+        x: Math.min(el.x + 20, currentTemplate.width - el.width),
+        y: Math.min(el.y + 20, currentTemplate.height - el.height)
+      };
+      setTemplates(prev => prev.map(t => {
+        if (t.id === currentTemplateId) {
+          const pageWithFallback = ensureMultiPageSupport(t);
+          const updatedPages = pageWithFallback.pages!.map((p, idx) => {
+            if (idx === activePageIndex) {
+              return { ...p, fixedElements: [...p.fixedElements, newEl] };
+            }
+            return p;
+          });
+          return { ...t, pages: updatedPages, regions: updatedPages[0].regions, fixedElements: updatedPages[0].fixedElements };
+        }
+        return t;
+      }));
+      setSelectedNodeId(newId);
+    }
+  };
+
+  const handleToggleLock = (nodeId: string) => {
+    const reg = editingTemplate.regions.find(r => r.id === nodeId);
+    if (reg) {
+      handleRegionPropertyChange(nodeId, 'locked', !reg.locked);
+      return;
+    }
+    const el = editingTemplate.fixedElements.find(e => e.id === nodeId);
+    if (el) {
+      handleFixedElementPropertyChange(nodeId, 'locked', !el.locked);
+    }
+  };
+
+  const handleDynamicImageUpload = (regionId: string, file: File) => {
+    handleImageUpload(regionId, file);
+  };
+
+  const handleCropPanTrigger = (regionId: string) => {
+    setEditingImageRegionId(regionId);
+    setSelectedNodeId(regionId);
+  };
+
+  const handleImageScaleChange = (regionId: string, scale: number) => {
+    updateActiveImageProp(regionId, 'scale', scale);
+  };
+
+  const handleImageRotate90 = (regionId: string) => {
+    const currentImg = activePageData.dynamicImages?.[regionId] || activeGraphicData.dynamicImages?.[regionId];
+    const currentRot = currentImg?.rotation || 0;
+    const nextRot = (currentRot + 90) % 360;
+    updateActiveImageProp(regionId, 'rotation', nextRot);
+  };
+
+  const handleFixedElementChange = (elemId: string, prop: string, value: any) => {
+    handleFixedElementPropertyChange(elemId, prop as keyof FixedElement, value);
+  };
+
+  const handleDeleteNode = (nodeId: string) => {
+    deleteElement(nodeId);
+  };
+
+  const handleMediaUpload = (file: File) => {
+    if (selectedNodeId) {
+      const reg = editingTemplate.regions.find(r => r.id === selectedNodeId && r.type === 'image');
+      if (reg) {
+        handleImageUpload(reg.id, file);
+        return;
+      }
+    }
+    addImageRegionFromFile(file);
+  };
+
   // --- CANVAS ZOOM & PAN STATES ---
   const [zoomMode, setZoomMode] = useState<'fit' | 'custom'>('fit');
   const [zoomScale, setZoomScale] = useState<number>(1);
@@ -1354,11 +1581,25 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        const isVerified = currentUser.emailVerified || currentUser.providerData.some((p: any) => p.providerId === 'google.com');
+        if (isVerified) {
+          storage.setItem('gm_user_logged_in', 'true');
+          storage.setItem('gm_current_view', 'editor');
+          setCurrentView('editor');
+        }
         await syncAndLoadUserData(currentUser.uid);
         isLoadedRef.current = true;
         setIsAppLoaded(true);
       } else {
         setUser(null);
+        storage.removeItem('gm_user_logged_in');
+        setCurrentView((prev) => {
+          if (prev === 'editor') {
+            storage.setItem('gm_current_view', 'landing');
+            return 'landing';
+          }
+          return prev;
+        });
         setCloudStatus('offline');
         isLoadedRef.current = true;
         setIsAppLoaded(true);
@@ -1440,6 +1681,9 @@ export default function App() {
       const loggedInUser = await loginWithGoogle();
       if (loggedInUser) {
         setUser(loggedInUser);
+        storage.setItem('gm_user_logged_in', 'true');
+        storage.setItem('gm_current_view', 'editor');
+        setCurrentView('editor');
         // onAuthStateChanged owns the cloud load.
       }
     } catch (err) {
@@ -1460,6 +1704,8 @@ export default function App() {
     try {
       await logoutUser();
       setUser(null);
+      storage.removeItem('gm_user_logged_in');
+      storage.setItem('gm_current_view', 'landing');
       setCloudStatus('offline');
       setCurrentView('landing');
     } catch (err) {
@@ -4051,10 +4297,28 @@ export default function App() {
 
   // --- LANDING PAGE ---
   if (currentView === 'landing') {
+    const isLoggedIn = !!user || storage.getItem('gm_user_logged_in') === 'true';
     return (
       <LandingPage 
-        onEnter={() => setCurrentView('portal')} 
-        onLogin={() => setCurrentView('portal')}
+        isLoggedIn={isLoggedIn}
+        onEnter={() => {
+          if (isLoggedIn) {
+            storage.setItem('gm_current_view', 'editor');
+            setCurrentView('editor');
+          } else {
+            storage.setItem('gm_current_view', 'portal');
+            setCurrentView('portal');
+          }
+        }} 
+        onLogin={() => {
+          if (isLoggedIn) {
+            storage.setItem('gm_current_view', 'editor');
+            setCurrentView('editor');
+          } else {
+            storage.setItem('gm_current_view', 'portal');
+            setCurrentView('portal');
+          }
+        }}
       />
     );
   }
@@ -4063,9 +4327,14 @@ export default function App() {
   if (currentView === 'portal') {
     return (
       <AuthPortal
-        onBackToLanding={() => setCurrentView('landing')}
+        onBackToLanding={() => {
+          storage.setItem('gm_current_view', 'landing');
+          setCurrentView('landing');
+        }}
         onCompleteAuth={(authedUser) => {
           setUser(authedUser);
+          storage.setItem('gm_user_logged_in', 'true');
+          storage.setItem('gm_current_view', 'editor');
           setCurrentView('editor');
         }}
       />
@@ -4082,8 +4351,8 @@ export default function App() {
         cloudStatus={cloudStatus} isCloudSynced={isCloudSynced}
         onLogin={handleGoogleLogin} onLogout={handleLogout} isSigningIn={isGoogleSigningIn}
         onSave={() => saveDataToCloud()} onTools={() => setIsToolsModalOpen(true)}
-        onExport={() => { setMobileView('export'); setExportPanelOpen(v => window.matchMedia('(max-width: 1023px)').matches ? true : !v); }}
-        exportPanelOpen={exportPanelOpen}
+        onExport={() => setIsExportModalOpen(true)}
+        exportPanelOpen={isExportModalOpen}
         onRename={(newName) => {
           if (!newName.trim()) return;
           setTemplates(prev => prev.map(t => t.id === currentTemplateId ? { ...t, name: newName.trim() } : t));
@@ -4094,6 +4363,13 @@ export default function App() {
             setUser({ ...auth.currentUser });
           }
         }}
+        onOpenTemplates={() => {
+          setLeftDrawerTab(prev => prev === 'templates' ? null : 'templates');
+        }}
+        onUndo={handleUndo}
+        onRedo={handleRedo}
+        canUndo={undoStack.length > 0}
+        canRedo={redoStack.length > 0}
       />
       {storageError && <div className="workspace-warning" role="alert">{storageError} Çalışmanızı indirin veya buluta kaydedin.</div>}
       {/* CLOUD QUOTA EXCEEDED WARNING BANNER */}
@@ -4114,3017 +4390,297 @@ export default function App() {
         </div>
       )}
 
-      {/* WORKSPACE AREA */}
-      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden bg-[#1D1D1F] dark:bg-[#1D1D1F] transition-colors duration-300">
+      {/* WORKSPACE AREA: 3-COLUMN MODERN CANVAS LAYOUT */}
+      <main className="flex-1 flex flex-row overflow-hidden bg-[#18181A] transition-colors duration-300 relative">
         
-        {/* LEFT COLUMN: EDITOR CONTROL CENTER */}
-        <div id="editor-controls" className={`w-full lg:w-[480px] bg-[#252528] dark:bg-[#252528] lg:rounded-[20px] shadow-[0_4px_12px_rgba(0,0,0,0.02)] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] lg:mb-2 lg:ml-2 flex-1 flex flex-col z-20 shrink-0 overflow-hidden transition-colors duration-300 ${mobileView === 'editor' ? 'flex' : 'hidden lg:flex'}`}>
-          
-          <nav className="workspace-tabs" aria-label="Çalışma modu">
-            {([{id: 'presets', label: 'Şablonlar', icon: LayoutTemplate}, {id: 'phase2', label: 'İçerik', icon: Sparkles}, {id: 'phase1', label: 'Tasarım', icon: Sliders}] as const).map(item => (
-              <button key={item.id} aria-pressed={activeTab === item.id} onClick={() => handleTabChange(item.id)}><item.icon size={16}/>{item.label}</button>
-            ))}
-          </nav>
-          <div className="workspace-panel-heading">
-            <span className="workspace-eyebrow">ÇALIŞMA ALANI</span>
-            <h2>{activeTab === 'presets' ? 'Bir fikirle başla.' : activeTab === 'phase1' ? 'Her detay senin.' : 'İçeriğini oluştur.'}</h2>
-            <p>{activeTab === 'presets' ? 'Bir şablon seç veya kendi tasarımını kur.' : activeTab === 'phase1' ? 'Katmanları, yerleşimi ve renkleri düzenle.' : 'Metin ve medyanı ekle, tasarımına hayat ver.'}</p>
-          </div>
-          {/* TAB SCROLLABLE BODY */}
-          <div className="workspace-panel-body flex-1 overflow-y-auto p-5 space-y-6">
-            
-            {/* TAB 1: PRESETS & SELECTION */}
-            {activeTab === 'presets' && (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold tracking-wider text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase">ŞABLON KATALOĞU</h3>
-                  <button
-                    onClick={createNewTemplate}
-                    className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-[#FF6B1A] hover:bg-[#FF6B1A] text-[rgba(255,255,255,0.95)] text-xs font-bold shadow-sm shadow-[rgba(255,107,26,0.2)]/10 cursor-pointer transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Özel Şablon Ekle</span>
-                  </button>
-                </div>
-
-                <div className="grid grid-cols-1 gap-3">
-                  {templates.map(temp => {
-                    const isCustom = !TEMPLATE_PRESETS.some(p => p.id === temp.id);
-                    const isSelected = temp.id === currentTemplateId;
-                    const isEditing = editingTemplateId === temp.id;
-                    
-                    return (
-                      <div
-                        key={temp.id}
-                        role="button" tabIndex={0} aria-label={`${temp.name} şablonunu seç`} aria-pressed={isSelected}
-                        onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setCurrentTemplateId(temp.id); setSelectedNodeId(null); } }}
-                        onClick={() => {
-                          if (!isEditing) {
-                            setCurrentTemplateId(temp.id);
-                            setSelectedNodeId(null);
-                          }
-                        }}
-                        className={`template-card group relative p-4 rounded-xl border transition cursor-pointer text-left ${
-                          isSelected
-                            ? 'bg-[#252528]/40 dark:bg-[#252528]/60 border-[#FF6B1A] dark:border-[#FF6B1A]/50 shadow-md ring-1 ring-[#FF6B1A]/10'
-                            : 'bg-[#252528] dark:bg-[#1D1D1F] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/50 shadow-sm'
-                        }`}
-                      >
-                        {!isEditing && <TemplateThumbnail template={temp} />}
-                        {isEditing ? (
-                          <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
-                            <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] pb-2">
-                              <span className="text-[11px] font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] uppercase tracking-wider">Şablon Düzenle</span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#FF9F0A] dark:text-[#FF9F0A] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]">DÜZENLEME MODU</span>
-                            </div>
-                            
-                            <div>
-                              <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Şablon Adı</label>
-                              <input
-                                type="text"
-                                value={editingName}
-                                onChange={(e) => setEditingName(e.target.value)}
-                                className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] dark:focus:ring-[#FF6B1A] font-medium"
-                                placeholder="Şablon İsmi"
-                              />
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Genişlik (px)</label>
-                                <input
-                                  type="number"
-                                  value={editingWidth}
-                                  onChange={(e) => setEditingWidth(parseInt(e.target.value) || 0)}
-                                  className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] dark:focus:ring-[#FF6B1A] font-mono"
-                                  min={200}
-                                  max={3000}
-                                />
-                              </div>
-                              <div>
-                                <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yükseklik (px)</label>
-                                <input
-                                  type="number"
-                                  value={editingHeight}
-                                  onChange={(e) => setEditingHeight(parseInt(e.target.value) || 0)}
-                                  className="w-full bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-2 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] dark:focus:ring-[#FF6B1A] font-mono"
-                                  min={200}
-                                  max={3000}
-                                />
-                              </div>
-                            </div>
-                            
-                            <div className="flex space-x-2 pt-1.5 justify-end border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]">
-                              <button
-                                onClick={() => setEditingTemplateId(null)}
-                                className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-[#252528] dark:bg-[#2C2C2E] hover:bg-[#2C2C2E] dark:hover:bg-[#3A3A3C] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] text-[11px] font-semibold cursor-pointer transition"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                                <span>İptal</span>
-                              </button>
-                              <button
-                                onClick={() => saveInlineTemplateEdit(temp.id)}
-                                className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-[#34C759] hover:bg-[#34C759] text-[rgba(255,255,255,0.95)] text-[11px] font-semibold cursor-pointer transition shadow-sm shadow-[rgba(52,199,89,0.2)]"
-                              >
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Kaydet</span>
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <h4 className="font-bold text-sm text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] group-hover:text-[rgba(255,255,255,0.95)] dark:group-hover:text-[#FF6B1A] transition">
-                                  {temp.name}
-                                </h4>
-                                <p className="text-xs text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] mt-1 flex items-center space-x-2 font-medium">
-                                  <span>{temp.width} × {temp.height} px</span>
-                                  <span>•</span>
-                                  <span className="font-mono text-[11px]">{temp.regions.length} Alan</span>
-                                  <span>•</span>
-                                  <span className="font-mono text-[11px]">{temp.fixedElements.length} Sabit</span>
-                                </p>
-                              </div>
-
-                              <div className="flex items-center space-x-1.5" onClick={(e) => e.stopPropagation()}>
-                                {isCustom ? (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#FF9F0A] dark:text-[#FF9F0A] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] font-bold">
-                                    KULLANICI
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#FF6B1A] dark:text-[#FF6B1A] border border-[rgba(255,255,255,0.08)] dark:border-[#FF6B1A] font-bold">
-                                    HAZIR ŞABLON
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-
-                            {/* Action row at the bottom of the card */}
-                            <div className="flex items-center justify-between mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]" onClick={(e) => e.stopPropagation()}>
-                              {/* Left side: color palette preview */}
-                              <div className="flex items-center space-x-1.5">
-                                <span className="w-3 h-3 rounded-full border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shadow-sm" style={{ backgroundColor: temp.palette.primary }} />
-                                <span className="w-3 h-3 rounded-full border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shadow-sm" style={{ backgroundColor: temp.palette.accent }} />
-                                <span className="w-3 h-3 rounded-full border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shadow-sm" style={{ backgroundColor: temp.palette.bg }} />
-                                <span className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium ml-1">Renkler</span>
-                              </div>
-
-                              {/* Right side: Action buttons */}
-                              <div className="flex items-center space-x-1">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setCurrentTemplateId(temp.id);
-                                    setSelectedNodeId(null);
-                                    setActiveTab('phase1');
-                                  }}
-                                  className="flex items-center space-x-1 px-2 py-1 rounded bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#FF6B1A] dark:hover:bg-[#FF6B1A] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] text-[11px] font-semibold transition cursor-pointer"
-                                  title="Şablon Tasarımı Düzenle"
-                                >
-                                  <Sliders className="w-3 h-3" />
-                                  <span>Tasarla</span>
-                                </button>
-
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingTemplateId(temp.id);
-                                    setEditingName(temp.name);
-                                    setEditingWidth(temp.width);
-                                    setEditingHeight(temp.height);
-                                  }}
-                                  className="flex items-center space-x-1 px-2 py-1 rounded bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#2C2C2E] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] text-[11px] font-semibold transition cursor-pointer"
-                                  title="İsim ve Boyut Düzenle"
-                                >
-                                  <Pencil className="w-3 h-3" />
-                                  <span>Düzenle</span>
-                                </button>
-
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    deleteTemplate(temp.id);
-                                  }}
-                                  className="p-1 rounded bg-[#1D1D1F] dark:bg-[#3A3A3C] hover:bg-[#252528] dark:hover:bg-[#2C2C2E]/40 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:text-[#FF453A] dark:hover:text-[#FF453A] transition cursor-pointer border border-transparent hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)]"
-                                  title="Şablonu Sil"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* TAB 2: PHASE 1 BLUEPRINT MAKER */}
-            {activeTab === 'phase1' && (
-              <div className="space-y-6">
-                
-                {/* Şablon Tasarım Başlığı ve Kapatma Butonu */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#1D1D1F] dark:bg-[#1D1D1F]/50 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-xl p-3 shadow-sm">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider">Modül Modu</span>
-                    <span className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)]">Şablon Tasarımı</span>
-                  </div>
-                  <div className="flex items-center space-x-2 self-end sm:self-auto">
-                    {isValidConfig && user && user.uid && (
-                      <button
-                        type="button"
-                        onClick={saveDataToCloud}
-                        disabled={cloudStatus === 'syncing'}
-                        className={`flex items-center space-x-1 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                          isCloudSynced
-                            ? 'bg-[#252528] text-[#34C759] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)]'
-                            : 'bg-[#FF9F0A] hover:bg-[#FF9F0A] text-[rgba(255,255,255,0.95)] shadow-sm shadow-[rgba(255,159,10,0.2)] animate-pulse'
-                        }`}
-                        title={isCloudSynced ? 'Değişiklikleriniz bulutta güvende!' : 'Şablon iç düzenlemelerini buluta kaydetmek için tıklayın.'}
-                      >
-                        {cloudStatus === 'syncing' ? (
-                          <>
-                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                            <span>Kaydediliyor...</span>
-                          </>
-                        ) : isCloudSynced ? (
-                          <>
-                            <Check className="w-3.5 h-3.5 text-[#34C759] font-extrabold" />
-                            <span>Eşitlendi</span>
-                          </>
-                        ) : (
-                          <>
-                            <UploadCloud className="w-3.5 h-3.5" />
-                            <span>Buluta Kaydet</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleTabChange('phase2');
-                      }}
-                      className="flex items-center space-x-1 px-3 py-1.5 rounded-lg bg-[#2C2C2E] dark:bg-[#2C2C2E] hover:bg-[#303033] dark:hover:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-xs font-bold cursor-pointer transition"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Geri Dön</span>
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Şablon Sayfaları Seçici */}
-                <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-xl p-4 space-y-4 shadow-sm">
-                  <div className="flex justify-between items-center">
-                    <div className="flex items-center">
-                      <h4 className="text-xs font-bold text-[rgba(255,255,255,0.72)] tracking-wider uppercase">ŞABLON SAYFALARI</h4>
-                      <InfoTooltip text="Şablonunuz birden çok sayfadan oluşabilir. Her sayfa için farklı bir görsel düzeni (Kapak, 1, 2 veya 3 Görselli vb.) seçerek, çoklu resim yüklediğinizde resimlerin otomatik yerleşimini sağlayabilirsiniz." />
-                    </div>
-                    <span className="text-[10px] bg-[#252528] text-[#FF6B1A] px-2.5 py-0.5 rounded-full font-bold font-mono">
-                      {(currentTemplate.pages || []).length} Sayfa
-                    </span>
-                  </div>
-
-                  <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1">
-                    {(currentTemplate.pages || []).map((page, idx) => {
-                      const isActive = activePageIndex === idx;
-                      const imageCount = page.regions.filter(r => isTemplateImageFrame(r)).length;
-
-                      let roleBadgeText = 'Özel';
-                      let roleBadgeColor = 'bg-[#252528] text-[rgba(255,255,255,0.95)]';
-                      if (page.pageRole === 'cover') {
-                        roleBadgeText = 'Kapak';
-                        roleBadgeColor = 'bg-[#252528] text-[#FF453A] border border-[rgba(255,255,255,0.08)]';
-                      } else if (page.pageRole === '1-image') {
-                        roleBadgeText = '1 Görsel';
-                        roleBadgeColor = 'bg-[#252528] text-[#34C759] border border-[rgba(255,255,255,0.08)]';
-                      } else if (page.pageRole === '2-image') {
-                        roleBadgeText = '2 Görsel';
-                        roleBadgeColor = 'bg-[#252528] text-[#FF6B1A] border border-[rgba(255,255,255,0.08)]';
-                      } else if (page.pageRole === '3-image') {
-                        roleBadgeText = '3 Görsel';
-                        roleBadgeColor = 'bg-[#252528] text-[#FF9F0A] border border-[rgba(255,255,255,0.08)]';
-                      }
-
-                      return (
-                        <div
-                          key={page.id}
-                          className={`rounded-lg border p-3 transition ${
-                            isActive
-                              ? 'border-[#FF6B1A] bg-[#252528]/20 dark:bg-[#252528]/40 shadow-sm'
-                              : 'border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] bg-[#1D1D1F]/40 dark:bg-[#252528]'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setActivePageIndex(idx);
-                                setSelectedNodeId(null);
-                              }}
-                              className="flex-1 text-left font-bold text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] flex items-center space-x-1.5 cursor-pointer focus:outline-none"
-                            >
-                              <span className="text-[10px] font-mono text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]">#{idx + 1}</span>
-                              <span className="truncate">{page.name || `${idx + 1}. Sayfa`}</span>
-                            </button>
-                            
-                            <div className="flex items-center space-x-2">
-                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${roleBadgeColor}`}>
-                                {roleBadgeText}
-                              </span>
-                              {(currentTemplate.pages || []).length > 1 && (
-                                <button
-                                  type="button"
-                                  onClick={() => deleteTemplatePage(idx)}
-                                  className="p-1 rounded text-[rgba(255,255,255,0.72)] hover:text-[#FF453A] hover:bg-[#252528] transition cursor-pointer"
-                                  title="Sayfayı Sil"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-
-                          {isActive && (
-                            <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)]/60 space-y-2.5">
-                              <div>
-                                <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold block mb-1">SAYFA İSMİ</label>
-                                <input
-                                  type="text"
-                                  value={page.name}
-                                  onChange={(e) => handlePagePropertyChange(idx, 'name', e.target.value)}
-                                  className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium focus:outline-none focus:border-[#FF6B1A]"
-                                />
-                              </div>
-
-                              <div>
-                                <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold block mb-1">GÖRSELLİK / ŞABLON ROLÜ</label>
-                                <select
-                                  value={page.pageRole || 'custom'}
-                                  onChange={(e) => handlePagePropertyChange(idx, 'pageRole', e.target.value)}
-                                  className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-semibold cursor-pointer focus:outline-none focus:border-[#FF6B1A]"
-                                >
-                                  <option value="cover">Kapak Sayfası (Cover Page)</option>
-                                  <option value="1-image">Tek Görselli Kolaj (1-Image Collage)</option>
-                                  <option value="2-image">2 Görselli Kolaj (2-Image Collage)</option>
-                                  <option value="3-image">3 Görselli Kolaj (3-Image Collage)</option>
-                                  <option value="custom">Özel/Diğer (Custom Layout)</option>
-                                </select>
-                              </div>
-
-                              <div className="text-[9px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between">
-                                <span>Bu sayfadaki dinamik görsel alanı sayısı:</span>
-                                <span className="font-bold text-[rgba(255,255,255,0.72)]">{imageCount} adet</span>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Yeni Sayfa Ekleme Kontrolleri */}
-                  <div className="pt-3 border-t border-[rgba(255,255,255,0.08)]">
-                    <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block mb-2">YENİ SAYFA EKLE</span>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => addNewTemplatePage('1-image')}
-                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#FF6B1A] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>+ Tek Görselli</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => addNewTemplatePage('2-image')}
-                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#FF6B1A] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>+ 2 Görselli</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => addNewTemplatePage('3-image')}
-                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#FF6B1A] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>+ 3 Görselli</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => addNewTemplatePage('cover')}
-                        className="py-1.5 px-2 bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#303033]/80 dark:hover:bg-[#3A3A3C]/80 text-[#FF6B1A] dark:text-[rgba(255,255,255,0.95)] rounded text-[10px] font-bold transition flex items-center justify-center space-x-1 cursor-pointer"
-                      >
-                        <Plus className="w-3 h-3" />
-                        <span>+ Kapak</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <p className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold leading-relaxed">
-                    Kullanıcı çoklu fotoğraf yüklediğinde, sistem fotoğrafları yukarıda seçtiğiniz şablon rollerine (Kapak, Tek, 2 Görsel vb.) göre otomatik yerleştirir.
-                  </p>
-                </div>
-                
-                {/* Şablon Genel Ayarları */}
-                <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-xl p-4 space-y-4 shadow-sm">
-                  <h4 className="text-xs font-bold text-[rgba(255,255,255,0.72)] tracking-wider uppercase">1. ŞABLON BOYUT & TUVAL</h4>
-                  
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-xs text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Şablon İsmi</label>
-                      <input
-                        type="text"
-                        value={currentTemplate.name}
-                        onChange={(e) => handleTemplatePropertyChange('name', e.target.value)}
-                        className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold flex items-center space-x-1">
-                        <Sparkles className="w-3.5 h-3.5 text-[#FF6B1A]" />
-                        <span>Marka Dili / AI Prompt</span>
-                      </label>
-                      <textarea
-                        value={currentTemplate.aiSystemPrompt || ''}
-                        onChange={(e) => handleTemplatePropertyChange('aiSystemPrompt', e.target.value)}
-                        placeholder="Örn: Genç ve samimi bir ton kullan, emojiler ekle, lüks marka dili, ingilizce yaz vb."
-                        rows={2}
-                        className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-1.5 text-xs focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium resize-none"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="text-xs text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Genişlik (px)</label>
-                        <input
-                          type="number"
-                          value={currentTemplate.width}
-                          min={200}
-                          max={3000}
-                          onChange={(e) => handleTemplatePropertyChange('width', parseInt(e.target.value) || 1080)}
-                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] font-mono text-[rgba(255,255,255,0.95)] font-medium"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yükseklik (px)</label>
-                        <input
-                          type="number"
-                          value={currentTemplate.height}
-                          min={200}
-                          max={3000}
-                          onChange={(e) => handleTemplatePropertyChange('height', parseInt(e.target.value) || 1080)}
-                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] font-mono text-[rgba(255,255,255,0.95)] font-medium"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Tuval Varsayılan Arka Planı</label>
-                      <div className="flex space-x-2">
-                        <input
-                          type="color"
-                          value={currentTemplate.backgroundColor.startsWith('#') ? currentTemplate.backgroundColor : '#252528'}
-                          onChange={(e) => handleTemplatePropertyChange('backgroundColor', e.target.value)}
-                          className="w-10 h-8 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer"
-                        />
-                        <input
-                          type="text"
-                          value={currentTemplate.backgroundColor}
-                          onChange={(e) => handleTemplatePropertyChange('backgroundColor', e.target.value)}
-                          className="flex-1 bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-1.5 text-xs font-mono text-[rgba(255,255,255,0.95)] focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A] font-medium"
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="text-xs text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Hazır Şablon Arka Plan Resmi</label>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="file"
-                          accept="image/*"
-                          id="bg-image-uploader-input"
-                          className="hidden"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              const reader = new FileReader();
-                              reader.onload = (event) => {
-                                if (event.target?.result) {
-                                  handleTemplatePropertyChange('backgroundImageUrl', event.target.result as string);
-                                }
-                              };
-                              reader.readAsDataURL(e.target.files[0]);
-                            }
-                          }}
-                        />
-                        <label
-                          htmlFor="bg-image-uploader-input"
-                          className="flex-1 text-center bg-[#1D1D1F] dark:bg-[#3A3A3C] hover:bg-[#252528] dark:hover:bg-[#3A3A3C]/80 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] rounded-lg px-3 py-2 text-xs font-semibold cursor-pointer transition flex items-center justify-center space-x-2 shadow-sm"
-                        >
-                          <Upload className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
-                          <span>{currentTemplate.backgroundImageUrl ? 'Arka Planı Değiştir' : 'Görsel Yükle (PNG/JPG)'}</span>
-                        </label>
-                        {currentTemplate.backgroundImageUrl && (
-                          <button
-                            onClick={() => handleTemplatePropertyChange('backgroundImageUrl', undefined)}
-                            className="px-3 py-2 bg-[#252528] dark:bg-[#252528]/40 hover:bg-[#252528] dark:hover:bg-[#2C2C2E]/60 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/40 text-[#FF453A] dark:text-[#FF453A] rounded-lg text-xs font-bold transition cursor-pointer shadow-sm"
-                            title="Arka Plan Resmini Kaldır"
-                          >
-                            Kaldır
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Quick-pick shared image list */}
-                      {(() => {
-                        const uniqueImages = getUniqueUploadedImages();
-                        if (uniqueImages.length === 0) return null;
-                        return (
-                          <div className="mt-3 pt-3 border-t border-[rgba(255,255,255,0.08)] space-y-1.5 text-left">
-                            <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase tracking-wider block">Yüklediğiniz Diğer Görseller</span>
-                            <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
-                              {uniqueImages.map((url, i) => (
-                                <div key={i} className="relative group/thumb shrink-0">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleTemplatePropertyChange('backgroundImageUrl', url)}
-                                    className="relative w-11 h-11 rounded-lg overflow-hidden border border-[rgba(255,255,255,0.08)] hover:border-[#FF6B1A] shrink-0 bg-[#252528] cursor-pointer shadow-sm transition hover:scale-105 active:scale-95 group"
-                                    title="Bu görseli şablon arka planı yap"
-                                  >
-                                    <img src={url} alt={`Varlık ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                                      <Check className="w-3.5 h-3.5 text-[rgba(255,255,255,0.95)] stroke-[3]" />
-                                    </div>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      removeUploadedImage(url);
-                                    }}
-                                    className="absolute -top-1 -right-1 w-4 h-4 bg-[#FF453A] hover:bg-[#FF453A] text-[rgba(255,255,255,0.95)] rounded-full flex items-center justify-center shadow hover:scale-110 active:scale-90 transition z-20 cursor-pointer opacity-0 group-hover/thumb:opacity-100"
-                                    title="Görseli Kaldır"
-                                  >
-                                    <X className="w-2.5 h-2.5 stroke-[3]" />
-                                  </button>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. ŞABLON RENK PALETİ */}
-                <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-xl p-4 space-y-4 shadow-sm" id="custom-palette-overrides-card">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-xs font-bold text-[rgba(255,255,255,0.72)] tracking-wider uppercase flex items-center space-x-1.5">
-                      <Palette className="w-3.5 h-3.5 text-[#FF6B1A]" />
-                      <span>2. ŞABLON RENK PALETİ</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={resetTemplatePalette}
-                      className="text-[10px] text-[#FF453A] hover:underline font-bold cursor-pointer"
-                    >
-                      Varsayılana Sıfırla
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-[rgba(255,255,255,0.72)] font-medium leading-relaxed">
-                    Tasarım şablonunuzun varsayılan renklerini dilediğiniz gibi özelleştirin. Başlık ve açıklamalardaki <strong>**kalın vurgu**</strong> yazılarının rengini en alttaki seçiciden belirleyebilirsiniz. Bu renkler şablona kaydedilir.
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-3 pt-1">
-                    {/* Birincil Renk */}
-                    <div className="bg-[#1D1D1F]/80 dark:bg-[#3A3A3C] p-2.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] flex flex-col justify-between">
-                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] font-extrabold block mb-1 uppercase tracking-wider">Birincil Renk</label>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="color"
-                          value={currentTemplate.palette?.primary || '#FF6B1A'}
-                          onChange={(e) => handleTemplatePaletteChange('primary', e.target.value)}
-                          className="w-6 h-6 rounded-md border border-[rgba(255,255,255,0.08)] cursor-pointer p-0"
-                        />
-                        <span className="font-mono text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold uppercase">{currentTemplate.palette?.primary || '#FF6B1A'}</span>
-                      </div>
-                    </div>
-
-                    {/* Vurgu Rengi */}
-                    <div className="bg-[#1D1D1F]/80 dark:bg-[#3A3A3C] p-2.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] flex flex-col justify-between">
-                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] font-extrabold block mb-1 uppercase tracking-wider">İkincil Accent</label>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="color"
-                          value={currentTemplate.palette?.accent || '#FF9F0A'}
-                          onChange={(e) => handleTemplatePaletteChange('accent', e.target.value)}
-                          className="w-6 h-6 rounded-md border border-[rgba(255,255,255,0.08)] cursor-pointer p-0"
-                        />
-                        <span className="font-mono text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold uppercase">{currentTemplate.palette?.accent || '#FF9F0A'}</span>
-                      </div>
-                    </div>
-
-                    {/* Metin Rengi */}
-                    <div className="bg-[#1D1D1F]/80 dark:bg-[#3A3A3C] p-2.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] flex flex-col justify-between">
-                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] font-extrabold block mb-1 uppercase tracking-wider">Metin Rengi</label>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="color"
-                          value={currentTemplate.palette?.text || '#1D1D1F'}
-                          onChange={(e) => handleTemplatePaletteChange('text', e.target.value)}
-                          className="w-6 h-6 rounded-md border border-[rgba(255,255,255,0.08)] cursor-pointer p-0"
-                        />
-                        <span className="font-mono text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold uppercase">{currentTemplate.palette?.text || '#1D1D1F'}</span>
-                      </div>
-                    </div>
-
-                    {/* Arka Plan Rengi */}
-                    <div className="bg-[#1D1D1F]/80 dark:bg-[#3A3A3C] p-2.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] flex flex-col justify-between">
-                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] font-extrabold block mb-1 uppercase tracking-wider">Arka Plan</label>
-                      <div className="flex items-center space-x-2">
-                        <input
-                          type="color"
-                          value={currentTemplate.palette?.bg || '#1D1D1F'}
-                          onChange={(e) => handleTemplatePaletteChange('bg', e.target.value)}
-                          className="w-6 h-6 rounded-md border border-[rgba(255,255,255,0.08)] cursor-pointer p-0"
-                        />
-                        <span className="font-mono text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold uppercase">{currentTemplate.palette?.bg || '#1D1D1F'}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Kalın Vurgu Yazı Rengi */}
-                  <div className="bg-[#252528]/50 dark:bg-[#252528]/40 p-3 rounded-xl border border-[#FF6B1A] dark:border-[#FF6B1A]/40 flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] block">Kalın Vurgu Yazı Rengi</span>
-                      <span className="text-[10px] text-[rgba(255,255,255,0.72)] block">**kalın yazılar** bu renkle vurgulanır.</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="color"
-                        value={currentTemplate.palette?.boldHighlight || currentTemplate.palette?.primary || '#FF6B1A'}
-                        onChange={(e) => handleTemplatePaletteChange('boldHighlight', e.target.value)}
-                        className="w-8 h-8 rounded-lg border border-[rgba(255,255,255,0.08)] shadow-sm cursor-pointer p-0"
-                      />
-                      <span className="font-mono text-xs text-[#FF6B1A] font-extrabold uppercase">
-                        {currentTemplate.palette?.boldHighlight || currentTemplate.palette?.primary || '#FF6B1A'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Katman & Bölge Yönetimi */}
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center">
-                    <h4 className="text-xs font-bold text-[rgba(255,255,255,0.72)] tracking-wider uppercase">3. BÖLGELER & KATMANLAR</h4>
-                    
-                    <div className="flex flex-wrap gap-1.5 justify-end">
-                      <button
-                        type="button"
-                        onClick={() => addNewRegion('text')}
-                        className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[10px] font-extrabold cursor-pointer shadow-sm transition"
-                      >
-                        <Type className="w-3 h-3 text-[#FF6B1A] font-bold" />
-                        <span>Metin Bölgesi</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => addNewRegion('image')}
-                        className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] bg-[#252528] dark:bg-[#3A3A3C] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[10px] font-extrabold cursor-pointer shadow-sm transition"
-                      >
-                        <ImageIcon className="w-3 h-3 text-[#FF6B1A] font-bold" />
-                        <span>Boş Resim</span>
-                      </button>
-                      <label
-                        className="flex items-center space-x-1 px-2.5 py-1.5 rounded-lg border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] bg-[#252528] hover:bg-[#252528]/80 text-[#34C759] text-[10px] font-extrabold cursor-pointer shadow-sm transition"
-                      >
-                        <Upload className="w-3 h-3 text-[#34C759] font-bold" />
-                        <span>PNG/Görsel Yükle</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            if (e.target.files && e.target.files[0]) {
-                              addImageRegionFromFile(e.target.files[0]);
-                            }
-                          }}
-                          className="hidden"
-                        />
-                      </label>
-                    </div>
-                  </div>
- 
-                  {/* List of Regions & Layers */}
-                  <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                    {/* Dynamic Regions rendered in REVERSE order (top layer is on top of the list) */}
-                    {[...editingTemplate.regions].reverse().map((r, revIdx) => {
-                      const origIndex = editingTemplate.regions.length - 1 - revIdx;
-                      const isSelected = selectedNodeId === r.id;
-                      const isEditing = editingRegionId === r.id;
-
-                      return (
-                        <div
-                          key={r.id}
-                          draggable={!isEditing}
-                          onDragStart={(e) => {
-                            setDraggedIndex(origIndex);
-                            e.dataTransfer.effectAllowed = 'move';
-                          }}
-                          onDragOver={(e) => {
-                            e.preventDefault();
-                          }}
-                          onDrop={(e) => {
-                            e.preventDefault();
-                            if (draggedIndex !== null && draggedIndex !== origIndex) {
-                              moveRegionInList(draggedIndex, origIndex);
-                            }
-                          }}
-                          onDragEnd={() => {
-                            setDraggedIndex(null);
-                          }}
-                          className={`flex items-center justify-between p-2 rounded-lg border transition ${
-                            isSelected
-                              ? 'bg-[#252528] dark:bg-[#252528]/60 border-[#FF6B1A] shadow-sm'
-                              : 'bg-[#252528] dark:bg-[#1D1D1F] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] shadow-sm'
-                          } ${draggedIndex === origIndex ? 'opacity-40 border-dashed' : ''}`}
-                          onClick={() => setSelectedNodeId(r.id)}
-                        >
-                          <div className="flex items-center space-x-2 w-full min-w-0">
-                            {/* Drag handle */}
-                            <div 
-                              className="text-[rgba(255,255,255,0.72)] cursor-grab active:cursor-grabbing p-0.5 hover:bg-[#1D1D1F] rounded shrink-0"
-                              title="Sürükleyerek Sırala"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <GripVertical className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)]" />
-                            </div>
-
-                            {/* Layer type icon */}
-                            <div className="shrink-0">
-                              {r.type === 'text' 
-                                ? <Type className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)]" /> 
-                                : <ImageIcon className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)]" />
-                              }
-                            </div>
-
-                            {/* Layer name & type details */}
-                            <div className="min-w-0 flex-1">
-                              {isEditing ? (
-                                <input
-                                  type="text"
-                                  value={tempRegionName}
-                                  onChange={(e) => setTempRegionName(e.target.value)}
-                                  onBlur={() => {
-                                    if (tempRegionName.trim()) {
-                                      handleRegionPropertyChange(r.id, 'name', tempRegionName.trim());
-                                    }
-                                    setEditingRegionId(null);
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      if (tempRegionName.trim()) {
-                                        handleRegionPropertyChange(r.id, 'name', tempRegionName.trim());
-                                      }
-                                      setEditingRegionId(null);
-                                    } else if (e.key === 'Escape') {
-                                      setEditingRegionId(null);
-                                    }
-                                  }}
-                                  className="w-full bg-[#1D1D1F] border border-[#FF6B1A] rounded px-1.5 py-0.5 text-xs text-[rgba(255,255,255,0.95)] font-bold focus:outline-none focus:ring-1 focus:ring-[#FF6B1A]"
-                                  autoFocus
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              ) : (
-                                <div className="flex items-center space-x-1 group/name">
-                                  <span 
-                                    className="text-xs font-bold text-[rgba(255,255,255,0.95)] truncate block cursor-pointer"
-                                    onDoubleClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingRegionId(r.id);
-                                      setTempRegionName(r.name);
-                                    }}
-                                    title="Çift tıklayarak ismi düzenleyin"
-                                  >
-                                    {r.name}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setEditingRegionId(r.id);
-                                      setTempRegionName(r.name);
-                                    }}
-                                    className="opacity-0 group-hover/name:opacity-100 p-0.5 text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] transition cursor-pointer"
-                                    title="İsmi Düzenle"
-                                  >
-                                    <Pencil className="w-2.5 h-2.5" />
-                                  </button>
-                                </div>
-                              )}
-                              <span className="text-[9px] text-[rgba(255,255,255,0.72)] block font-medium truncate">
-                                {r.type === 'text' ? 'Metin Katmanı' : (r.clipImage === false ? 'Serbest PNG' : 'Görsel Katmanı')} • {r.width}x{r.height}px
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Quick layer ordering & Delete actions */}
-                          <div className="flex items-center space-x-0.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                            {/* Toggle visibility button (Eye / EyeOff) */}
-                            <button
-                              type="button"
-                              onClick={() => handleRegionPropertyChange(r.id, 'hidden', !r.hidden)}
-                              className={`p-1 rounded transition cursor-pointer ${
-                                r.hidden 
-                                  ? 'text-[#FF453A] hover:text-[#FF6B1A] bg-[#252528] hover:bg-[#1D1D1F]' 
-                                  : 'text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] hover:bg-[#1D1D1F]'
-                              }`}
-                              title={r.hidden ? "Katmanı Göster (Gizli)" : "Katmanı Gizle (Görünür)"}
-                            >
-                              {r.hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                            </button>
-
-                            {/* Toggle lock button (Lock / Unlock) */}
-                            <button
-                              type="button"
-                              onClick={() => handleRegionPropertyChange(r.id, 'locked', !r.locked)}
-                              className={`p-1 rounded transition cursor-pointer ${
-                                r.locked 
-                                  ? 'text-[#FF9F0A] hover:text-[#FF6B1A] bg-[#252528] hover:bg-[#1D1D1F] font-bold' 
-                                  : 'text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] hover:bg-[#1D1D1F]'
-                              }`}
-                              title={r.locked ? "Kilidi Aç (Kilitli)" : "Katmanı Kilitle (Seçilebilir)"}
-                            >
-                              {r.locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                            </button>
-
-                            <span className="w-px h-3.5 bg-[#2C2C2E] mx-0.5" />
-
-                            {/* Move Up in hierarchy button (moves index up in array, closer to top of list/rendering last) */}
-                            <button
-                              type="button"
-                              disabled={origIndex === editingTemplate.regions.length - 1}
-                              onClick={() => moveRegionInList(origIndex, origIndex + 1)}
-                              className="text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] hover:bg-[#1D1D1F] disabled:opacity-20 disabled:pointer-events-none p-1 rounded transition cursor-pointer"
-                              title="Üste Taşı"
-                            >
-                              <ArrowUp className="w-3 h-3" />
-                            </button>
-
-                            {/* Move Down in hierarchy button (moves index down in array, closer to bottom of list/rendering first) */}
-                            <button
-                              type="button"
-                              disabled={origIndex === 0}
-                              onClick={() => moveRegionInList(origIndex, origIndex - 1)}
-                              className="text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] hover:bg-[#1D1D1F] disabled:opacity-20 disabled:pointer-events-none p-1 rounded transition cursor-pointer"
-                              title="Alta Taşı"
-                            >
-                              <ArrowDown className="w-3 h-3" />
-                            </button>
-
-                            {/* Delete button */}
-                            <button
-                              type="button"
-                              onClick={() => deleteElement(r.id)}
-                              className="text-[rgba(255,255,255,0.72)] hover:text-[#FF453A] hover:bg-[#252528] p-1 rounded transition cursor-pointer"
-                              title="Katmanı Sil"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Seçili Katmanın Özellikleri Panel */}
-                <AnimatePresence mode="wait">
-                  {selectedNodeId && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 10 }}
-                      className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shadow-md rounded-xl p-4 space-y-4"
-                    >
-                      {/* Check if Region or FixedElement */}
-                      {(() => {
-                        const region = editingTemplate.regions.find(r => r.id === selectedNodeId);
-                        const fixed = editingTemplate.fixedElements.find(el => el.id === selectedNodeId);
-
-                        if (region) {
-                          return (
-                            <div className="space-y-4">
-                              <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] pb-2">
-                                <div className="flex items-center">
-                                  <h5 className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] uppercase">KATMAN DÜZENLEYİCİ</h5>
-                                  <InfoTooltip text="Seçtiğiniz bu katmanın ekrandaki yerini (X ve Y konumları), genişlik/yükseklik boyutlarını, yazı tipini, boyutunu, rengini ve metin hiyerarşisi rollerini buradan detaylıca ayarlayabilirsiniz." />
-                                </div>
-                                <span className="text-[9px] bg-[#252528] dark:bg-[#252528]/60 border border-[rgba(255,255,255,0.08)] dark:border-[#FF6B1A]/50 text-[#FF6B1A] dark:text-[#FF6B1A] px-2.5 py-0.5 rounded-md font-extrabold font-mono">Dinamik</span>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                  <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold block mb-1">Katman Adı</label>
-                                  <input
-                                    type="text"
-                                    value={region.name}
-                                    onChange={(e) => handleRegionPropertyChange(region.id, 'name', e.target.value)}
-                                    className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium focus:outline-none focus:border-[#FF6B1A]"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold block mb-1">Bölge Tipi</label>
-                                  <span className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] block font-bold">
-                                    {region.type === 'text' ? 'Metin Alanı' : 'Resim Alanı'}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Quick states: Hidden / Locked */}
-                              <div className="flex items-center space-x-3 bg-[#1D1D1F] dark:bg-[#252528] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] rounded-xl p-3 text-xs justify-between">
-                                <span className="font-bold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] text-[10px] uppercase">Katman Durumu:</span>
-                                
-                                <div className="flex space-x-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRegionPropertyChange(region.id, 'hidden', !region.hidden)}
-                                    className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer font-bold text-[11px] shadow-sm border ${
-                                      region.hidden 
-                                        ? 'bg-[#252528] dark:bg-[#252528]/40 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/40 text-[#FF453A] dark:text-[#FF453A]' 
-                                        : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#252528] dark:hover:bg-[#3A3A3C]/80'
-                                    }`}
-                                  >
-                                    {region.hidden ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                                    <span>{region.hidden ? 'Gizli' : 'Görünür'}</span>
-                                  </button>
-
-                                  <button
-                                    type="button"
-                                    onClick={() => handleRegionPropertyChange(region.id, 'locked', !region.locked)}
-                                    className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer font-bold text-[11px] shadow-sm border ${
-                                      region.locked 
-                                        ? 'bg-[#252528] dark:bg-[#252528]/40 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/40 text-[#FF9F0A] dark:text-[#FF9F0A]' 
-                                        : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#252528] dark:hover:bg-[#3A3A3C]/80'
-                                    }`}
-                                  >
-                                    {region.locked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                                    <span>{region.locked ? 'Kilitli' : 'Serbest'}</span>
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Geometry offsets */}
-                              <div className="space-y-3 pt-2">
-                                <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Konum & Boyut (X, Y, W, H)</span>
-                                
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
-                                      <span>Konum X</span>
-                                      <span className="font-mono text-[#FF6B1A] font-bold">{region.x}px</span>
-                                    </label>
-                                    <input
-                                      type="range"
-                                      min={0}
-                                      max={currentTemplate.width}
-                                      value={region.x}
-                                      onChange={(e) => handleRegionPropertyChange(region.id, 'x', parseInt(e.target.value))}
-                                      className="w-full accent-[#FF6B1A] cursor-pointer"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
-                                      <span>Konum Y</span>
-                                      <span className="font-mono text-[#FF6B1A] font-bold">{region.y}px</span>
-                                    </label>
-                                    <input
-                                      type="range"
-                                      min={0}
-                                      max={currentTemplate.height}
-                                      value={region.y}
-                                      onChange={(e) => handleRegionPropertyChange(region.id, 'y', parseInt(e.target.value))}
-                                      className="w-full accent-[#FF6B1A] cursor-pointer"
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
-                                      <span>Genişlik</span>
-                                      <span className="font-mono text-[#FF6B1A] font-bold">{region.width}px</span>
-                                    </label>
-                                    <input
-                                      type="range"
-                                      min={20}
-                                      max={currentTemplate.width}
-                                      value={region.width}
-                                      onChange={(e) => handleRegionPropertyChange(region.id, 'width', parseInt(e.target.value))}
-                                      className="w-full accent-[#FF6B1A] cursor-pointer"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
-                                      <span>Yükseklik</span>
-                                      <span className="font-mono text-[#FF6B1A] font-bold">{region.height}px</span>
-                                    </label>
-                                    <input
-                                      type="range"
-                                      min={20}
-                                      max={currentTemplate.height}
-                                      value={region.height}
-                                      onChange={(e) => handleRegionPropertyChange(region.id, 'height', parseInt(e.target.value))}
-                                      className="w-full accent-[#FF6B1A] cursor-pointer"
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="pt-1.5 pb-1">
-                                  <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block mb-1.5">Katmanı Ortala</label>
-                                  <div className="grid grid-cols-3 gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => centerSelectedLayer('horizontal')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
-                                    >
-                                      <span>↔ Yatay</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => centerSelectedLayer('vertical')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
-                                    >
-                                      <span>↕ Dikey</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => centerSelectedLayer('both')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#252528] hover:bg-[#303033] border border-[#FF6B1A] text-[#FF6B1A] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
-                                    >
-                                      <span>✛ Tam</span>
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Stylings border radius etc */}
-                              <div className="space-y-3 pt-2">
-                                <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Arka Plan (Dolgu) & Çerçeve</span>
-
-                                {region.type === 'text' && (
-                                  <div className="flex items-center justify-between bg-[#252528]/50 border border-[#FF6B1A] rounded-xl p-2.5">
-                                    <div className="space-y-0.5 pr-2">
-                                      <span className="text-[11px] font-extrabold text-[rgba(255,255,255,0.95)] block">Metin Arka Planını Sığdır</span>
-                                      <span className="text-[9px] text-[rgba(255,255,255,0.72)] block leading-tight font-medium">Arka planı başlık/metin uzunluğuna göre eş zamanlı uyarla.</span>
-                                    </div>
-                                    <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
-                                      <input
-                                        type="checkbox"
-                                        checked={!!region.fitBackgroundToText}
-                                        onChange={(e) => handleRegionPropertyChange(region.id, 'fitBackgroundToText', e.target.checked)}
-                                        className="sr-only peer"
-                                      />
-                                      <div className="w-8 h-4 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#FF6B1A] peer-checked:after:bg-[#252528]"></div>
-                                    </label>
-                                  </div>
-                                )}
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className={region.hasBackground === false ? "opacity-60 transition-opacity duration-200" : "transition-opacity duration-200"}>
-                                    <div className="flex items-center justify-between mb-1">
-                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block">Arka Plan Dolgu</label>
-                                      <label className="relative inline-flex items-center cursor-pointer select-none">
-                                        <input
-                                          type="checkbox"
-                                          checked={region.hasBackground !== false}
-                                          onChange={(e) => handleRegionPropertyChange(region.id, 'hasBackground', e.target.checked)}
-                                          className="sr-only peer"
-                                        />
-                                        <div className="w-7 h-3.5 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[12px] peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-[#FF6B1A] peer-checked:after:bg-[#252528]"></div>
-                                      </label>
-                                    </div>
-                                    <div className="flex space-x-1">
-                                      <input
-                                        type="color"
-                                        value={region.backgroundColor?.startsWith('#') ? region.backgroundColor : '#252528'}
-                                        onChange={(e) => handleRegionPropertyChange(region.id, 'backgroundColor', e.target.value)}
-                                        className="w-8 h-7 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer"
-                                        disabled={region.hasBackground === false}
-                                      />
-                                      <input
-                                        type="text"
-                                        value={region.backgroundColor || 'transparent'}
-                                        onChange={(e) => handleRegionPropertyChange(region.id, 'backgroundColor', e.target.value)}
-                                        placeholder="transparent"
-                                        className="flex-1 bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-[11px] font-mono text-[rgba(255,255,255,0.95)] font-medium"
-                                        disabled={region.hasBackground === false}
-                                      />
-                                    </div>
-                                  </div>
-                                  <div className={region.hasBorder === false ? "opacity-60 transition-opacity duration-200" : "transition-opacity duration-200"}>
-                                    <div className="flex items-center justify-between mb-1">
-                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block">Kenarlık Rengi</label>
-                                      <label className="relative inline-flex items-center cursor-pointer select-none">
-                                        <input
-                                          type="checkbox"
-                                          checked={region.hasBorder !== false}
-                                          onChange={(e) => handleRegionPropertyChange(region.id, 'hasBorder', e.target.checked)}
-                                          className="sr-only peer"
-                                        />
-                                        <div className="w-7 h-3.5 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-[12px] peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-2.5 after:w-2.5 after:transition-all peer-checked:bg-[#FF6B1A] peer-checked:after:bg-[#252528]"></div>
-                                      </label>
-                                    </div>
-                                    <div className="flex space-x-1">
-                                      <input
-                                        type="color"
-                                        value={region.borderColor?.startsWith('#') ? region.borderColor : '#FF6B1A'}
-                                        onChange={(e) => handleRegionPropertyChange(region.id, 'borderColor', e.target.value)}
-                                        className="w-8 h-7 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer"
-                                        disabled={region.hasBorder === false}
-                                      />
-                                      <input
-                                        type="text"
-                                        value={region.borderColor || 'transparent'}
-                                        onChange={(e) => handleRegionPropertyChange(region.id, 'borderColor', e.target.value)}
-                                        placeholder="transparent"
-                                        className="flex-1 bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-[11px] font-mono text-[rgba(255,255,255,0.95)] font-medium"
-                                        disabled={region.hasBorder === false}
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div className={region.hasBackground === false ? "opacity-60 transition-opacity duration-200" : "transition-opacity duration-200"}>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Köşe Yuvarlama (Radius)</label>
-                                    <input
-                                      type="number"
-                                      value={region.borderRadius}
-                                      onChange={(e) => handleRegionPropertyChange(region.id, 'borderRadius', parseInt(e.target.value) || 0)}
-                                      className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
-                                      disabled={region.hasBackground === false}
-                                    />
-                                  </div>
-                                  <div className={region.hasBorder === false ? "opacity-60 transition-opacity duration-200" : "transition-opacity duration-200"}>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Kenarlık Kalınlığı</label>
-                                    <input
-                                      type="number"
-                                      value={region.borderWidth}
-                                      onChange={(e) => handleRegionPropertyChange(region.id, 'borderWidth', parseInt(e.target.value) || 0)}
-                                      className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
-                                      disabled={region.hasBorder === false}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Typography settings for Text region */}
-                              {region.type === 'text' && region.textStyle && (
-                                <div className="space-y-3 pt-2 border-t border-[rgba(255,255,255,0.08)]">
-                                  <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">YAZITİPİ (TYPOGRAPHY) AYARLARI</span>
-
-                                  <div>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block mb-1">Metin Rolü / Hiyerarşisi</label>
-                                    <select
-                                      value={region.textRole || 'normal'}
-                                      onChange={(e) => handleRegionPropertyChange(region.id, 'textRole', e.target.value)}
-                                      className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] font-semibold cursor-pointer mb-2"
-                                    >
-                                      <option value="normal">Normal / Diğer Metin</option>
-                                      <option value="title">Başlık (Title)</option>
-                                      <option value="subtitle">Alt Başlık (Subtitle)</option>
-                                      <option value="description">Açıklama (Description)</option>
-                                    </select>
-                                    <p className="text-[9px] text-[rgba(255,255,255,0.72)]">Yapay Zeka içeriği doldururken bu role göre başlığı, alt başlığı veya açıklamayı otomatik eşleştirecektir.</p>
-                                  </div>
-
-                                  <div>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block mb-1">Font Ailesi</label>
-                                    <select
-                                      value={region.textStyle.fontFamily}
-                                      onChange={(e) => handleRegionTextStyleChange(region.id, 'fontFamily', e.target.value)}
-                                      className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] font-semibold cursor-pointer"
-                                    >
-                                      <option value="Arimo">Arimo (Modern Dengeli Sans)</option>
-                                      <option value="Roboto">Roboto (Klasik Temiz Sans)</option>
-                                      <option value="Oswald">Oswald (Dar & Çarpıcı Başlık)</option>
-                                      <option value="Inter">Inter (Sade Sans)</option>
-                                      <option value="Space Grotesk">Space Grotesk (Modern Tech)</option>
-                                      <option value="Playfair Display">Playfair Display (Zarif Serif)</option>
-                                      <option value="JetBrains Mono">JetBrains Mono (Düz Mono)</option>
-                                      <option value="Syne">Syne (Büyük Gösterişli)</option>
-                                      <option value="Montserrat">Montserrat (Geometrik Sans)</option>
-                                      <option value="Poppins">Poppins (Sıcak/Modern Sans)</option>
-                                      <option value="Lora">Lora (Klasik Edebi Serif)</option>
-                                      <option value="Cinzel">Cinzel (Lüks Antik Serif)</option>
-                                      <option value="Bebas Neue">Bebas Neue (Dar/Kalın Başlık)</option>
-                                      <option value="Russo One">Russo One (Fütüristik Darbe)</option>
-                                      <option value="Permanent Marker">Permanent Marker (Fırça/Grafiti)</option>
-                                      <option value="Dancing Script">Dancing Script (Zarif El Yazısı)</option>
-                                    </select>
-                                  </div>
-
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Boyutu (px)</label>
-                                      <input
-                                        type="number"
-                                        value={region.textStyle.fontSize}
-                                        onChange={(e) => handleRegionTextStyleChange(region.id, 'fontSize', parseInt(e.target.value) || 24)}
-                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Rengi</label>
-                                      <div className="flex space-x-1.5">
-                                        <input
-                                          type="color"
-                                          value={region.textStyle.color.startsWith('#') ? region.textStyle.color : '#252528'}
-                                          onChange={(e) => handleRegionTextStyleChange(region.id, 'color', e.target.value)}
-                                          className="w-8 h-7 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer shrink-0"
-                                        />
-                                        <input
-                                          type="text"
-                                          value={region.textStyle.color}
-                                          onChange={(e) => handleRegionTextStyleChange(region.id, 'color', e.target.value)}
-                                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-medium"
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Satır Aralığı</label>
-                                      <input
-                                        type="number"
-                                        step={0.1}
-                                        value={region.textStyle.lineHeight}
-                                        onChange={(e) => handleRegionTextStyleChange(region.id, 'lineHeight', parseFloat(e.target.value) || 1.2)}
-                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Kalınlığı</label>
-                                      <select
-                                        value={region.textStyle.fontWeight}
-                                        onChange={(e) => handleRegionTextStyleChange(region.id, 'fontWeight', e.target.value)}
-                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs text-[rgba(255,255,255,0.95)] font-bold cursor-pointer"
-                                      >
-                                        <option value="300">İnce (300)</option>
-                                        <option value="normal">Normal (400)</option>
-                                        <option value="500">Orta (500)</option>
-                                        <option value="bold">Kalın (700)</option>
-                                        <option value="700">Çok Kalın (800)</option>
-                                        <option value="900">Siyah (900)</option>
-                                      </select>
-                                    </div>
-                                  </div>
-
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Harf Boşluğu (px)</label>
-                                      <input
-                                        type="number"
-                                        value={region.textStyle.letterSpacing ?? 0}
-                                        onChange={(e) => handleRegionTextStyleChange(region.id, 'letterSpacing', parseInt(e.target.value) || 0)}
-                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
-                                      />
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Hizalama</label>
-                                      <div className="flex rounded-lg border border-[rgba(255,255,255,0.08)] p-0.5 bg-[#1D1D1F] gap-0.5 h-7">
-                                        <button
-                                          type="button"
-                                          onClick={() => handleRegionTextStyleChange(region.id, 'align', 'left')}
-                                          className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
-                                            region.textStyle.align === 'left'
-                                              ? 'bg-[#252528] text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)]'
-                                              : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
-                                          }`}
-                                          title="Sola Hizala"
-                                        >
-                                          <AlignLeft className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleRegionTextStyleChange(region.id, 'align', 'center')}
-                                          className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
-                                            region.textStyle.align === 'center'
-                                              ? 'bg-[#252528] text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)]'
-                                              : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
-                                          }`}
-                                          title="Ortala"
-                                        >
-                                          <AlignCenter className="w-3.5 h-3.5" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleRegionTextStyleChange(region.id, 'align', 'right')}
-                                          className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
-                                            region.textStyle.align === 'right'
-                                              ? 'bg-[#252528] text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)]'
-                                              : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
-                                          }`}
-                                          title="Sağa Hizala"
-                                        >
-                                          <AlignRight className="w-3.5 h-3.5" />
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Shadow settings */}
-                                  <div className="space-y-3 pt-2 border-t border-[rgba(255,255,255,0.08)]">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Metin Arkası Gölge (Text Shadow)</span>
-                                      <label className="relative inline-flex items-center cursor-pointer select-none shrink-0">
-                                        <input
-                                          type="checkbox"
-                                          checked={region.textStyle.hasShadow !== false}
-                                          onChange={(e) => handleRegionTextStyleChange(region.id, 'hasShadow', e.target.checked)}
-                                          className="sr-only peer"
-                                        />
-                                        <div className="w-8 h-4 bg-[#2C2C2E] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-[rgba(255,255,255,0.08)] after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-[#252528] after:border-[rgba(255,255,255,0.08)] after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-[#FF6B1A] peer-checked:after:bg-[#252528]"></div>
-                                      </label>
-                                    </div>
-                                    <div className={`space-y-3 ${region.textStyle.hasShadow === false ? "opacity-45 pointer-events-none transition-opacity duration-200" : "transition-opacity duration-200"}`}>
-                                      <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold block mb-1">Gölge Rengi</label>
-                                          <div className="flex space-x-1">
-                                            <input
-                                              type="color"
-                                              value={region.textStyle.shadowColor?.startsWith('#') ? region.textStyle.shadowColor : 'rgba(0,0,0,0.5)'}
-                                              onChange={(e) => handleRegionTextStyleChange(region.id, 'shadowColor', e.target.value)}
-                                              className="w-8 h-7 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer"
-                                              disabled={region.textStyle.hasShadow === false}
-                                            />
-                                            <input
-                                              type="text"
-                                              value={region.textStyle.shadowColor || 'transparent'}
-                                              onChange={(e) => handleRegionTextStyleChange(region.id, 'shadowColor', e.target.value)}
-                                              placeholder="transparent"
-                                              className="flex-1 bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-[11px] font-mono text-[rgba(255,255,255,0.95)] font-medium"
-                                              disabled={region.textStyle.hasShadow === false}
-                                            />
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Gölge Dağılımı (Blur)</label>
-                                          <input
-                                            type="number"
-                                            value={region.textStyle.shadowBlur ?? 0}
-                                            onChange={(e) => handleRegionTextStyleChange(region.id, 'shadowBlur', parseInt(e.target.value) || 0)}
-                                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-semibold"
-                                            disabled={region.textStyle.hasShadow === false}
-                                          />
-                                        </div>
-                                      </div>
-                                      <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">X Kayması (Offset X)</label>
-                                          <input
-                                            type="number"
-                                            value={region.textStyle.shadowOffsetX ?? 0}
-                                            onChange={(e) => handleRegionTextStyleChange(region.id, 'shadowOffsetX', parseInt(e.target.value) || 0)}
-                                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-semibold"
-                                            disabled={region.textStyle.hasShadow === false}
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Y Kayması (Offset Y)</label>
-                                          <input
-                                            type="number"
-                                            value={region.textStyle.shadowOffsetY ?? 0}
-                                            onChange={(e) => handleRegionTextStyleChange(region.id, 'shadowOffsetY', parseInt(e.target.value) || 0)}
-                                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-semibold"
-                                            disabled={region.textStyle.hasShadow === false}
-                                          />
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Layer Hierarchy Reordering Controls */}
-                              <div className="space-y-2 pt-3 border-t border-[rgba(255,255,255,0.08)]">
-                                <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Katman Hiyerarşisi (Sıralama)</span>
-                                <div className="grid grid-cols-4 gap-1.5 text-center">
-                                  <button
-                                    onClick={() => moveLayerOrder(region.id, 'front')}
-                                    className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition shadow-sm"
-                                    title="En Üste Getir"
-                                  >
-                                    En Üst
-                                  </button>
-                                  <button
-                                    onClick={() => moveLayerOrder(region.id, 'up')}
-                                    className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
-                                    title="Bir Üste Çıkar"
-                                  >
-                                    <ChevronUp className="w-3 h-3 text-[#FF6B1A]" />
-                                    <span>Öne</span>
-                                  </button>
-                                  <button
-                                    onClick={() => moveLayerOrder(region.id, 'down')}
-                                    className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
-                                    title="Bir Alta İndir"
-                                  >
-                                    <ChevronDown className="w-3 h-3 text-[#FF6B1A]" />
-                                    <span>Arka</span>
-                                  </button>
-                                  <button
-                                    onClick={() => moveLayerOrder(region.id, 'back')}
-                                    className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition shadow-sm"
-                                    title="En Alta Gönder"
-                                  >
-                                    En Alt
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        }
-
-                        if (fixed) {
-                          return (
-                            <div className="space-y-4">
-                              <div className="flex items-center justify-between border-b border-[rgba(255,255,255,0.08)] pb-2">
-                                <h5 className="text-xs font-bold text-[#FF9F0A] uppercase">SABİT ÖĞE DÜZENLEYİCİ</h5>
-                                <span className="text-[9px] bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[#FF9F0A] px-2 py-0.5 rounded-md font-extrabold">Sabit</span>
-                              </div>
-
-                              <div>
-                                <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block mb-1">Katman Adı</label>
-                                <input
-                                  type="text"
-                                  value={fixed.name}
-                                  onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'name', e.target.value)}
-                                  className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium"
-                                />
-                              </div>
-
-                              {/* Geometry offsets */}
-                              <div className="space-y-3 pt-2">
-                                <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Konum & Boyut (X, Y, W, H)</span>
-                                
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
-                                      <span>Konum X</span>
-                                      <span className="font-mono text-[#FF9F0A] font-bold">{fixed.x}px</span>
-                                    </label>
-                                    <input
-                                      type="range"
-                                      min={0}
-                                      max={currentTemplate.width}
-                                      value={fixed.x}
-                                      onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'x', parseInt(e.target.value))}
-                                      className="w-full accent-[#FF9F0A] cursor-pointer"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
-                                      <span>Konum Y</span>
-                                      <span className="font-mono text-[#FF9F0A] font-bold">{fixed.y}px</span>
-                                    </label>
-                                    <input
-                                      type="range"
-                                      min={0}
-                                      max={currentTemplate.height}
-                                      value={fixed.y}
-                                      onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'y', parseInt(e.target.value))}
-                                      className="w-full accent-[#FF9F0A] cursor-pointer"
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-3">
-                                  <div>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
-                                      <span>Genişlik</span>
-                                      <span className="font-mono text-[#FF9F0A] font-bold">{fixed.width}px</span>
-                                    </label>
-                                    <input
-                                      type="range"
-                                      min={5}
-                                      max={currentTemplate.width}
-                                      value={fixed.width}
-                                      onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'width', parseInt(e.target.value))}
-                                      className="w-full accent-[#FF9F0A] cursor-pointer"
-                                    />
-                                  </div>
-                                  <div>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-semibold flex justify-between mb-1">
-                                      <span>Yükseklik</span>
-                                      <span className="font-mono text-[#FF9F0A] font-bold">{fixed.height}px</span>
-                                    </label>
-                                    <input
-                                      type="range"
-                                      min={2}
-                                      max={currentTemplate.height}
-                                      value={fixed.height}
-                                      onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'height', parseInt(e.target.value))}
-                                      className="w-full accent-[#FF9F0A] cursor-pointer"
-                                    />
-                                  </div>
-                                </div>
-
-                                <div className="pt-1.5 pb-1">
-                                  <label className="text-[10px] text-[rgba(255,255,255,0.72)] font-bold block mb-1.5">Katmanı Ortala</label>
-                                  <div className="grid grid-cols-3 gap-1.5">
-                                    <button
-                                      type="button"
-                                      onClick={() => centerSelectedLayer('horizontal')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
-                                    >
-                                      <span>↔ Yatay</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => centerSelectedLayer('vertical')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
-                                    >
-                                      <span>↕ Dikey</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => centerSelectedLayer('both')}
-                                      className="px-2 py-1.5 text-[11px] font-bold rounded-lg bg-[#252528] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] text-[#FF9F0A] transition flex items-center justify-center space-x-1 cursor-pointer shadow-sm"
-                                    >
-                                      <span>✛ Tam</span>
-                                    </button>
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Details depending on type */}
-                              {fixed.type === 'shape' && (
-                                <div className="space-y-3 pt-2">
-                                  <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Şekil Detayları</span>
-                                  <div className="grid grid-cols-2 gap-3">
-                                    <div>
-                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Şekil Tipi</label>
-                                      <select
-                                        value={fixed.shapeType}
-                                        onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'shapeType', e.target.value)}
-                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs text-[rgba(255,255,255,0.95)] font-bold cursor-pointer"
-                                      >
-                                        <option value="rect">Dikdörtgen</option>
-                                        <option value="circle">Daire</option>
-                                        <option value="line">Çizgi</option>
-                                      </select>
-                                    </div>
-                                    <div>
-                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Dolgu Rengi</label>
-                                      <input
-                                        type="text"
-                                        value={fixed.backgroundColor || fixed.color}
-                                        onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'backgroundColor', e.target.value)}
-                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-semibold"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-
-                              {(fixed.type === 'logo' || fixed.type === 'social') && (
-                                <div className="space-y-3 pt-2">
-                                  <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Metin & Simge Özellikleri</span>
-                                  
-                                  <div>
-                                    <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">İçerik Metni</label>
-                                    <input
-                                      type="text"
-                                      value={fixed.content}
-                                      onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'content', e.target.value)}
-                                      className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-semibold"
-                                    />
-                                  </div>
-
-                                  {fixed.type === 'social' && (
-                                    <div>
-                                      <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Simge Tipi</label>
-                                      <select
-                                        value={fixed.iconType}
-                                        onChange={(e) => handleFixedElementPropertyChange(fixed.id, 'iconType', e.target.value)}
-                                        className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs text-[rgba(255,255,255,0.95)] font-bold cursor-pointer"
-                                      >
-                                        <option value="none">Simgesiz</option>
-                                        <option value="instagram">Instagram</option>
-                                        <option value="globe">Web / Küre</option>
-                                        <option value="mail">E-posta</option>
-                                        <option value="phone">Telefon</option>
-                                      </select>
-                                    </div>
-                                  )}
-
-                                  {fixed.textStyle && (
-                                    <div className="space-y-3 pt-2 border-t border-[rgba(255,255,255,0.08)]">
-                                      <div>
-                                        <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Font Ailesi</label>
-                                        <select
-                                          value={fixed.textStyle.fontFamily || 'Space Grotesk'}
-                                          onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'fontFamily', e.target.value)}
-                                          className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1.5 text-xs text-[rgba(255,255,255,0.95)] font-bold cursor-pointer"
-                                        >
-                                          <option value="Arimo">Arimo (Modern Dengeli Sans)</option>
-                                          <option value="Roboto">Roboto (Klasik Temiz Sans)</option>
-                                          <option value="Oswald">Oswald (Dar & Çarpıcı Başlık)</option>
-                                          <option value="Inter">Inter (Sade Sans)</option>
-                                          <option value="Space Grotesk">Space Grotesk (Modern Tech)</option>
-                                          <option value="Playfair Display">Playfair Display (Zarif Serif)</option>
-                                          <option value="JetBrains Mono">JetBrains Mono (Düz Mono)</option>
-                                          <option value="Syne">Syne (Büyük Gösterişli)</option>
-                                          <option value="Montserrat">Montserrat (Geometrik Sans)</option>
-                                          <option value="Poppins">Poppins (Sıcak/Modern Sans)</option>
-                                          <option value="Lora">Lora (Klasik Edebi Serif)</option>
-                                          <option value="Cinzel">Cinzel (Lüks Antik Serif)</option>
-                                          <option value="Bebas Neue">Bebas Neue (Dar/Kalın Başlık)</option>
-                                          <option value="Russo One">Russo One (Fütüristik Darbe)</option>
-                                          <option value="Permanent Marker">Permanent Marker (Fırça/Grafiti)</option>
-                                          <option value="Dancing Script">Dancing Script (Zarif El Yazısı)</option>
-                                        </select>
-                                      </div>
-
-                                      <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Boyutu</label>
-                                          <input
-                                            type="number"
-                                            value={fixed.textStyle.fontSize}
-                                            onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'fontSize', parseInt(e.target.value) || 14)}
-                                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] font-medium font-mono"
-                                          />
-                                        </div>
-                                        <div>
-                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Rengi</label>
-                                          <div className="flex space-x-1.5">
-                                            <input
-                                              type="color"
-                                              value={fixed.textStyle.color.startsWith('#') ? fixed.textStyle.color : '#252528'}
-                                              onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'color', e.target.value)}
-                                              className="w-8 h-7 rounded border border-[rgba(255,255,255,0.08)] bg-transparent cursor-pointer shrink-0"
-                                            />
-                                            <input
-                                              type="text"
-                                              value={fixed.textStyle.color}
-                                              onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'color', e.target.value)}
-                                              className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs font-mono text-[rgba(255,255,255,0.95)] font-medium"
-                                            />
-                                          </div>
-                                        </div>
-                                      </div>
-
-                                      <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Yazı Kalınlığı</label>
-                                          <select
-                                            value={fixed.textStyle.fontWeight || 'normal'}
-                                            onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'fontWeight', e.target.value)}
-                                            className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] rounded px-2 py-1 text-xs text-[rgba(255,255,255,0.95)] font-bold cursor-pointer"
-                                          >
-                                            <option value="300">İnce (300)</option>
-                                            <option value="normal">Normal (400)</option>
-                                            <option value="500">Orta (500)</option>
-                                            <option value="bold">Kalın (700)</option>
-                                            <option value="700">Çok Kalın (800)</option>
-                                            <option value="900">Siyah (900)</option>
-                                          </select>
-                                        </div>
-                                        <div>
-                                          <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Harf Boşluğu (px)</label>
-                                          <input
-                                            type="number"
-                                            value={fixed.textStyle.letterSpacing ?? 0}
-                                            onChange={(e) => handleFixedElementTextStyleChange(fixed.id, 'letterSpacing', parseInt(e.target.value) || 0)}
-                                            className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded px-2.5 py-1 text-xs text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium font-mono"
-                                          />
-                                        </div>
-                                      </div>
-
-                                      <div>
-                                        <label className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block mb-1 font-semibold">Hizalama</label>
-                                        <div className="flex rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] p-0.5 bg-[#1D1D1F] dark:bg-[#252528] gap-0.5 h-7">
-                                          <button
-                                            type="button"
-                                            onClick={() => handleFixedElementTextStyleChange(fixed.id, 'align', 'left')}
-                                            className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
-                                              fixed.textStyle.align === 'left'
-                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#FF6B1A] dark:text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
-                                                : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
-                                            }`}
-                                            title="Sola Hizala"
-                                          >
-                                            <AlignLeft className="w-3.5 h-3.5" />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleFixedElementTextStyleChange(fixed.id, 'align', 'center')}
-                                            className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
-                                              fixed.textStyle.align === 'center'
-                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#FF6B1A] dark:text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
-                                                : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
-                                            }`}
-                                            title="Ortala"
-                                          >
-                                            <AlignCenter className="w-3.5 h-3.5" />
-                                          </button>
-                                          <button
-                                            type="button"
-                                            onClick={() => handleFixedElementTextStyleChange(fixed.id, 'align', 'right')}
-                                            className={`flex-1 flex items-center justify-center rounded text-xs font-bold transition cursor-pointer ${
-                                              fixed.textStyle.align === 'right'
-                                                ? 'bg-[#252528] dark:bg-[#3A3A3C] text-[#FF6B1A] dark:text-[#FF6B1A] shadow-sm border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]'
-                                                : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
-                                            }`}
-                                            title="Sağa Hizala"
-                                          >
-                                            <AlignRight className="w-3.5 h-3.5" />
-                                          </button>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Layer Hierarchy Reordering Controls for Fixed elements */}
-                                  <div className="space-y-2 pt-3 border-t border-[rgba(255,255,255,0.08)] mt-3">
-                                    <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] uppercase block">Katman Hiyerarşisi (Sıralama)</span>
-                                    <div className="grid grid-cols-4 gap-1.5 text-center">
-                                      <button
-                                        onClick={() => moveLayerOrder(fixed.id, 'front')}
-                                        className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition shadow-sm"
-                                        title="En Üste Getir"
-                                      >
-                                        En Üst
-                                      </button>
-                                      <button
-                                        onClick={() => moveLayerOrder(fixed.id, 'up')}
-                                        className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
-                                        title="Bir Üste Çıkar"
-                                      >
-                                        <ChevronUp className="w-3 h-3 text-[#FF9F0A]" />
-                                        <span>Öne</span>
-                                      </button>
-                                      <button
-                                        onClick={() => moveLayerOrder(fixed.id, 'down')}
-                                        className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition flex items-center justify-center space-x-1 shadow-sm"
-                                        title="Bir Alta İndir"
-                                      >
-                                        <ChevronDown className="w-3 h-3 text-[#FF9F0A]" />
-                                        <span>Arka</span>
-                                      </button>
-                                      <button
-                                        onClick={() => moveLayerOrder(fixed.id, 'back')}
-                                        className="p-1.5 bg-[#1D1D1F] hover:bg-[#252528] border border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] text-[10px] rounded text-[rgba(255,255,255,0.95)] font-bold cursor-pointer transition shadow-sm"
-                                        title="En Alta Gönder"
-                                      >
-                                        En Alt
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        }
-                        return null;
-                      })()}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
-
-            {/* TAB 3: PHASE 2 GRAPHIC PRODUCTION ENGINE */}
-            {activeTab === 'phase2' && (
-              <div className="space-y-6">
-
-                {/* Şablon Hızlı Seçici */}
-                <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-[20px] p-4 space-y-3 shadow-[0_2px_12px_rgba(0,0,0,0.03)] animate-fade-in">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] tracking-wide uppercase flex items-center space-x-1.5">
-                      <LayoutTemplate className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)]" />
-                      <span>Aktif Tasarım Şablonu</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setActiveTab('presets')}
-                      className="text-[10px] text-[#FF6B1A] dark:text-[#FF6B1A] hover:text-[#FF6B1A] dark:hover:text-[#FF6B1A] font-medium flex items-center space-x-0.5 cursor-pointer transition-colors"
-                    >
-                      <span>Tümünü Yönet ({templates.length})</span>
-                      <ChevronRight className="w-3 h-3" />
-                    </button>
-                  </div>
-                  <select aria-label="Aktif şablon" className="w-full" value={currentTemplateId} onChange={e => setCurrentTemplateId(e.target.value)}>
-                    {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                  </select>
-                </div>
-
-                {/* Sihirbaz Modülü */}
-                <div className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-[24px] p-5 space-y-5 shadow-[0_2px_16px_rgba(0,0,0,0.03)] relative overflow-hidden">
-                  <div className="flex items-center space-x-2">
-                    <div className="p-1.5 bg-[#252528] dark:bg-[#252528]/60 text-[#FF6B1A] dark:text-[#FF6B1A] rounded-[10px]">
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <h3 className="text-sm font-semibold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] tracking-tight">Medya ve içerik</h3>
-                  </div>
-
-<details className="workspace-ai-disclosure"><summary><Sparkles size={14}/>Yapay zekâ ile metin oluştur<ChevronDown size={14}/></summary>
-                  <div className="space-y-3 bg-[#1D1D1F] dark:bg-[#252528] p-4 rounded-[16px] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)]">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wide">Gönderiden kısaca bahset</span>
-                      {currentTemplate.aiSystemPrompt && (
-                        <span className="text-[9px] text-[#FF6B1A] dark:text-[#FF6B1A] font-medium bg-[#252528] dark:bg-[#252528]/60 px-2 py-0.5 rounded-full">
-                          Marka Dili Aktif
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="space-y-1">
-                      <textarea
-                        aria-label="AI için ek not"
-                        value={aiCollageBrief}
-                        onChange={(e) => setAiCollageBrief(e.target.value)}
-                        placeholder="Örn: 'Butiğim için yaz koleksiyonu, keten elbiseler', 'fiyat odaklı ve sıcak bir dil kullan' vb."
-                        rows={2}
-                        className="w-full bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)] rounded-[12px] px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-[#FF6B1A] focus:ring-4 focus:ring-[#FF6B1A]/10 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium resize-y transition-all placeholder:text-[rgba(255,255,255,0.72)] dark:placeholder:text-[rgba(255,255,255,0.72)]"
-                      />
-                    </div>
-
-                    <div className="flex justify-end pt-1">
-                      <button type="button" className="workspace-button workspace-primary"
-                        disabled={aiTextTarget !== null || isAiLoading} onClick={() => triggerAiGenerator()}>
-                        {aiTextTarget === 'all' ? <Loader2 size={14} className="animate-spin"/> : <WandSparkles size={14}/>}
-                        {aiTextTarget === 'all' ? 'Üretiliyor…' : 'Bu sayfanın metinlerini üret'}
-                      </button>
-                    </div>
-                  </div>
-
-                  </details>
-                  {aiNoticeLocation === 'all' && aiError && <div className="workspace-ai-notice is-error" role="alert"><AlertCircle size={16}/><span>{aiError}</span></div>}
-                  {aiNoticeLocation === 'all' && aiSuccessMessage && <div className="workspace-ai-notice" role="status"><CheckCircle2 size={16}/><span>{aiSuccessMessage}</span></div>}
-
-                  <div 
-                    onDragEnter={(e) => handleDrag(e, 'multi-collage')}
-                    onDragLeave={(e) => handleDrag(e, 'multi-collage')}
-                    onDragOver={(e) => handleDrag(e, 'multi-collage')}
-                    onDrop={handleMultiDrop}
-                    className={`rounded-[16px] p-6 text-center transition-all cursor-pointer relative overflow-hidden flex flex-col items-center justify-center space-y-1.5 ${
-                      dragActive['multi-collage']
-                        ? 'bg-[#252528]/50 dark:bg-[#252528]/40 border-2 border-[#FF6B1A] dark:border-[#FF6B1A] scale-[1.01]'
-                        : 'bg-[#1D1D1F] dark:bg-[#252528] hover:bg-[#1D1D1F] dark:hover:bg-[#252528]/80 border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] border-dashed'
-                    }`}
-                  >
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*,video/mp4,video/quicktime,video/webm"
-                      onChange={(e) => {
-                        if (e.target.files && e.target.files.length > 0) {
-                          handleMultiImageFiles(e.target.files);
-                        }
-                      }}
-                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                    <div className="w-10 h-10 rounded-full bg-[#252528] dark:bg-[#3A3A3C] shadow-sm flex items-center justify-center mb-1">
-                      <UploadCloud className="w-4 h-4 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
-                    </div>
-                    <div>
-                      <p className="text-[13px] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium">Fotoğraf veya MP4 Video Yükle</p>
-                      <p className="text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] mt-0.5">Görselleri ve videoları sürükleyip bırakın</p>
-                    </div>
-                  </div>
-
-                  {/* Eklenen Fotoğraflar Küçük Resim Gösterimi */}
-                  {(() => {
-                    const uniqueUrls = getUniqueUploadedImages();
-                    const bgUrl = activeTemplatePage?.backgroundImageUrl || currentTemplate.backgroundImageUrl;
-                    const filteredUniqueUrls = bgUrl ? uniqueUrls.filter(url => url !== bgUrl) : uniqueUrls;
-                    
-                    if (filteredUniqueUrls.length === 0 && !bgUrl) return null;
-
-                    return (
-                      <div className="space-y-1.5">
-                        <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider block">Yüklenen Fotoğraflar</span>
-                        <div className="flex items-center gap-2.5 overflow-x-auto pb-1.5 scrollbar-thin">
-                          {/* 1. Background Image Thumbnail (Special Highlight Styling & Undeletable) */}
-                          {bgUrl && (
-                            <div className="relative w-14 h-14 rounded-lg overflow-hidden border-2 border-[#34C759] shrink-0 shadow-md bg-[#252528]/50 group/thumb transition-all hover:scale-105" title="Arka Plan Görseli (Silinemez)">
-                              <img src={bgUrl} alt="Arka Plan Görseli" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              <span className="absolute bottom-0 left-0 right-0 bg-[#34C759] text-[rgba(255,255,255,0.95)] text-[8px] font-bold py-0.5 text-center uppercase tracking-wider">
-                                Arka Plan
-                              </span>
-                              <div className="absolute top-1 right-1 w-3.5 h-3.5 bg-[#34C759] text-[rgba(255,255,255,0.95)] rounded-full flex items-center justify-center shadow">
-                                <Lock className="w-2 h-2" />
-                              </div>
-                            </div>
-                          )}
-
-                          {/* 2. Regular User Uploaded Images */}
-                          {filteredUniqueUrls.map((url, i) => (
-                            <div key={i} className="relative w-14 h-14 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shrink-0 shadow-sm bg-[#252528] dark:bg-[#252528] group/thumb transition-all hover:scale-105">
-                              <div className="w-full h-full rounded-lg overflow-hidden">
-                                <img src={url} alt={`Yüklenen ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              </div>
-                              <span className="absolute bottom-0 right-0 bg-[#1D1D1F]/80 dark:bg-[#252528]/80 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[9px] font-mono px-1.5 py-0.5 rounded-tl rounded-br-lg">
-                                {i + 1}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => removeUploadedImage(url)}
-                                className="absolute -top-1.5 -right-1.5 w-5.5 h-5.5 bg-[#FF453A] hover:bg-[#FF453A] text-[rgba(255,255,255,0.95)] rounded-full flex items-center justify-center shadow active:scale-90 transition z-20 cursor-pointer opacity-100 lg:opacity-0 lg:group-hover/thumb:opacity-100"
-                                title="Fotoğrafı Kaldır"
-                              >
-                                <X className="w-3 h-3 stroke-[3.5]" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                    {generatedPages.length > 0 && (
-                      <div className="space-y-3 pt-3 border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] animate-fade-in mt-4">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] flex items-center space-x-1.5">
-                            <ImageIcon className="w-4 h-4 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
-                            <span>Üretilen Sayfalar ({generatedPages.length})</span>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setGeneratedPages([]);
-                              setActiveGeneratedPageIndex(0);
-                              setAiSuccessMessage('Sayfa akışı temizlendi.');
-                            }}
-                            className="text-[10px] text-[#FF453A] hover:text-[#FF453A] font-medium transition-colors"
-                          >
-                            Sıfırla
-                          </button>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          {generatedPages.map((page, index) => (
-                            <button
-                              key={page.id}
-                              type="button"
-                              onClick={() => setActiveGeneratedPageIndex(index)}
-                              className={`px-3.5 py-1.5 rounded-[12px] text-xs font-medium transition-all flex items-center space-x-1.5 ${
-                                activeGeneratedPageIndex === index
-                                  ? 'bg-[#1D1D1F] dark:bg-[#2C2C2E] text-[rgba(255,255,255,0.95)] shadow-md scale-[1.02]'
-                                  : 'bg-[#1D1D1F] dark:bg-[#252528] hover:bg-[#1D1D1F] dark:hover:bg-[#2C2C2E] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)]/60 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] shadow-sm'
-                              }`}
-                            >
-                              <span>{page.name || (index === 0 ? 'Kapak Sayfası' : `${index}. Sayfa`)}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                {/* Dinamik Alanların Düzenlenmesi (Aşama 2 Form) */}
-                <div className="space-y-4 mt-6">
-                  <h4 className="text-[11px] font-medium text-[rgba(255,255,255,0.72)] tracking-wide uppercase">Metinler</h4>
-                  <p className="workspace-field-hint">Alan yanındaki sihirbaz yalnızca o metni, şablon promptuna göre üretir.</p>
-                  {aiNoticeLocation === 'fields' && aiError && <div className="workspace-ai-notice is-error" role="alert"><AlertCircle size={16}/><span>{aiError}</span></div>}
-                  {aiNoticeLocation === 'fields' && aiSuccessMessage && <div className="workspace-ai-notice" role="status"><CheckCircle2 size={16}/><span>{aiSuccessMessage}</span></div>}
-
-                  {activeTemplatePage.regions.filter(r => r.isDynamic !== false).length === 0 && (
-                    <div className="p-4 rounded-[16px] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)]/60 bg-[#1D1D1F] dark:bg-[#252528]/50 text-center text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] text-xs font-medium">
-                      Bu şablonda tanımlanmış dinamik bölge yok.
-                    </div>
-                  )}
-
-                  {/* 1. TEXT REGIONS */}
-                  {editingTemplate.regions
-                    .filter(r => r.isDynamic !== false && r.type === 'text' && !r.hidden)
-                    .map(r => {
-                      const textVal = activePageData.dynamicTexts[r.id] !== undefined
-                        ? activePageData.dynamicTexts[r.id]
-                        : (r.placeholderText || '');
-                      
-                      return (
-                        <div key={r.id} className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-[20px] p-4.5 space-y-2.5 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-xs font-semibold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] flex items-center space-x-1.5">
-                              <Type className="w-3.5 h-3.5 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
-                              <span>{r.name}</span>
-                            </span>
-                            <button type="button" className="workspace-field-magic"
-                              aria-label={`${r.name} için AI ile üret`} title={`${r.name} üret · Şablon promptunu kullanır`}
-                              disabled={aiTextTarget !== null || isAiLoading} onClick={() => triggerAiGenerator(r.id)}>
-                              {aiTextTarget === r.id ? <Loader2 size={15} className="animate-spin"/> : <WandSparkles size={15}/>}
-                            </button>
-                          </div>
-
-                          <textarea
-                            aria-label={r.name}
-                            disabled={aiTextTarget === r.id || aiTextTarget === 'all'}
-                            rows={3}
-                            value={textVal}
-                            onChange={(e) => updateActiveText(r.id, e.target.value)}
-                            className="w-full bg-[#1D1D1F] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] rounded-[14px] px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-[#FF6B1A] focus:ring-4 focus:ring-[#FF6B1A]/10 text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium leading-relaxed resize-y transition-all"
-                            placeholder="Metninizi yazın..."
-                          />
-
-                          <div className="flex justify-between items-center text-[10px] text-[rgba(255,255,255,0.72)] font-medium px-1">
-                            <span>Markdown <strong className="text-[rgba(255,255,255,0.72)]">**kalın**</strong> ve <em className="text-[rgba(255,255,255,0.72)]">*eğik*</em> destekler.</span>
-                            <span className="font-mono">{textVal.length} karakter</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-
-                  {/* 2. SINGLE UNIFIED IMAGE REGION CONTROLLER FOR SELECTED CANVAS PHOTO */}
-                  {(() => {
-                    const isStaticTemplatePNG = (region: any) => {
-                      if (region.isDynamic === false) return true;
-                      const n = (region.name || '').toLowerCase();
-                      return n.includes('takım') || n.includes('logo') || n.includes('süs') || n.includes('rozet') || n.includes('ikon') || n.includes('çerçeve');
-                    };
-
-                    const dynamicImageRegions = activeTemplatePage.regions.filter(r => r.type === 'image' && !isStaticTemplatePNG(r));
-                    if (dynamicImageRegions.length === 0) return null;
-
-                    // Determine active image region (either selected on canvas, or editing, or default to first)
-                    const activeImageRegion = dynamicImageRegions.find(r => r.id === selectedNodeId) ||
-                                              dynamicImageRegions.find(r => r.id === editingImageRegionId) ||
-                                              dynamicImageRegions[0];
-
-                    const r = activeImageRegion;
-                    const activeIndex = dynamicImageRegions.findIndex(item => item.id === r.id);
-                    const activeDisplayName = activeIndex !== -1 ? `Görsel ${activeIndex + 1}` : r.name;
-
-                    const imgData = activePageData.dynamicImages[r.id] || {
-                      url: '',
-                      scale: 1.0,
-                      offsetX: 0,
-                      offsetY: 0,
-                      rotation: 0
-                    };
-
-                    const hasImage = !!imgData.url;
-                    const isExpanded = !!expandedImageSettings[r.id];
-
-                    return (
-                      <div key="unified-image-section" className="bg-[#252528] dark:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] rounded-[20px] p-5 space-y-4 shadow-[0_2px_12px_rgba(0,0,0,0.02)]">
-                        {/* Selector header / tabs for choosing which photo to edit if multiple exist */}
-                        <div>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-xs font-semibold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] flex items-center space-x-1.5">
-                              <ImageIcon className="w-4 h-4 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
-                              <span>Fotoğraf Seçimi ve Değiştirme</span>
-                            </span>
-                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${imgData.url ? 'bg-[#252528] dark:bg-[#252528]/30 text-[#34C759] dark:text-[#34C759]' : 'bg-[#252528] dark:bg-[#252528] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]'}`}>
-                              {imgData.url ? 'Görsel Yüklendi' : 'Görsel Bekleniyor'}
-                            </span>
-                          </div>
-
-                          {dynamicImageRegions.length > 1 && (
-                            <div className="flex items-center gap-1.5 overflow-x-auto pb-2 pt-1 scrollbar-none">
-                              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] shrink-0 mr-1">Alanlar:</span>
-                              {dynamicImageRegions.map((regionItem, idx) => {
-                                const isItemActive = regionItem.id === r.id;
-                                const itemImg = activePageData.dynamicImages[regionItem.id]?.url;
-                                const itemLabel = `Görsel ${idx + 1}`;
-                                return (
-                                  <button
-                                    key={regionItem.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setSelectedNodeId(regionItem.id);
-                                      setEditingImageRegionId(regionItem.id);
-                                    }}
-                                    className={`px-3 py-1.5 rounded-full text-[11px] font-medium transition-all flex items-center space-x-1.5 shrink-0 ${
-                                      isItemActive
-                                        ? 'bg-[#1D1D1F] dark:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] shadow-sm scale-[1.02]'
-                                        : 'bg-[#1D1D1F] dark:bg-[#252528] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] border border-[rgba(255,255,255,0.08)]/50 dark:border-[rgba(255,255,255,0.08)]'
-                                    }`}
-                                  >
-                                    {itemImg && (
-                                      <img src={itemImg} alt="" className="w-4 h-4 rounded-full object-cover" />
-                                    )}
-                                    <span>{itemLabel}</span>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* File Thumbnail or Drag & Drop Block */}
-                        {hasImage ? (
-                          <div className="flex items-center space-x-4 bg-[#1D1D1F] dark:bg-[#252528] p-3 rounded-[16px] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]">
-                            <div className="w-16 h-16 rounded-[12px] overflow-hidden bg-[#252528] dark:bg-[#2C2C2E] shrink-0 shadow-sm relative group">
-                              <img src={imgData.url} alt="Thumbnail" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" referrerPolicy="no-referrer" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <span className="text-[12px] font-semibold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] truncate block">
-                                {imgData.isVideo ? '🎥 MP4 Video' : `${activeDisplayName} Dolu`}
-                              </span>
-                              <span className="text-[10px] text-[#34C759] font-medium flex items-center space-x-1 mt-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-[#34C759] animate-pulse" />
-                                <span>{imgData.isVideo ? 'Canlı Video Hazır' : 'Tasarımda Aktif'}</span>
-                              </span>
-                            </div>
-                            <div className="flex flex-col space-y-1.5 shrink-0">
-                              {imgData.isVideo && (
-                                <button
-                                  type="button"
-                                  onClick={() => setPlayingVideoRegionId(prev => prev === r.id ? null : r.id)}
-                                  className={`px-3 py-1.5 rounded-[10px] text-[10px] font-bold border cursor-pointer text-center transition-all shadow-sm ${
-                                    playingVideoRegionId === r.id
-                                      ? 'bg-red-500/20 text-red-400 border-red-500/30 hover:bg-red-500/30'
-                                      : 'bg-gradient-to-r from-[#FF6B1A] to-[#34C759] text-white border-transparent hover:opacity-90'
-                                  }`}
-                                >
-                                  {playingVideoRegionId === r.id ? 'Durdur' : '▶ Oynat'}
-                                </button>
-                              )}
-                              <label className="px-3 py-1.5 rounded-[10px] bg-[#252528] dark:bg-[#2C2C2E] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[10px] font-medium border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] cursor-pointer text-center transition-all shadow-sm">
-                                <span>Değiştir</span>
-                                <input
-                                  type="file"
-                                  accept="image/*,video/mp4,video/quicktime,video/webm"
-                                  onChange={(e) => handleFileInput(e, r.id)}
-                                  className="hidden"
-                                />
-                              </label>
-                              <button
-                                type="button"
-                                onClick={() => updateActiveImageProp(r.id, 'url', '')}
-                                className="px-3 py-1.5 rounded-[10px] bg-[#252528]/50 dark:bg-[#2C2C2E]/20 hover:bg-[#252528] dark:hover:bg-[#2C2C2E]/40 text-[#FF453A] dark:text-[#FF453A] text-[10px] font-medium border border-transparent cursor-pointer text-center transition-all"
-                              >
-                                Temizle
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div
-                            onDragEnter={(e) => handleDrag(e, r.id)}
-                            onDragLeave={(e) => handleDrag(e, r.id)}
-                            onDragOver={(e) => handleDrag(e, r.id)}
-                            onDrop={(e) => handleDrop(e, r.id)}
-                            className={`rounded-[16px] p-6 text-center transition-all flex flex-col items-center justify-center space-y-2 ${
-                              dragActive[r.id]
-                                ? 'bg-[#252528]/50 dark:bg-[#252528]/40 border-2 border-[#FF6B1A] dark:border-[#FF6B1A]'
-                                : 'bg-[#1D1D1F] dark:bg-[#252528] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] border-dashed'
-                            }`}
-                          >
-                            <div className="w-10 h-10 rounded-full bg-[#252528] dark:bg-[#2C2C2E] shadow-sm flex items-center justify-center mb-1">
-                              <UploadCloud className="w-4 h-4 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
-                            </div>
-                            <div>
-                              <p className="text-[12px] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-medium">Görsel veya video sürükleyin</p>
-                              <p className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] mt-0.5">PNG, JPG veya MP4 ({activeDisplayName})</p>
-                            </div>
-                            
-                            <label className="mt-2 px-4 py-2 rounded-[12px] bg-[#252528] dark:bg-[#2C2C2E] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[11px] font-medium border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] cursor-pointer inline-block transition-all shadow-sm">
-                              <span>Dosya Seç</span>
-                              <input
-                                type="file"
-                                accept="image/*,video/mp4,video/quicktime,video/webm"
-                                onChange={(e) => handleFileInput(e, r.id)}
-                                className="hidden"
-                              />
-                            </label>
-                          </div>
-                        )}
-
-                        {/* Quick-pick shared image list */}
-                        {(() => {
-                          const uniqueImages = getUniqueUploadedImages();
-                          if (uniqueImages.length === 0) return null;
-                          return (
-                            <div className="mt-4 pt-4 border-t border-[rgba(255,255,255,0.08)]/60 space-y-2.5 text-left">
-                              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] uppercase tracking-wide block">Diğer Görseller</span>
-                              <div className="flex items-center gap-2.5 overflow-x-auto pb-2 scrollbar-none">
-                                {uniqueImages.map((url, i) => (
-                                  <div key={i} className="relative group/thumb shrink-0">
-                                    <button
-                                      type="button"
-                                      onClick={() => updateActiveImageProp(r.id, 'url', url)}
-                                      className="relative w-12 h-12 rounded-[10px] overflow-hidden border border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] hover:border-[#FF6B1A] shrink-0 bg-[#1D1D1F] dark:bg-[#3A3A3C] cursor-pointer shadow-sm transition-all hover:scale-[1.03] active:scale-95 group"
-                                      title="Bu görseli buraya yerleştir"
-                                    >
-                                      <img src={url} alt={`Varlık ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                                        <Check className="w-4 h-4 text-[rgba(255,255,255,0.95)] stroke-[2.5]" />
-                                      </div>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        removeUploadedImage(url);
-                                      }}
-                                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:text-[#FF453A] rounded-full flex items-center justify-center shadow-sm hover:scale-110 active:scale-90 transition z-20 cursor-pointer opacity-100 sm:opacity-0 sm:group-hover/thumb:opacity-100"
-                                      title="Görseli Kaldır"
-                                    >
-                                      <X className="w-3 h-3 stroke-[2.5]" />
-                                    </button>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        })()}
-
-                        {/* Collapsible Photo Alignment and Tweaks Bar */}
-                        <div className="pt-1.5 border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedImageSettings(prev => ({
-                              ...prev,
-                              [r.id]: !isExpanded
-                            }))}
-                            className="w-full flex items-center justify-between py-1.5 text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.72)] hover:text-[#FF6B1A] dark:hover:text-[#FF6B1A] cursor-pointer transition select-none"
-                          >
-                            <div className="flex items-center space-x-1.5">
-                              <Sliders className="w-3.5 h-3.5 text-[#FF6B1A] dark:text-[#FF6B1A]" />
-                              <span>İnce Ayarlar ve Hizalama</span>
-                            </div>
-                            <span className={`transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-0'}`}>
-                              <ChevronDown className="w-4 h-4 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]" />
-                            </span>
-                          </button>
-
-                          {isExpanded && (
-                            <div className="space-y-3.5 pt-3 border-t border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)]/80 mt-1 animate-fade-in">
-                              <div className="flex justify-between items-center text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-semibold">
-                                <span className="font-bold uppercase tracking-wider">Hizalama Komutları</span>
-                                <button
-                                  onClick={() => {
-                                    updateActiveImageProp(r.id, 'scale', 1.0);
-                                    updateActiveImageProp(r.id, 'offsetX', 0);
-                                    updateActiveImageProp(r.id, 'offsetY', 0);
-                                    updateActiveImageProp(r.id, 'rotation', 0);
-                                  }}
-                                  className="text-[#FF6B1A] hover:text-[#FF6B1A] font-bold flex items-center space-x-1 transition"
-                                >
-                                  <RotateCcw className="w-3 h-3" />
-                                  <span>Pozisyonu Sıfırla</span>
-                                </button>
-                              </div>
-
-                              {/* Mouse with Image adjustment toggle */}
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (editingImageRegionId === r.id) {
-                                    setEditingImageRegionId(null);
-                                  } else {
-                                    setEditingImageRegionId(r.id);
-                                    setSelectedNodeId(r.id);
-                                  }
-                                }}
-                                className={`w-full py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center space-x-2 border transition cursor-pointer ${
-                                  editingImageRegionId === r.id
-                                    ? 'bg-[#34C759] border-[#34C759] text-[rgba(255,255,255,0.95)] shadow-lg shadow-[rgba(52,199,89,0.2)] dark:shadow-[rgba(52,199,89,0.2)]/30'
-                                    : 'bg-[#252528] dark:bg-[#2C2C2E]/20 border-[#FF6B1A] dark:border-[#FF6B1A]/50 hover:bg-[#303033] dark:hover:bg-[#2C2C2E]/40 text-[#FF6B1A] dark:text-[#FF6B1A]'
-                                }`}
-                              >
-                                <MousePointer className={`w-3.5 h-3.5 ${editingImageRegionId === r.id ? 'animate-pulse' : ''}`} />
-                                <span>
-                                  {editingImageRegionId === r.id ? 'Mouse Düzenleme Aktif (Kapat)' : 'Görseli Mouse ile Sürükle ve Ölçekle'}
-                                </span>
-                              </button>
-
-                              {/* Maske Sınırı Toggle */}
-                              <div className="flex items-center justify-between bg-[#1D1D1F] dark:bg-[#252528] p-2.5 rounded-lg border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]">
-                                <div>
-                                  <span className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] block">Sınır Maskesi (Kırpma)</span>
-                                  <span className="text-[10px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] block leading-tight">Görselin katman kutusuna sığmasını kısıtlar.</span>
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleRegionPropertyChange(r.id, 'clipImage', r.clipImage !== false ? false : true);
-                                  }}
-                                  className={`px-2.5 py-1 rounded text-[10px] font-extrabold border transition cursor-pointer shrink-0 ${
-                                    r.clipImage !== false
-                                      ? 'bg-[#252528] dark:bg-[#2C2C2E]/30 border-[#FF6B1A] dark:border-[#FF6B1A]/50 text-[#FF6B1A] dark:text-[#FF6B1A]'
-                                      : 'bg-[#252528] dark:bg-[#252528]/30 border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)]/50 text-[#34C759] dark:text-[#34C759]'
-                                  }`}
-                                >
-                                  {r.clipImage !== false ? 'Maskeli' : 'Serbest'}
-                                </button>
-                              </div>
-
-                              {/* Scale / Zoom slider */}
-                              <div>
-                                <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
-                                  <span>Ölçek (Yakınlaştır / Uzaklaştır)</span>
-                                  <span className="font-mono text-[#FF6B1A] dark:text-[#FF6B1A] font-bold">{(imgData.scale || 1.0).toFixed(2)}x</span>
-                                </div>
-                                <input
-                                  type="range"
-                                  min={0.2}
-                                  max={4.0}
-                                  step={0.05}
-                                  value={imgData.scale || 1.0}
-                                  onChange={(e) => updateActiveImageProp(r.id, 'scale', parseFloat(e.target.value))}
-                                  className="w-full accent-[#FF6B1A] dark:accent-[#FF6B1A] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
-                                />
-                              </div>
-
-                              {/* Offset X / Horizontal Shift slider */}
-                              <div>
-                                <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
-                                  <span>Yatay Kaydırma (Sol - Sağ)</span>
-                                  <span className="font-mono text-[#FF6B1A] dark:text-[#FF6B1A] font-bold">{imgData.offsetX}px</span>
-                                </div>
-                                <input
-                                  type="range"
-                                  min={-1000}
-                                  max={1000}
-                                  value={imgData.offsetX}
-                                  onChange={(e) => updateActiveImageProp(r.id, 'offsetX', parseInt(e.target.value))}
-                                  className="w-full accent-[#FF6B1A] dark:accent-[#FF6B1A] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
-                                />
-                              </div>
-
-                              {/* Offset Y / Vertical Shift slider */}
-                              <div>
-                                <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
-                                  <span>Dikey Kaydırma (Yukarı - Aşağı)</span>
-                                  <span className="font-mono text-[#FF6B1A] dark:text-[#FF6B1A] font-bold">{imgData.offsetY}px</span>
-                                </div>
-                                <input
-                                  type="range"
-                                  min={-1000}
-                                  max={1000}
-                                  value={imgData.offsetY}
-                                  onChange={(e) => updateActiveImageProp(r.id, 'offsetY', parseInt(e.target.value))}
-                                  className="w-full accent-[#FF6B1A] dark:accent-[#FF6B1A] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
-                                />
-                              </div>
-
-                              {/* Rotate slider */}
-                              <div>
-                                <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium mb-1">
-                                  <span>Döndür (Açı)</span>
-                                  <span className="font-mono text-[#FF6B1A] dark:text-[#FF6B1A] font-bold">{imgData.rotation}°</span>
-                                </div>
-                                <input
-                                  type="range"
-                                  min={-180}
-                                  max={180}
-                                  value={imgData.rotation}
-                                  onChange={(e) => updateActiveImageProp(r.id, 'rotation', parseInt(e.target.value))}
-                                  className="w-full accent-[#FF6B1A] dark:accent-[#FF6B1A] cursor-pointer h-1 bg-[#252528] dark:bg-[#2C2C2E] rounded-lg appearance-none"
-                                />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* MIDDLE COLUMN: LIVE CANVAS PREVIEW STAGE */}
-        <div id="canvas-stage" className={`flex-1 clay-inset dark:bg-[#1D1D1F]/50 mx-2 mb-2 flex flex-col items-center justify-between p-3 sm:p-4 lg:p-6 relative overflow-hidden h-full ${mobileView === 'canvas' ? 'flex' : 'hidden lg:flex'}`}>
-          
+        {/* 1. LEFT TOOL DRAWER (56px rail + 320px collapsible drawer) */}
+        <LeftToolDrawer
+          activeTab={leftDrawerTab}
+          onSelectTab={setLeftDrawerTab}
+          templates={templates}
+          currentTemplateId={currentTemplateId}
+          onSelectTemplate={(id) => {
+            setCurrentTemplateId(id);
+            setSelectedNodeId(null);
+          }}
+          onDuplicateTemplate={handleDuplicateTemplate}
+          onRenameTemplate={(id, newName) => {
+            setTemplates(prev => prev.map(t => t.id === id ? { ...t, name: newName } : t));
+          }}
+          onDeleteTemplate={(id) => deleteTemplate(id)}
+          onAddNewRegion={(type, textRole) => addNewRegion(type, textRole)}
+          onAddNewFixedElement={(type) => addNewFixedElement(type)}
+          uploadedImages={getUniqueUploadedImages()}
+          onUploadMedia={handleMediaUpload}
+          onSelectMediaImage={(url) => {
+            if (selectedNodeId) {
+              updateActiveImageProp(selectedNodeId, 'url', url);
+            }
+          }}
+          onOpenYouTubeModal={() => setIsToolsModalOpen(true)}
+          regions={editingTemplate.regions || []}
+          fixedElements={editingTemplate.fixedElements || []}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={(id) => setSelectedNodeId(id)}
+          onToggleNodeVisibility={(id) => toggleElementVisibility(id)}
+          onToggleNodeLock={(id) => handleToggleLock(id)}
+          onDeleteNode={(id) => deleteElement(id)}
+          onReorderRegions={(from, to) => moveRegionInList(from, to)}
+          hiddenElementIds={activePageData.hiddenElements || activeGraphicData.hiddenElements || []}
+          onGenerateAiBrief={(brief) => {
+            setAiCollageBrief(brief);
+            setTimeout(() => triggerAiGenerator(), 50);
+          }}
+          isAiLoading={!!aiRequestRef.current || isAiLoading}
+        />
+
+        {/* 2. CENTER STAGE: LARGE SINGLE-PAGE CANVAS + BOTTOM FILMSTRIP */}
+        <div id="canvas-stage" className="flex-1 flex flex-col items-center justify-between min-w-0 h-full relative overflow-hidden bg-[#18181A]">
           {/* Top Info Bar */}
-          <div className="w-full max-w-2xl clay-card dark:bg-[#252528] dark:border-[rgba(255,255,255,0.08)] px-4 py-2 mb-4 flex items-center justify-between text-xs font-semibold z-10 shrink-0 border-0">
+          <div className="w-full max-w-2xl px-4 py-2 mt-2 flex items-center justify-between text-xs font-semibold z-10 shrink-0 bg-[#252528]/80 backdrop-blur rounded-2xl border border-[rgba(255,255,255,0.08)]">
             <div className="flex items-center space-x-2">
-              <span className="w-2 h-2 bg-[#FF6B1A] dark:bg-[#FF6B1A] rounded-full animate-pulse" />
-              <span className="text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-bold">Önizleme</span>
-              <span className="text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]">|</span>
-              <span className="text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-bold font-mono">{currentTemplate.width} × {currentTemplate.height} px</span>
+              <span className="w-2 h-2 bg-[#FF6B1A] rounded-full animate-pulse" />
+              <span className="text-[rgba(255,255,255,0.95)] font-bold">Önizleme</span>
+              <span className="text-[rgba(255,255,255,0.4)]">|</span>
+              <span className="text-[rgba(255,255,255,0.7)] font-mono">{currentTemplate.width} × {currentTemplate.height} px</span>
             </div>
 
-            <div className="flex items-center space-x-2 sm:space-x-3 text-[rgba(255,255,255,0.72)]">
-              {/* Geri Al (Undo) */}
-              <button
-                type="button"
-                disabled={undoStack.length === 0}
-                onClick={handleUndo}
-                className="clay-btn flex items-center space-x-1 px-2 py-1 sm:px-2.5 sm:py-1 transition cursor-pointer font-bold text-[11px] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.72)] disabled:opacity-40 disabled:cursor-not-allowed"
-                title="Geri Al (Ctrl+Z)"
-              >
-                <Undo2 className="w-3.5 h-3.5 text-[#FF6B1A] dark:text-[#FF6B1A]" />
-                <span className="hidden xs:inline">Geri Al</span>
-              </button>
-
-              {/* İleri Al (Redo) */}
-              <button
-                type="button"
-                disabled={redoStack.length === 0}
-                onClick={handleRedo}
-                className="clay-btn flex items-center space-x-1 px-2 py-1 sm:px-2.5 sm:py-1 transition cursor-pointer font-bold text-[11px] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.72)] disabled:opacity-40 disabled:cursor-not-allowed"
-                title="İleri Al (Ctrl+Y)"
-              >
-                <Redo2 className="w-3.5 h-3.5 text-[#FF6B1A] dark:text-[#FF6B1A]" />
-                <span className="hidden xs:inline">İleri Al</span>
-              </button>
-
-              <span className="text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hidden xs:inline">|</span>
-
+            <div className="flex items-center space-x-2 text-[rgba(255,255,255,0.7)]">
               {/* Grid Toggle */}
               <button
+                type="button"
                 onClick={() => setShowGrid(!showGrid)}
-                className={`flex items-center space-x-1.5 px-2 py-1 sm:px-3 sm:py-1 rounded-lg transition cursor-pointer font-bold text-[11px] shadow-sm ${
-                  showGrid ? 'bg-[#252528] dark:bg-[#252528]/60 border border-[#FF6B1A] dark:border-[#FF6B1A]/50 text-[#FF6B1A] dark:text-[#FF6B1A]' : 'bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)]'
+                className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer font-bold text-[11px] ${
+                  showGrid ? 'bg-[#FF6B1A]/20 border border-[#FF6B1A] text-[#FF6B1A]' : 'bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.7)] hover:text-white'
                 }`}
                 title="Kılavuz Çizgileri"
               >
-                <Grid className="w-3.5 h-3.5 text-[#FF6B1A]" />
-                <span className="hidden xs:inline">Kılavuz</span>
+                <Grid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Kılavuz</span>
               </button>
 
-              {/* Margin Toggle */}
+              {/* Safe Margin Toggle */}
               <button
+                type="button"
                 onClick={() => setShowSafeMargins(!showSafeMargins)}
-                className={`flex items-center space-x-1.5 px-2 py-1 sm:px-3 sm:py-1 rounded-lg transition cursor-pointer font-bold text-[11px] shadow-sm ${
-                  showSafeMargins ? 'bg-[#252528] dark:bg-[#252528]/60 border border-[#FF6B1A] dark:border-[#FF6B1A]/50 text-[#FF6B1A] dark:text-[#FF6B1A]' : 'bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80 text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)]'
+                className={`flex items-center space-x-1.5 px-2.5 py-1 rounded-lg transition cursor-pointer font-bold text-[11px] ${
+                  showSafeMargins ? 'bg-[#FF6B1A]/20 border border-[#FF6B1A] text-[#FF6B1A]' : 'bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.7)] hover:text-white'
                 }`}
                 title="Güvenli Baskı Alanı"
               >
-                <Info className="w-3.5 h-3.5 text-[#FF6B1A]" />
-                <span className="hidden xs:inline">Güvenli Alan</span>
+                <Info className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Güvenli Alan</span>
               </button>
             </div>
           </div>
 
-          {/* Canvas Wrapper Container with Scrollable Pages */}
-          <div 
+          {/* Canvas Viewport (Center Stage) */}
+          <div
             id="canvas-viewport"
-            className="flex-1 flex flex-col items-center w-full max-h-[calc(100dvh-180px)] sm:max-h-[calc(100dvh-200px)] my-2 sm:my-4 overflow-y-auto overflow-x-hidden p-4 sm:p-6 space-y-8 select-none scroll-smooth relative"
+            className="flex-1 flex flex-col items-center justify-center w-full min-h-0 p-4 sm:p-6 overflow-auto select-none relative"
           >
-            {/* The canvas background guide line grid for visual design style */}
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(0,0,0,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,0,0,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
+            {/* Canvas Background Grid */}
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
 
+            {/* Interactive image pan/zoom helper banner */}
             {editingImageRegionId && (
-              <div className="sticky top-0 z-30 w-full max-w-md bg-[#34C759] text-[rgba(255,255,255,0.95)] text-[11px] font-bold px-4 py-2.5 rounded-xl shadow-lg flex items-center justify-between space-x-3 border border-[#34C759] animate-fade-in shrink-0">
-                <div className="flex items-center space-x-2">
-                  <MousePointer className="w-3.5 h-3.5 animate-bounce" />
-                  <span>Görseli mouse ile sürükleyip kaydırın, tekerlek ile yakınlaştırın</span>
-                </div>
+              <div className="absolute top-4 z-30 bg-[#34C759] text-white text-[11px] font-bold px-4 py-2 rounded-xl shadow-lg flex items-center space-x-3 border border-[#34C759]">
+                <MousePointer className="w-3.5 h-3.5 animate-bounce" />
+                <span>Görseli mouse ile sürükleyip kaydırın, tekerlek ile yakınlaştırın</span>
                 <button
+                  type="button"
                   onClick={() => setEditingImageRegionId(null)}
-                  className="bg-[#34C759] hover:bg-[#34C759] text-[rgba(255,255,255,0.95)] px-2 py-0.5 rounded text-[10px] font-extrabold uppercase transition cursor-pointer"
+                  className="bg-black/30 hover:bg-black/50 text-white px-2 py-0.5 rounded text-[10px] font-extrabold uppercase transition cursor-pointer"
                 >
                   Tamam
                 </button>
               </div>
             )}
 
-            {/* List of Pages */}
-            {activeTab === 'phase1' ? (
-              // --- TEMPLATE EDIT MODE PAGES ---
-              (currentTemplate.pages || []).map((page, idx) => {
-                const isActive = activePageIndex === idx;
-                const baseWidth = Math.min(canvasWidth, 620);
-                const pageScale = zoomMode === 'fit' ? 1.0 : zoomScale;
-                const displayWidth = baseWidth * pageScale;
-                return (
-                  <div 
-                    key={page.id} 
-                    className="flex flex-col items-center space-y-2.5 w-full shrink-0"
-                    style={{ width: `${displayWidth}px`, maxWidth: 'none' }}
-                  >
-                    {/* Header with Page Info */}
-                    <div className="flex items-center justify-between w-full px-2">
-                      <span className="text-[11px] font-extrabold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider flex items-center space-x-1">
-                        <span className="w-2 h-2 rounded-full bg-[#FF6B1A] dark:bg-[#FF6B1A] animate-pulse"></span>
-                        <span>{idx + 1}. Sayfa: {page.name || 'İsimsiz Sayfa'}</span>
-                      </span>
-                      {isActive && (
-                        <div className="flex items-center space-x-2">
-                          {(() => {
-                            const p1Imgs = activeGraphicData.dynamicImages || {};
-                            const p1Regs = activeTemplatePage.regions || page.regions || [];
-                            const p1VideoReg = p1Regs.find(
-                              r => r.type === 'image' && p1Imgs[r.id]?.isVideo && (p1Imgs[r.id]?.videoUrl || p1Imgs[r.id]?.url)
-                            );
-                            if (!p1VideoReg) return null;
-                            return (
-                              <button
-                                type="button"
-                                onClick={() => setPlayingVideoRegionId(prev => prev ? null : p1VideoReg.id)}
-                                className={`text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center space-x-1 transition-all duration-200 cursor-pointer ${
-                                  playingVideoRegionId === p1VideoReg.id
-                                    ? 'bg-red-500 hover:bg-red-600 text-white'
-                                    : 'bg-gradient-to-r from-[#FF6B1A] to-[#34C759] hover:opacity-90 text-white shadow'
-                                }`}
-                              >
-                                <span>{playingVideoRegionId === p1VideoReg.id ? '⏸ Durdur' : '▶ Videoyu Oynat'}</span>
-                              </button>
-                            );
-                          })()}
-                          <span className="text-[10px] bg-[#FF6B1A] text-[rgba(255,255,255,0.95)] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                            Aktif Düzenleme
-                          </span>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Canvas Frame */}
-                    <div 
-                      className={`relative w-full p-1 bg-[#252528] dark:bg-[#252528]/50 border rounded-[16px] transition duration-200 ${
-                        isActive 
-                          ? 'border-[#FF6B1A] ring-4 ring-[#FF6B1A] dark:ring-[#FF6B1A]/30 shadow-[0_30px_60px_-15px_rgba(67,56,202,0.15)] dark:shadow-[0_30px_60px_-15px_rgba(0,0,0,0.5)]' 
-                          : 'border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] shadow-[0_20px_40px_-12px_rgba(0,0,0,0.08),0_4px_8px_-4px_rgba(0,0,0,0.04)] hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.12),0_10px_20px_-8px_rgba(0,0,0,0.06)]'
-                      }`}
-                      style={{ aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}` }}
-                    >
-                      {isActive ? (
-                        <div className="relative w-full h-full overflow-hidden rounded-lg">
-                          <canvas
-                            ref={canvasRef}
-                            onMouseDown={handleCanvasPointerDown}
-                            onMouseMove={handleCanvasPointerMove}
-                            onMouseUp={handleCanvasPointerUp}
-                            onMouseLeave={handleCanvasPointerUp}
-                            onTouchStart={handleCanvasPointerDown}
-                            onTouchMove={handleCanvasPointerMove}
-                            onTouchEnd={handleCanvasPointerUp}
-                            onDoubleClick={handleCanvasDoubleClick}
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}`,
-                              display: 'block',
-                              cursor: isDragging ? 'grabbing' : 'grab'
-                            }}
-                            className="bg-[#252528] dark:bg-[#1D1D1F] rounded-lg shadow-inner select-none touch-none"
-                          />
-                          <CanvasVideoOverlay
-                            templateWidth={currentTemplate.width}
-                            templateHeight={currentTemplate.height}
-                            displayWidth={displayWidth}
-                            regions={activeTemplatePage.regions || page.regions || []}
-                            dynamicImages={activeGraphicData.dynamicImages || {}}
-                            playingRegionId={playingVideoRegionId}
-                            onSetPlayingRegionId={setPlayingVideoRegionId}
-                            isMuted={isVideoMuted}
-                            onToggleMute={setIsVideoMuted}
-                          />
-                        </div>
-                      ) : (
-                        <StaticPageCanvas
-                          template={currentTemplate}
-                          page={page}
-                          activeTab="phase1"
-                          paletteOverrides={activeGraphicData.paletteOverrides}
-                          width={currentTemplate.width}
-                          height={currentTemplate.height}
-                          onClick={() => {
-                            setActivePageIndex(idx);
-                            setSelectedNodeId(null);
-                          }}
-                          isActive={false}
-                          pageIndex={idx}
-                          highlightColor={vurguColor}
-                        />
-                      )}
-                    </div>
-                  </div>
-                );
-              })
-            ) : (
-              // --- GENERATED POSTS MODE PAGES ---
-              generatedPages.length > 0 ? (
-                generatedPages.map((page, idx) => {
-                  const isActive = activeGeneratedPageIndex === idx;
-                  const pageDef = currentTemplate.pages?.find(p => p.id === page.templatePageId) || currentTemplate;
-                  const baseWidth = Math.min(canvasWidth, 620);
-                  const pageScale = zoomMode === 'fit' ? 1.0 : zoomScale;
-                  const displayWidth = baseWidth * pageScale;
-                  return (
-                    <div 
-                      key={page.id} 
-                      className="flex flex-col items-center space-y-2 w-full shrink-0"
-                      style={{ width: `${displayWidth}px`, maxWidth: 'none' }}
-                    >
-                      {/* Header with Page Info */}
-                      <div className="flex items-center justify-between w-full px-2">
-                        <span className="text-[11px] font-extrabold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider flex items-center space-x-1">
-                          <span className="w-2 h-2 rounded-full bg-[#34C759] animate-pulse"></span>
-                          <span>{page.name || `${idx + 1}. Sayfa`}</span>
-                        </span>
-                        {isActive && (
-                          <div className="flex items-center space-x-2">
-                            {(() => {
-                              const p2Imgs = activePageData.dynamicImages || {};
-                              const p2Regs = activeTemplatePage.regions || pageDef.regions || [];
-                              const p2VideoReg = p2Regs.find(
-                                r => r.type === 'image' && p2Imgs[r.id]?.isVideo && (p2Imgs[r.id]?.videoUrl || p2Imgs[r.id]?.url)
-                              );
-                              if (!p2VideoReg) return null;
-                              return (
-                                <button
-                                  type="button"
-                                  onClick={() => setPlayingVideoRegionId(prev => prev ? null : p2VideoReg.id)}
-                                  className={`text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm flex items-center space-x-1 transition-all duration-200 cursor-pointer ${
-                                    playingVideoRegionId === p2VideoReg.id
-                                      ? 'bg-red-500 hover:bg-red-600 text-white'
-                                      : 'bg-gradient-to-r from-[#FF6B1A] to-[#34C759] hover:opacity-90 text-white shadow'
-                                  }`}
-                                >
-                                  <span>{playingVideoRegionId === p2VideoReg.id ? '⏸ Durdur' : '▶ Videoyu Oynat'}</span>
-                                </button>
-                              );
-                            })()}
-                            <span className="text-[10px] bg-[#34C759] text-[rgba(255,255,255,0.95)] font-bold px-2 py-0.5 rounded-full shadow-sm">
-                              Aktif Düzenleme
-                            </span>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Canvas Frame */}
-                      <div 
-                        className={`relative w-full p-1 bg-[#252528] dark:bg-[#252528]/50 border rounded-xl shadow-lg transition duration-200 ${
-                          isActive 
-                            ? 'border-[#34C759] ring-4 ring-[#34C759] dark:ring-[#34C759]/30 shadow-[rgba(52,199,89,0.2)]/50 dark:shadow-[0_10px_30px_-5px_rgba(0,0,0,0.5)]' 
-                            : 'border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)] hover:shadow-xl'
-                        }`}
-                        style={{ aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}` }}
-                      >
-                        {isActive ? (
-                          <div className="relative w-full h-full overflow-hidden rounded-lg">
-                            <canvas
-                              ref={canvasRef}
-                              onMouseDown={handleCanvasPointerDown}
-                              onMouseMove={handleCanvasPointerMove}
-                              onMouseUp={handleCanvasPointerUp}
-                              onMouseLeave={handleCanvasPointerUp}
-                              onTouchStart={handleCanvasPointerDown}
-                              onTouchMove={handleCanvasPointerMove}
-                              onTouchEnd={handleCanvasPointerUp}
-                              onDoubleClick={handleCanvasDoubleClick}
-                              style={{
-                                width: '100%',
-                                height: '100%',
-                                aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}`,
-                                display: 'block',
-                                cursor: isDragging ? 'grabbing' : 'grab'
-                              }}
-                              className="bg-[#252528] rounded-lg shadow-inner select-none touch-none"
-                            />
-                            <CanvasVideoOverlay
-                              templateWidth={currentTemplate.width}
-                              templateHeight={currentTemplate.height}
-                              displayWidth={displayWidth}
-                              regions={activeTemplatePage.regions || pageDef.regions || []}
-                              dynamicImages={activePageData.dynamicImages || {}}
-                              playingRegionId={playingVideoRegionId}
-                              onSetPlayingRegionId={setPlayingVideoRegionId}
-                              isMuted={isVideoMuted}
-                              onToggleMute={setIsVideoMuted}
-                            />
-                          </div>
-                        ) : (
-                          <StaticPageCanvas
-                            template={currentTemplate}
-                            page={{
-                              ...page,
-                              regions: pageDef.regions,
-                              fixedElements: pageDef.fixedElements
-                            }}
-                            activeTab="phase2"
-                            paletteOverrides={activeGraphicData.paletteOverrides}
-                            width={currentTemplate.width}
-                            height={currentTemplate.height}
-                            onClick={() => {
-                              setActiveGeneratedPageIndex(idx);
-                              setSelectedNodeId(null);
-                            }}
-                            isActive={false}
-                            pageIndex={idx}
-                            highlightColor={vurguColor}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              ) : (
-                <div className="flex flex-col items-center gap-3 shrink-0" style={{width: Math.min(canvasWidth, 620) * (zoomMode === 'fit' ? 1 : zoomScale)}}>
-                  <div className="workspace-page-caption"><span>01 / Kapak</span><span>{currentTemplate.name}</span></div>
-                  <div className="relative w-full" style={{aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}`}}>
-                    <canvas ref={canvasRef} onMouseDown={handleCanvasPointerDown} onMouseMove={handleCanvasPointerMove} onMouseUp={handleCanvasPointerUp} onMouseLeave={handleCanvasPointerUp} onTouchStart={handleCanvasPointerDown} onTouchMove={handleCanvasPointerMove} onTouchEnd={handleCanvasPointerUp} onDoubleClick={handleCanvasDoubleClick} className="w-full h-full touch-none" aria-label="Aktif tasarım önizlemesi"/>
-                    <CanvasVideoOverlay templateWidth={currentTemplate.width} templateHeight={currentTemplate.height} displayWidth={Math.min(canvasWidth, 620)} regions={editingTemplate.regions} dynamicImages={activeGraphicData.dynamicImages} playingRegionId={playingVideoRegionId} onSetPlayingRegionId={setPlayingVideoRegionId} isMuted={isVideoMuted} onToggleMute={setIsVideoMuted}/>
-                  </div>
-                </div>
-              )
-            )}
-          </div>
-
-          {/* FLOATING ZOOM AND PAN CONTROLS */}
-          <div className="workspace-zoom absolute bottom-16 right-4 sm:bottom-6 sm:right-6 bg-[#252528]/95 dark:bg-[#2C2C2E]/95 backdrop-blur border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shadow-xl rounded-full p-1.5 flex items-center space-x-1 z-20">
-            {/* Zoom Out */}
-            <button
-              onClick={() => {
-                if (zoomMode === 'fit') {
-                  setZoomMode('custom');
-                  setZoomScale(0.9);
-                  setPanOffset({ x: 0, y: 0 });
-                } else {
-                  setZoomScale(prev => Math.max(0.1, parseFloat((prev - 0.05).toFixed(2))));
-                }
+            {/* The Single Active Canvas */}
+            <div 
+              className="relative max-w-full max-h-full flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden border border-[rgba(255,255,255,0.1)] transition-all duration-300"
+              style={{
+                aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}`,
+                width: zoomMode === 'fit' ? 'auto' : `${Math.min(canvasWidth, 720) * zoomScale}px`,
+                height: zoomMode === 'fit' ? '100%' : 'auto',
+                maxHeight: '100%'
               }}
-              className="p-1.5 hover:bg-[#252528] dark:hover:bg-[#2C2C2E] rounded-full text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)] transition cursor-pointer"
-              title="Uzaklaştır"
             >
-              <Minus className="w-4 h-4" />
-            </button>
+              <canvas
+                ref={canvasRef}
+                onMouseDown={handleCanvasPointerDown}
+                onMouseMove={handleCanvasPointerMove}
+                onMouseUp={handleCanvasPointerUp}
+                onMouseLeave={handleCanvasPointerUp}
+                onTouchStart={handleCanvasPointerDown}
+                onTouchMove={handleCanvasPointerMove}
+                onTouchEnd={handleCanvasPointerUp}
+                onDoubleClick={handleCanvasDoubleClick}
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}`,
+                  display: 'block',
+                  cursor: isDragging ? 'grabbing' : 'grab'
+                }}
+                className="bg-[#252528] rounded-xl select-none touch-none object-contain"
+                aria-label="Aktif tasarım tuvali"
+              />
 
-            {/* Current Zoom Indicator */}
-            <span className="text-[11px] font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] min-w-[45px] text-center font-mono">
-              {zoomMode === 'fit' ? 'Sığdır' : `${Math.round(zoomScale * 100)}%`}
-            </span>
-
-            {/* Zoom In */}
-            <button
-              onClick={() => {
-                if (zoomMode === 'fit') {
-                  setZoomMode('custom');
-                  setZoomScale(1.1);
-                  setPanOffset({ x: 0, y: 0 });
-                } else {
-                  setZoomScale(prev => Math.min(3.0, parseFloat((prev + 0.05).toFixed(2))));
-                }
-              }}
-              className="p-1.5 hover:bg-[#252528] dark:hover:bg-[#2C2C2E] rounded-full text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)] transition cursor-pointer"
-              title="Yakınlaştır"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-
-            <div className="w-px h-4 bg-[#2C2C2E] dark:bg-[#2C2C2E] mx-1" />
-
-            {/* Fit Screen / Reset */}
-            <button
-              onClick={() => {
-                setZoomMode('fit');
-                setPanOffset({ x: 0, y: 0 });
-              }}
-              className={`p-1.5 rounded-full transition cursor-pointer ${
-                zoomMode === 'fit'
-                  ? 'bg-[#252528] dark:bg-[#2C2C2E]/30 text-[#FF6B1A] dark:text-[#FF6B1A] font-bold'
-                  : 'text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:bg-[#252528] dark:hover:bg-[#2C2C2E] hover:text-[rgba(255,255,255,0.95)] dark:hover:text-[rgba(255,255,255,0.95)]'
-              }`}
-              title="Ekrana Sığdır"
-            >
-              <Maximize2 className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Bottom Info Status bar */}
-          <div className="w-full max-w-xl text-center text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-medium text-[10px] sm:text-[11px] leading-relaxed select-none pb-2 shrink-0">
-            Tuvalde bir öğeye tıklayarak seçin.
-            Görseli çift tıklayarak kadrajını düzenleyin.
-          </div>
-        </div>
-
-        {/* RIGHT COLUMN: QUICK ASSETS & EXPORT */}
-        <div id="export-assets-bar" className={`w-full lg:w-[320px] clay-card dark:bg-[#252528] dark:border-[rgba(255,255,255,0.08)] border-0 lg:mb-2 lg:ml-2 lg:mr-2 p-4 sm:p-5 flex flex-col justify-between overflow-y-auto shrink-0 z-20 ${mobileView === 'export' ? 'flex' : 'hidden lg:flex'}`}>
-          
-          <div className="space-y-6">
-            <div className="space-y-3.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wider block">SAYFALAR</span>
-                {generatedPages.length > 0 && (
-                  <span className="text-[9.5px] font-extrabold text-[#FF6B1A] dark:text-[#FF6B1A] bg-[#252528] dark:bg-[#2C2C2E]/30 px-2 py-0.5 rounded-full">
-                    {generatedPages.length} Sayfa Hazır
-                  </span>
-                )}
-              </div>
-
-              {generatedPages.length > 0 ? (
-                <div className="space-y-2.5 max-h-[320px] overflow-y-auto pr-1">
-                  {generatedPages.map((page, idx) => {
-                    const isActive = activeGeneratedPageIndex === idx;
-                    const pageDef = currentTemplate.pages?.find(p => p.id === page.templatePageId) || currentTemplate;
-                    
-                    // Check if all image regions are filled
-                    const imageRegions = pageDef.regions?.filter(r => r.type === 'image') || [];
-                    const filledImages = imageRegions.filter(r => {
-                      const imgObj = page.dynamicImages[r.id];
-                      return imgObj && !!imgObj.url;
-                    }).length;
-                    const isFullyFilled = filledImages === imageRegions.length;
-
-                    return (
-                      <div
-                        key={page.id}
-                        onClick={() => {
-                          setActiveGeneratedPageIndex(idx);
-                          setSelectedNodeId(null);
-                        }}
-                        className={`group p-3 rounded-xl border transition-all cursor-pointer flex items-center justify-between relative overflow-hidden ${
-                          isActive
-                            ? 'bg-[#252528]/50 dark:bg-[#252528]/60 border-[#FF6B1A] dark:border-[#FF6B1A]/50 shadow-sm ring-1 ring-[#FF6B1A] dark:ring-[#FF6B1A]/50'
-                            : 'bg-[#1D1D1F]/50 dark:bg-[#1D1D1F] border-[rgba(255,255,255,0.08)]/80 dark:border-[rgba(255,255,255,0.08)] hover:bg-[#252528]/50 dark:hover:bg-[#3A3A3C]/50 hover:border-[rgba(255,255,255,0.08)] dark:hover:border-[rgba(255,255,255,0.08)]'
-                        }`}
-                      >
-                        <div className="flex items-center space-x-3 min-w-0">
-                          {/* Mini Number Badge */}
-                          <div className={`w-6 h-6 rounded-lg text-xs font-bold flex items-center justify-center shrink-0 shadow-sm transition-colors ${
-                            isActive
-                              ? 'bg-[#FF6B1A] dark:bg-[#FF6B1A] text-[rgba(255,255,255,0.95)]'
-                              : 'bg-[#2C2C2E] dark:bg-[#3A3A3C] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)]'
-                          }`}>
-                            {idx + 1}
-                          </div>
-
-                          <div className="min-w-0">
-                            <span className="text-xs font-bold text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] truncate block">
-                              {page.name || `${idx + 1}. Sayfa`}
-                            </span>
-                            <div className="flex items-center space-x-2 mt-0.5">
-                              {/* Fill status */}
-                              {imageRegions.length > 0 ? (
-                                <span className={`text-[9.5px] font-bold ${isFullyFilled ? 'text-[#34C759] dark:text-[#34C759] font-extrabold' : 'text-[#FF9F0A] dark:text-[#FF9F0A]'}`}>
-                                  {filledImages}/{imageRegions.length} Görsel
-                                </span>
-                              ) : (
-                                <span className="text-[9.5px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-semibold">Sadece Metin</span>
-                              )}
-                              <span className="w-1 h-1 rounded-full bg-[#303033] dark:bg-[#3A3A3C]" />
-                              <span className="text-[9.5px] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] truncate max-w-[90px] font-medium font-mono">
-                                {currentTemplate.width} × {currentTemplate.height}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Action buttons (Direct Single Export) */}
-                        <div className="flex items-center space-x-1.5 shrink-0" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              // Directly call the single high-res exporter
-                              exportSingleHighResPage(page, idx);
-                            }}
-                            className="p-1.5 rounded-lg bg-[#252528] dark:bg-[#3A3A3C] border border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:text-[#FF6B1A] dark:hover:text-[#FF6B1A] hover:border-[#FF6B1A] dark:hover:border-[#FF6B1A]/50 hover:bg-[#252528]/50 dark:hover:bg-[#252528]/60 transition cursor-pointer shadow-sm group-hover:scale-105"
-                            title="Sadece bu sayfayı yüksek çözünürlükte indir"
-                          >
-                            <Download className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="workspace-active-page">
-                  <TemplateThumbnail template={editingTemplate} data={activeTab === 'phase1' ? undefined : activeGraphicData}/>
-                  <div><strong>{activeTab === 'phase1' ? `${activePageIndex + 1} · ${activeTemplatePage.name}` : '01 · Kapak'}</strong><span>{currentTemplate.width} × {currentTemplate.height} px</span></div>
-                  <Check size={15}/>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* PRINT & EXPORT PANEL */}
-          <div className="pt-6 border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] space-y-5">
-            
-            <div className="space-y-4">
-              <span className="text-[10px] font-medium text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] uppercase tracking-wide block px-1">Çıktı Ayarları</span>
-              
-              {/* Output format selectors (PNG, JPEG, WebP) */}
-              <div className="grid grid-cols-3 gap-1.5">
-                <button
-                  onClick={() => setExportFormat('png')}
-                  className={`py-2 rounded-[12px] text-[11px] font-medium border transition-all cursor-pointer ${
-                    exportFormat === 'png'
-                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] text-[#FF6B1A] font-bold'
-                      : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F]'
-                  }`}
-                >
-                  PNG (Kayıpsız)
-                </button>
-                <button
-                  onClick={() => setExportFormat('jpeg')}
-                  className={`py-2 rounded-[12px] text-[11px] font-medium border transition-all cursor-pointer ${
-                    exportFormat === 'jpeg'
-                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] text-[#FF6B1A] font-bold'
-                      : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F]'
-                  }`}
-                >
-                  JPEG (Optimize)
-                </button>
-                <button
-                  onClick={() => setExportFormat('webp')}
-                  className={`py-2 rounded-[12px] text-[11px] font-medium border transition-all cursor-pointer ${
-                    exportFormat === 'webp'
-                      ? 'bg-[#252528] dark:bg-[#252528]/60 border-[rgba(255,255,255,0.08)] text-[#FF6B1A] font-bold'
-                      : 'bg-[#252528] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.95)] hover:bg-[#1D1D1F]'
-                  }`}
-                >
-                  WebP (Ultra)
-                </button>
-              </div>
-
-              {/* Scale DPI multipliers (1x, 1.5x, 2x, 4x Ultra-HD) */}
-              <div className="space-y-2">
-                <div className="flex justify-between text-[10px] text-[rgba(255,255,255,0.72)] px-1">
-                  <span>Çözünürlük & Tahmini Boyut</span>
-                  <span className="font-mono text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)]">
-                    {Math.round(currentTemplate.width * exportScale)} × {Math.round(currentTemplate.height * exportScale)} px · ~{Math.max(
-                      0.2,
-                      Number(((currentTemplate.width * currentTemplate.height * exportScale * exportScale * (exportFormat === 'png' ? 3.2 : exportFormat === 'webp' ? 0.9 : 1.5)) / (1024 * 1024)).toFixed(1))
-                    )} MB
-                  </span>
-                </div>
-                <div className="grid grid-cols-4 gap-1">
-                  {[
-                    { label: '1x Web', val: 1.0 },
-                    { label: '1.5x HD', val: 1.5 },
-                    { label: '2x Retina', val: 2.0 },
-                    { label: '4x Ultra-HD', val: 4.0 },
-                  ].map(sc => (
-                    <button
-                      key={sc.val}
-                      onClick={() => setExportScale(sc.val)}
-                      className={`py-1.5 rounded-[10px] text-[9.5px] border transition-all cursor-pointer ${
-                        exportScale === sc.val
-                          ? 'bg-[#252528] border-[rgba(255,255,255,0.08)] dark:bg-[#FF6B1A] dark:border-[#FF6B1A] text-[rgba(255,255,255,0.95)] font-bold'
-                          : 'bg-[#1D1D1F] dark:bg-[#3A3A3C] border-[rgba(255,255,255,0.08)]/60 dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] hover:bg-[#1D1D1F] dark:hover:bg-[#3A3A3C]/80'
-                      }`}
-                    >
-                      {sc.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <CanvasVideoOverlay
+                templateWidth={currentTemplate.width}
+                templateHeight={currentTemplate.height}
+                displayWidth={Math.min(canvasWidth, 720)}
+                regions={activeTemplatePage.regions || editingTemplate.regions || []}
+                dynamicImages={activePageData.dynamicImages || {}}
+                playingRegionId={playingVideoRegionId}
+                onSetPlayingRegionId={setPlayingVideoRegionId}
+                isMuted={isVideoMuted}
+                onToggleMute={setIsVideoMuted}
+              />
             </div>
 
-            {/* Core download action */}
-            <div className="space-y-2.5">
+            {/* Floating Zoom & Pan Controls */}
+            <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 bg-[#252528]/95 backdrop-blur border border-[rgba(255,255,255,0.1)] shadow-2xl rounded-full p-1.5 flex items-center space-x-1 z-20">
               <button
-                onClick={exportHighResGraphic}
-                disabled={isExporting || isExportingZip}
-                className="w-full flex items-center justify-center space-x-2 py-3 rounded-[14px] bg-[#1D1D1F] hover:bg-[#252528] dark:bg-[#FF6B1A] dark:hover:bg-[#FF6B1A] text-[rgba(255,255,255,0.95)] text-[13px] font-medium shadow-[0_4px_14px_rgba(0,0,0,0.1)] dark:shadow-[rgba(255,107,26,0.2)]/20 transition-all cursor-pointer disabled:opacity-50"
+                type="button"
+                onClick={() => {
+                  if (zoomMode === 'fit') {
+                    setZoomMode('custom');
+                    setZoomScale(0.9);
+                    setPanOffset({ x: 0, y: 0 });
+                  } else {
+                    setZoomScale(prev => Math.max(0.1, parseFloat((prev - 0.05).toFixed(2))));
+                  }
+                }}
+                className="p-1.5 hover:bg-[#1D1D1F] rounded-full text-[rgba(255,255,255,0.7)] hover:text-white transition cursor-pointer"
+                title="Uzaklaştır"
               >
-                {isExporting ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-[rgba(255,255,255,0.08)] border-t-white rounded-full animate-spin"></span>
-                    <span>İşleniyor...</span>
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4" />
-                    <span>{generatedPages.length > 0 ? 'Tüm Sayfaları İndir' : 'Görseli İndir'}</span>
-                  </>
-                )}
+                <Minus className="w-4 h-4" />
               </button>
 
-              {generatedPages.length > 0 && (
-                <button
-                  onClick={exportHighResZip}
-                  disabled={isExporting || isExportingZip}
-                  className="w-full flex items-center justify-center space-x-2 py-3 rounded-[14px] bg-[#1D1D1F] hover:bg-[#1D1D1F] border border-[rgba(255,255,255,0.08)] dark:bg-[#3A3A3C] dark:hover:bg-[#3A3A3C]/80 dark:border-[rgba(255,255,255,0.08)] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] text-[13px] font-medium shadow-sm transition-all cursor-pointer disabled:opacity-50"
-                >
-                  {isExportingZip ? (
-                    <>
-                      <span className="w-4 h-4 border-2 border-[rgba(255,255,255,0.08)] border-t-slate-600 rounded-full animate-spin"></span>
-                      <span className="truncate">{exportStatusText || 'Arşivleniyor...'}</span>
-                    </>
-                  ) : (
-                    <>
-                      <FolderArchive className="w-4 h-4 text-[rgba(255,255,255,0.72)]" />
-                      <span>ZIP Olarak İndir</span>
-                    </>
-                  )}
-                </button>
-              )}
+              <span className="text-[11px] font-bold text-white min-w-[45px] text-center font-mono">
+                {zoomMode === 'fit' ? 'Sığdır' : `${Math.round(zoomScale * 100)}%`}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => {
+                  if (zoomMode === 'fit') {
+                    setZoomMode('custom');
+                    setZoomScale(1.1);
+                    setPanOffset({ x: 0, y: 0 });
+                  } else {
+                    setZoomScale(prev => Math.min(3.0, parseFloat((prev + 0.05).toFixed(2))));
+                  }
+                }}
+                className="p-1.5 hover:bg-[#1D1D1F] rounded-full text-[rgba(255,255,255,0.7)] hover:text-white transition cursor-pointer"
+                title="Yakınlaştır"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+
+              <div className="w-px h-4 bg-[rgba(255,255,255,0.1)] mx-1" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  setZoomMode('fit');
+                  setPanOffset({ x: 0, y: 0 });
+                }}
+                className={`p-1.5 rounded-full transition cursor-pointer ${
+                  zoomMode === 'fit' ? 'bg-[#FF6B1A]/20 text-[#FF6B1A]' : 'text-[rgba(255,255,255,0.7)] hover:text-white'
+                }`}
+                title="Ekrana Sığdır"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          {exportFiles.length > 0 && <section className="workspace-export-results" aria-label="Hazırlanan dosyalar">
-            <p role="status"><CheckCircle2 size={15}/>{exportFiles.length} dosya hazır</p>
-            <span>İndirme başlamadıysa dosyaya tıklayın.</span>
-            {exportFiles.map(file => <div key={file.url}>{file.type.startsWith('image/') && <img className="export-result-preview" src={file.url} alt={file.name + ' çıktı önizlemesi'}/>}<a href={file.url} download={file.name}><Download size={14}/><span>{file.name}</span></a></div>)}
-          </section>}
-
-          {/* Minimalist Footer Signature */}
-          <div className="pt-4 text-center border-t border-[rgba(255,255,255,0.08)] dark:border-[rgba(255,255,255,0.08)] shrink-0">
-            <span className="text-[9px] font-bold text-[rgba(255,255,255,0.72)] dark:text-[rgba(255,255,255,0.72)] font-mono tracking-widest uppercase">
-              GRAFİK OTOMASYON MOTORU © 2026
-            </span>
-          </div>
-
+          {/* Bottom Filmstrip */}
+          <PageFilmstrip
+            pages={
+              generatedPages.length > 0
+                ? generatedPages.map((p, i) => ({ id: p.id, name: p.name || `${i + 1}. Sayfa` }))
+                : (currentTemplate.pages && currentTemplate.pages.length > 0
+                    ? currentTemplate.pages.map((p, i) => ({ id: p.id, name: p.name || `${i + 1}. Sayfa` }))
+                    : [{ id: '1', name: 'Kapak Sayfası' }])
+            }
+            activePageIndex={generatedPages.length > 0 ? activeGeneratedPageIndex : activePageIndex}
+            onSelectPage={(index) => {
+              if (generatedPages.length > 0) {
+                setActiveGeneratedPageIndex(index);
+              } else {
+                setActivePageIndex(index);
+              }
+              setSelectedNodeId(null);
+            }}
+            onAddPage={handleAddNewPage}
+            onDuplicatePage={handleDuplicatePage}
+            onDeletePage={handleDeletePage}
+            onReorderPages={handleReorderPages}
+            aspectRatio={`${currentTemplate.width} / ${currentTemplate.height}`}
+          />
         </div>
+
+        {/* 3. RIGHT CONTEXTUAL INSPECTOR PANEL */}
+        <RightInspectorPanel
+          selectedNodeId={selectedNodeId}
+          regions={editingTemplate.regions || []}
+          fixedElements={editingTemplate.fixedElements || []}
+          activeGraphicData={activeGraphicData}
+          activePageData={activePageData}
+          editingTemplate={editingTemplate}
+          currentTemplate={currentTemplate}
+          vurguColor={vurguColor}
+          onCloseSelection={() => setSelectedNodeId(null)}
+          handleDynamicTextChange={(regionId, text) => updateActiveText(regionId, text)}
+          handleRegionTextStyleChange={handleRegionTextStyleChange}
+          handleDynamicImageUpload={(regionId, file) => handleDynamicImageUpload(regionId, file)}
+          handleCropPanTrigger={handleCropPanTrigger}
+          handleImageScaleChange={handleImageScaleChange}
+          handleImageRotate90={handleImageRotate90}
+          handleFixedElementChange={handleFixedElementChange}
+          handleDeleteNode={handleDeleteNode}
+          handleDuplicateNode={handleDuplicateNode}
+          handleToggleLock={handleToggleLock}
+          onAiGenerateForField={(regionId) => triggerAiGenerator(regionId)}
+          isAiLoading={!!aiRequestRef.current || isAiLoading}
+          onVurguColorChange={(color) => setVurguColor(color)}
+        />
+
+        {/* 4. INDEPENDENT EXPORT MODAL */}
+        <ExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          template={currentTemplate}
+          pageCount={generatedPages.length > 0 ? generatedPages.length : (currentTemplate.pages?.length || 1)}
+          activePageIndex={generatedPages.length > 0 ? activeGeneratedPageIndex : activePageIndex}
+          onExportCurrent={async (fmt, sc) => {
+            setExportFormat(fmt);
+            setExportScale(sc);
+            if (generatedPages.length > 0) {
+              exportSingleHighResPage(generatedPages[activeGeneratedPageIndex], activeGeneratedPageIndex);
+            } else {
+              exportHighResGraphic();
+            }
+          }}
+          onExportAll={async (fmt, sc) => {
+            setExportFormat(fmt);
+            setExportScale(sc);
+            exportHighResGraphic();
+          }}
+          onExportZip={async (fmt, sc) => {
+            setExportFormat(fmt);
+            setExportScale(sc);
+            exportHighResZip();
+          }}
+          isExporting={isExporting}
+          isExportingZip={isExportingZip}
+          exportStatusText={exportStatusText || ''}
+        />
 
         {/* Floating Export Progress Toast */}
         {(isExporting || isExportingZip) && exportStatusText && (

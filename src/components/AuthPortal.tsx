@@ -8,7 +8,8 @@ import {
   resendVerificationEmail, 
   reloadCurrentUser, 
   sendResetPassword,
-  getAuthErrorMessage 
+  getAuthErrorMessage,
+  auth
 } from '../lib/firebase';
 
 interface AuthPortalProps {
@@ -58,6 +59,16 @@ export function AuthPortal({ onBackToLanding, onCompleteAuth, initialMode = 'log
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
   const [isOperationNotAllowed, setIsOperationNotAllowed] = useState(false);
   const [isSimulationMode, setIsSimulationMode] = useState(false);
+
+  // Auto-complete if user is already authenticated
+  useEffect(() => {
+    if (auth.currentUser) {
+      const isVerified = auth.currentUser.emailVerified || auth.currentUser.providerData.some((p: any) => p.providerId === 'google.com');
+      if (isVerified) {
+        onCompleteAuth(auth.currentUser);
+      }
+    }
+  }, [onCompleteAuth]);
 
   // Resend cooldown counter
   useEffect(() => {

@@ -1,15 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, Loader2, HardDrive, Pencil } from 'lucide-react';
+import { ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, Loader2, HardDrive, Pencil, Undo2, Redo2 } from 'lucide-react';
 import { ProfileModal } from './ProfileModal';
 
 type Props = {
   templateName: string; isDark: boolean; onTheme: () => void;
   isSigningIn?: boolean; userName: string | null; user?: FirebaseUser | null; cloudStatus: string; isCloudSynced: boolean;
   onLogin: () => void; onLogout: () => void; onSave: () => void;
-  onTools: () => void; onExport: () => void; exportPanelOpen: boolean;
+  onTools?: () => void; onExport: () => void; exportPanelOpen?: boolean;
   onRename?: (newName: string) => void;
   onUserUpdated?: () => void;
+  onOpenTemplates?: () => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
 };
 
 export function WorkspaceHeader(p: Props) {
@@ -53,7 +58,14 @@ export function WorkspaceHeader(p: Props) {
         </div>
 
         <div className="workspace-breadcrumb">
-          <span className="workspace-breadcrumb-root">Çalışmalarım</span>
+          <button
+            type="button"
+            onClick={p.onOpenTemplates}
+            className="workspace-breadcrumb-root hover:text-[#FF6B1A] transition flex items-center gap-1 cursor-pointer bg-transparent border-0 p-0"
+            title="Şablonlarım & Çalışmalarım Menüsünü Aç"
+          >
+            <span>Çalışmalarım</span>
+          </button>
           <ChevronRight size={13} className="opacity-40" />
           {isEditing ? (
             <input
@@ -86,21 +98,53 @@ export function WorkspaceHeader(p: Props) {
         </div>
 
         <div className="workspace-header-actions">
+          {/* Undo / Redo */}
+          {p.onUndo && (
+            <button
+              type="button"
+              className="workspace-icon-button disabled:opacity-30"
+              onClick={p.onUndo}
+              disabled={!p.canUndo}
+              title="Geri Al (Cmd/Ctrl + Z)"
+              aria-label="Geri Al"
+            >
+              <Undo2 size={15} />
+            </button>
+          )}
+          {p.onRedo && (
+            <button
+              type="button"
+              className="workspace-icon-button disabled:opacity-30"
+              onClick={p.onRedo}
+              disabled={!p.canRedo}
+              title="İleri Al (Cmd/Ctrl + Y)"
+              aria-label="İleri Al"
+            >
+              <Redo2 size={15} />
+            </button>
+          )}
+
+          {/* Unified Save Status */}
           <div className="workspace-save-status" role="status">
             {p.cloudStatus === 'syncing' ? (
               <span className="ws-status-badge syncing">
                 <Loader2 size={13} className="animate-spin text-[#FF6B1A]"/>
-                <span>Eşitleniyor</span>
+                <span>Kaydediliyor...</span>
               </span>
             ) : p.userName && p.isCloudSynced && p.cloudStatus === 'synced' ? (
               <span className="ws-status-badge synced">
                 <span className="ws-status-dot-green" />
                 <span>Buluta kaydedildi</span>
               </span>
+            ) : p.cloudStatus === 'error' ? (
+              <span className="ws-status-badge error text-red-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-red-500 mr-1" />
+                <span>Kaydetme başarısız</span>
+              </span>
             ) : (
               <span className="ws-status-badge local">
                 <HardDrive size={13}/>
-                <span>Yerel çalışma</span>
+                <span>Bu cihazda kayıtlı</span>
               </span>
             )}
           </div>
@@ -112,9 +156,11 @@ export function WorkspaceHeader(p: Props) {
             </button>
           )}
 
-          <button className="workspace-icon-button" onClick={p.onTools} title="Medya araçları" aria-label="Medya araçları">
-            <Wrench size={16}/>
-          </button>
+          {p.onTools && (
+            <button className="workspace-icon-button" onClick={p.onTools} title="Medya araçları" aria-label="Medya araçları">
+              <Wrench size={16}/>
+            </button>
+          )}
 
           <button className="workspace-icon-button" onClick={p.onTheme} title={p.isDark ? 'Açık temaya geç' : 'Koyu temaya geç'} aria-label={p.isDark ? 'Açık temaya geç' : 'Koyu temaya geç'}>
             {p.isDark ? <Sun size={16}/> : <Moon size={16}/>}
@@ -155,14 +201,14 @@ export function WorkspaceHeader(p: Props) {
             </button>
           )}
 
+          {/* Prominent Download Button */}
           <button 
             className="workspace-button workspace-primary ws-export-btn" 
             onClick={p.onExport} 
-            aria-label="Dışa aktar" 
-            aria-expanded={p.exportPanelOpen}
+            aria-label="İndir" 
           >
             <Download size={15}/>
-            <span>Dışa aktar</span>
+            <span>İndir</span>
           </button>
         </div>
       </header>

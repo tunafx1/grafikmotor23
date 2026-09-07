@@ -6,6 +6,7 @@ import { SaaSMotionDemo } from './SaaSMotionDemo';
 interface LandingPageProps {
   onEnter: () => void;
   onLogin?: () => void;
+  isLoggedIn?: boolean;
 }
 
 /* ─── Hero Animated Motion Graphic: Step-by-Step Simulated Design Studio ─── */
@@ -285,7 +286,7 @@ function AnimatedCounter({ value, suffix = '' }: { value: string; suffix?: strin
   );
 }
 
-export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
+export function LandingPage({ onEnter, onLogin, isLoggedIn }: LandingPageProps) {
   const [hasMoved, setHasMoved] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll();
@@ -398,7 +399,7 @@ export function LandingPage({ onEnter, onLogin }: LandingPageProps) {
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.96 }}
           >
-            Portala Git →
+            {isLoggedIn ? 'Stüdyoya Git →' : 'Portala Git →'}
           </motion.button>
         </div>
       </motion.header>

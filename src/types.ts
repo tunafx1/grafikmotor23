@@ -3,6 +3,7 @@ export interface TextStyle {
   fontSize: number; // Pixels
   color: string; // Hex color
   fontWeight: 'normal' | 'bold' | '300' | '500' | '700' | '900';
+  fontStyle?: 'normal' | 'italic';
   lineHeight: number; // e.g. 1.2
   align: 'left' | 'center' | 'right';
   letterSpacing?: number; // Pixels
