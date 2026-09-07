@@ -5,11 +5,13 @@ Durum: İnceleme ve uygulama planı. Bu çalışma kapsamında uygulama kodu de�
 
 ## 1. Hedef ve kapsam
 
+Uygulamanın temel amacı, çok sayıda fotoğrafı tek seferde seçip bir AI komutu vererek seçili şablona uygun tasarımlar üretmektir. Giriş sonrası ana ekran ve en belirgin eylem bu toplu üretime ayrılacak. Tek tek düzenleme, üretilen sonuçları düzeltmek için ikinci aşamadır.
+
 Kullanıcı tasarım üzerindeki başlığa tıkladığında başlığı, açıklamaya tıkladığında açıklamayı, fotoğrafa tıkladığında fotoğrafı düzenleyebilmeli. Doğru ayarı bulmak için İçerik/Tasarım ayrımını veya katman sistemini öğrenmesi gerekmemeli.
 
 Başlangıç, tanıtım, giriş ve kayıt ekranları aynen korunacak. Değişiklikler giriş sonrası çalışma alanı, şablon yönetimi, içerik düzenleme, sayfalar, medya ve indirme akışıyla sınırlı olacak. Kimlik doğrulama akışı bu planın konusu değil.
 
-Öncelik yeni özellik eklemek değil; mevcut özellikleri doğru yerde, gerektiği anda göstermek. Temel kullanıcı yolu: **Çalışmayı aç → öğeye tıkla → düzenle → indir.**
+Öncelik yeni özellik eklemek değil; mevcut özellikleri doğru yerde, gerektiği anda göstermek. Temel kullanıcı yolu: **Fotoğrafları toplu seç → seçili şablonu kontrol et → AI komutunu yaz → Tasarımları oluştur → sonuçları incele → gerekirse öğeye tıklayıp düzelt → toplu indir.**
 
 ## 2. Uygulama içinde yapılan inceleme
 
@@ -42,17 +44,50 @@ Mevcut oturumda profil penceresi kapatıldı; Şablonlar, İçerik, Tasarım, me
 
 ### Giriş sonrası ana menü
 
-Ana gezinme yalnızca **Çalışmalarım**, **Şablonlarım** ve **Medya** olsun. Hesap ve tercihler profil menüsünde bulunsun. MP3/MP4 aracı Medya içindeki “Bağlantıdan indir” eylemine taşınsın.
+Ana gezinme **Toplu Oluştur**, **Çalışmalarım** ve **Şablonlarım** olsun. Giriş sonrası varsayılan ekran Toplu Oluştur olsun; kullanıcıyı önce boş editöre veya arşive götürmesin. Medya kütüphanesi üretim ekranındaki yükleyiciden ve editördeki Medya aracından açılsın. Hesap ve tercihler profil menüsünde, MP3/MP4 indirme aracı medya kütüphanesindeki ikincil “Bağlantıdan indir” işleminde bulunsun.
 
-Çalışmalarım ekranında son çalışmalar, küçük önizleme, çalışma adı, son düzenlenme zamanı ve tek ana eylem “Yeni çalışma” gösterilsin. Teknik alan sayısı ve katman bilgileri kartın ana içeriği olmasın. Çalışma yoksa tek bir başlangıç eylemi ve kısa açıklama yeterli olsun.
+Çalışmalarım ekranında önceki üretimler; önizleme, çalışma adı, sayfa sayısı ve son düzenlenme zamanı ile gösterilsin. Ana eylem “Yeni toplu üretim” kullanıcıyı Toplu Oluştur ekranına götürsün. Şablonlarım kartındaki “Bu şablonla oluştur” da aynı ekranı, şablon seçili olarak açsın. Şablon hazırlamak için “Yeni şablon” ayrı bir işlem olarak kalsın. Bunların tümü giriş sonrası akıştır; tanıtım, başlangıç, giriş ve kayıt ekranları değişmez.
 
-“Yeni çalışma” önce şablon seçtirsin; seçilen şablondan bağımsız bir çalışma açılsın. Şablon hazırlayan kullanıcı için “Yeni şablon” Şablonlarım altında bulunsun. Bunlar girişten sonraki ekranlardır; mevcut tanıtım ve kayıt ekranları değişmez.
+### Ana ekran: Toplu Oluştur
+
+Bu alan bir açılır ayarın veya dar yan panelin içinde saklanmayacak. Giriş sonrası çalışma alanının merkezinde, geniş ve tek sayfalık bir üretim formu olacak. Üç zorunlu bilgi aynı yerde görülecek; ayrı sekmeler arasında dolaşmak gerekmeyecek.
+
+| Yer | İçerik ve davranış |
+|---|---|
+| Üst | “Fotoğraflarından tasarımlar oluştur” başlığı ve kısa yönlendirme |
+| Sol geniş alan | **1. Fotoğraflarını ekle:** çoklu dosya seçimi, sürükle-bırak ve kütüphaneden seçme; altında küçük önizlemeler, fotoğraf sayısı, sıralama ve seçimden çıkarma |
+| Sağ üst | **2. Şablonun:** seçili şablonun görsel önizlemesi, adı, ölçüsü ve “Değiştir”; son kullanılan şablon varsa görünür biçimde seçili gelir |
+| Sağ orta | **3. Ne oluşturalım?:** geniş AI komutu kutusu; örnek yer tutucu: “Okulumuzun yıl sonu etkinliği için samimi bir başlık ve kısa açıklama oluştur.” |
+| Sağ alt | “Şablonun marka dili kullanılacak” bilgisi ve üretim özeti: seçili fotoğraf sayısı, şablon adı, hesaplanabiliyorsa oluşacak sayfa sayısı |
+| Formun altında belirgin | **Tasarımları oluştur** ana düğmesi; kaydırırken erişilebilir kalır, içeriği örtmez |
+
+Kullanıcı ister önce fotoğraf ister önce şablon seçebilir; numaralar zorunlu bir sihirbaz sırası değildir. Şablon yoksa “Şablon seç” çağrısı gösterilir. Fotoğraflar yüklenirken ilerleme ve başarısız dosyalar görünür; üretim düğmesi neden hazır olmadığını açıklar. AI komutu boşsa düğmenin yanında kısa yönlendirme olur.
+
+Küçük resimlerde kullanıcı sıra değiştirebilir ve yalnızca bu üretimden fotoğraf çıkarabilir; kütüphanedeki asıl dosya silinmez. Mevcut şablonun kapak/tekli/kolaj kuralları hangi fotoğraflardan kaç sayfa oluşturacağını belirler. **Bir fotoğraf eşittir bir sayfa varsayımı yapılmaz.** Üretim öncesi sayfa önizlemesi veya yerleşim özeti bu sonucu anlaşılır kılar. Tam sayı hesaplanamıyorsa kesinmiş gibi sunulmaz.
+
+Komut bu fotoğraf grubunun tamamı için geçerlidir; tek sayfanın sihirbazı değildir. Şablonun yazı alanları ve marka diliyle birlikte işlenir. Metnin yalnızca kapakta veya birden fazla sayfada kullanılması şablon rollerine göre belirlenir ve özette belirtilir. AI, şablonun sabit logosunu ve dekorlarını değiştirmez. Fotoğraf içeriğini anlayan bir modelin gerçekten kullanıldığı doğrulanmadan “AI fotoğraflarınızı analiz ediyor” sözü verilmez.
+
+### Üretimden sonuçlara geçiş
+
+“Tasarımları oluştur” seçili fotoğrafları şablon düzenlerine yerleştiren ve AI metinlerini ilgili alanlara dolduran birleşik işlemi başlatır. Bu, mevcut fotoğraf yerleştirme ile AI metin üretiminin kullanıcı açısından tek akışta sunulmasıdır; yeni bir görsel üretim modeli gerektirdiği varsayılmaz.
+
+İlerleme, gerçekten bilinen aşamalarla gösterilsin: Fotoğraflar hazırlanıyor → Metinler oluşturuluyor → Sayfalar hazırlanıyor. Ölçülemeyen yüzde veya süre uydurulmasın. İşlem sürerken ikinci kez aynı işi başlatma engellensin; fotoğraflar ve komut korunsun. Kısmi hata varsa başarılı sonuçlar kalmalı, yalnızca başarısız kısım yeniden denenebilmeli.
+
+İşlem bittiğinde önce **toplu sonuç görünümü** açılsın: tüm üretilen sayfaların okunabilir küçük önizlemeleri, sayfa sayısı, varsa uyarılar ve iki net işlem: **Tümünü indir** ve **Düzenle**. Kullanıcı memnunsa tek tek editöre girmeden tamamını indirebilsin. Bir karta tıklamak o sayfayı aşağıdaki editörde açsın. Editörde “Tüm sonuçlar” ile bu görünüme dönülsün.
+
+“Üretim ayarları” ile fotoğraflar, komut ve şablon yeniden görülebilsin. Tekrar üretim varsayılan olarak yeni sonuç sürümü oluştursun; elle düzeltilmiş çalışma sessizce ezilmesin. İlk toplu üretimde her metin için ayrı “Kullan” onayı istenmesin. Tek öğelik AI öneri onayı yalnızca sonradan yapılan düzeltmelerde geçerli olsun.
+
+### Ana akışın taslağı
+
+**Toplu Oluştur**: Fotoğraflar + seçili şablon + AI komutu → **Tasarımları oluştur** → **Tüm sonuçlar** → **Toplu indir**.
+
+İsteğe bağlı düzeltme yolu: Tüm sonuçlar → sayfayı aç → başlık/metin/fotoğrafa tıkla → ilgili ayarı değiştir → tüm sonuçlara dön veya indir.
 
 ### Günlük editör
 
 | Bölge | Görünecek içerik |
 |---|---|
-| Üst şerit | Çalışmalarıma dön, çalışma adı, kaydetme durumu, geri al/ileri al, İndir, profil |
+| Üst şerit | Tüm sonuçlar, çalışma adı, Üretim ayarları, kaydetme durumu, geri al/ileri al, İndir, profil |
 | Sol dar araç alanı | Ekle, Medya, Katmanlar; tıklanınca ilgili çekmece |
 | Orta | Aktif sayfanın büyük önizlemesi; yakınlaştırma ve sığdırma |
 | Sağ | Yalnızca seçili öğenin ayarları; seçim yoksa kısa yönlendirme |
@@ -91,9 +126,9 @@ Kilitli süsler başlık veya fotoğrafı seçmeyi engellememeli. Üst üste bin
 
 Sayfa şeridindeki bir sayfaya tıklamak o sayfayı tuvalde göstermeli, seçili öğeyi yeni sayfaya göre temizlemeli ve sayfa numarasını güncellemeli. Başka sayfadaki eski öğenin ayarları açık kalmamalı.
 
-Varsayılan tek sayfa görünümü öneriliyor. İsteğe bağlı “Tüm sayfaları gör” görünümü korunabilir; bu görünümde de sayfa seçimi otomatik olarak doğru sayfaya kaydırmalı.
+Üretim sonrasında varsayılan görünüm tüm sonuçların küçük önizlemeleridir. Bir sonucu düzenlemek için açınca tek sayfa görünümü kullanılır. Alt sayfa şeridinden seçim, doğru sayfayı doğrudan göstermelidir.
 
-Şablon kartının ana eylemi “Bu şablonla çalış”. Diğer işlemler üç nokta menüsünde: “Şablonu düzenle”, “Adını değiştir”, “Boyutu değiştir”, “Kopyala”, “Sil”. Silme normal düzenleme eylemlerinin hemen yanında tek tık hedefi olmamalı.
+Şablon kartının ana eylemi “Bu şablonla oluştur”; Toplu Oluştur ekranını o şablon seçili olarak açar. Diğer işlemler üç nokta menüsünde: “Şablonu düzenle”, “Adını değiştir”, “Boyutu değiştir”, “Kopyala”, “Sil”. Silme normal düzenleme eylemlerinin hemen yanında tek tık hedefi olmamalı.
 
 Günlük çalışma düzenlemesi ana şablonu değiştirmemeli. Şablon editörüne geçerken başlıkta “Şablon düzenleniyor” ve yapılan değişikliğin kapsamı gösterilmeli. Mevcut çalışma içerikleri örneklerle sessizce değiştirilmemeli; örnek veri önizlemesi gerekiyorsa açıkça etiketlenmiş bir seçenek olmalı.
 
@@ -109,13 +144,15 @@ Toplu yükleme sırasında işlem sonucu önceden anlaşılmalı: hangi görsell
 
 ### Yapay zekâ
 
+Birincil AI girişi Toplu Oluştur ekranındaki komut kutusudur. Komut seçilen fotoğraf grubundan üretilecek tüm sonuçları kapsar. Aşağıdaki öğe ve sayfa düzeyi eylemler, üretim sonrası düzeltme araçlarıdır; ana üretimin yerine geçmez.
+
 Seçili başlık için “Bu başlığı üret”, açıklama için “Bu açıklamayı üret”; sayfa düzeyinde ayrı “Sayfanın metinlerini oluştur” eylemi olsun. Hangi alanların değişeceği işlemden önce belli olsun.
 
-Üretilen metin önce öneri olarak gösterilsin; “Kullan”, “Yeniden üret”, “Vazgeç” seçenekleri sunulsun. Mevcut metin hata durumunda korunmalı. Marka dili günlük formu uzatmasın; şablon/marka ayarlarında bulunsun, editörde kısa bir durum bilgisi yeterli olsun.
+Üretim sonrası tekil düzenlemelerde üretilen metin önce öneri olarak gösterilsin; “Kullan”, “Yeniden üret”, “Vazgeç” seçenekleri sunulsun. Mevcut metin hata durumunda korunmalı. Marka dili günlük formu uzatmasın; şablon/marka ayarlarında bulunsun, editörde kısa bir durum bilgisi yeterli olsun.
 
 ### İndirme
 
-Üstteki “İndir” tek giriş noktası olsun. Açılan pencerede sayfa kapsamı (Bu sayfa / Tüm sayfalar / Seçtiklerim), biçim ve boyut gösterilsin. Temel seçenekler anlaşılır olsun: PNG — yüksek kalite, JPEG — küçük dosya, WebP — web için. “Retina” gibi adlar yerine gerçek piksel ölçüsü de gösterilsin.
+Toplu sonuçlarda “Tümünü indir”, editörde “İndir” aynı indirme akışını açsın. Açılan pencerede sayfa kapsamı (Bu sayfa / Tüm sayfalar / Seçtiklerim), biçim ve boyut gösterilsin. Temel seçenekler anlaşılır olsun: PNG — yüksek kalite, JPEG — küçük dosya, WebP — web için. “Retina” gibi adlar yerine gerçek piksel ölçüsü de gösterilsin.
 
 Birden fazla sayfada ZIP seçeneği aynı akış içinde yer alsın. Fotoğraf/video karışık çalışmalar için desteklenen çıktı türü açıkça belirtilecek; video dışa aktarma yeteneği bu incelemede doğrulanmadı. İşlem sürerken ilerleme, tamamlandığında sonuç ve hata halinde tekrar deneme sunulsun.
 
@@ -140,7 +177,7 @@ Küçük ve soluk yardım metinleri azaltılsın. Yardım, kullanıcının karar
 
 ## 8. Mobil ve erişilebilirlik — uygulanacak, henüz test edilmedi
 
-Dar ekranda üç sütun sıkıştırılmasın: tuval ana ekranı kaplasın; öğeye dokununca alttan ayar paneli açılsın. Sayfalar ayrı açılabilen bir şerit, İndir üstte erişilebilir eylem olsun. Dokunma hedefleri en az 44 × 44 CSS piksel hedeflensin.
+Mobil Toplu Oluştur ekranında fotoğraflar, şablon ve AI komutu tek sütunda sıralansın; üretim özeti ve Tasarımları oluştur düğmesi erişilebilir kalsın. Sonuçlar küçük kartlar halinde gezilebilsin. Editörde üç sütun sıkıştırılmasın: tuval ana ekranı kaplasın; öğeye dokununca alttan ayar paneli açılsın. Sayfalar ayrı açılabilen bir şerit, İndir üstte erişilebilir eylem olsun. Dokunma hedefleri en az 44 × 44 CSS piksel hedeflensin.
 
 Tuval öğeleri Katmanlar listesinden klavyeyle seçilebilmeli. Menü ve sekmeler doğru erişilebilir rolleri taşımalı; mevcut çalışma modu kontrollerinin checkbox olarak görünmesi yeniden değerlendirilmeli. Odak göstergesi, etiketler, hata duyuruları ve metin kontrastı ölçülmeli. AI ve indirme penceresi kapandığında odak açan düğmeye dönmeli.
 
@@ -148,11 +185,12 @@ Tuval öğeleri Katmanlar listesinden klavyeyle seçilebilmeli. Menü ve sekmele
 
 | Aşama | İş | Tamamlanma koşulu |
 |---|---|---|
-| 1 — Etkileşim taslağı | Başlık, açıklama, görsel, boş seçim ve indirme için ekran taslakları; tek çalışma akışı | Kullanıcı sekme aramadan doğru kontrolün nerede açılacağını anlayabiliyor. |
-| 2 — İlk kullanılabilir iyileştirme | Görünür seçili öğe paneli; doğru sayfaya geçiş; tek sayfa şeridi; indirme paneli varsayılan kapalı | G2, G3, G5 ve G9 senaryoları kabul testlerini geçiyor. |
-| 3 — Menü ve şablonlar | Çalışmalarım dönüşü; açık eylem adları; çalışma/şablon ayrımı; günlük İçerik/Tasarım ayrımının kaldırılması | Bir çalışmayı düzenlemek ana şablonu etkilemiyor; sayfa sayıları bağlamına göre tutarlı. |
-| 4 — İçerik üretimi | Tek medya kütüphanesi, kırpma akışı, metin biçimlendirme ve AI öneri kabulü | İşlemler hedef öğeye uygulanıyor; iptal ve geri al çalışıyor. |
-| 5 — Güven ve uyumluluk | Kayıt durumları, indirme geri bildirimi, mobil ve erişilebilirlik | Gerçek cihaz ve farklı şablonlarla aşağıdaki senaryolar tamamlanıyor. |
+| 1 — Ana üretim akışı | Giriş sonrası Toplu Oluştur; çoklu fotoğraf seçimi, görünür şablon, AI komutu ve tek üretim düğmesi | Kullanıcı boş editöre girmeden seçtiği fotoğraflarla toplu üretimi başlatabiliyor. |
+| 2 — Toplu sonuçlar | Yerleşim özeti, gerçek ilerleme, hata/yeniden deneme, sonuç galerisi ve toplu indirme | Kullanıcı tüm çıktıları inceleyip tek tek düzenleme yapmadan indirebiliyor. |
+| 3 — Sonuçları düzenleme | Görünür seçili öğe paneli; doğru sayfaya geçiş; tek sayfa şeridi; indirme paneli varsayılan kapalı | G2, G3, G5 ve G9 senaryoları kabul testlerini geçiyor. |
+| 4 — Menü ve şablonlar | Çalışmalarım dönüşü; açık eylem adları; çalışma/şablon ayrımı; günlük İçerik/Tasarım ayrımının kaldırılması | Bir çalışmayı düzenlemek ana şablonu etkilemiyor; sayfa sayıları bağlamına göre tutarlı. |
+| 5 — Düzenleme araçları | Tek medya kütüphanesi, kırpma akışı, metin biçimlendirme ve AI öneri kabulü | İşlemler hedef öğeye uygulanıyor; iptal ve geri al çalışıyor. |
+| 6 — Güven ve uyumluluk | Kayıt durumları, indirme geri bildirimi, mobil ve erişilebilirlik | Gerçek cihaz ve farklı şablonlarla aşağıdaki senaryolar tamamlanıyor. |
 
 İlk teslimatta yeni tema, animasyon, gelişmiş video editörü veya ek AI özelliği yapılmamalı. Önce mevcut özelliklere erişim kolaylaştırılmalı. Aşamalar ayrı ayrı kullanıcıya gösterilmeli; tüm arayüz bir defada değiştirilmemeli.
 
@@ -162,6 +200,11 @@ Aşağıdakiler hedef ölçütlerdir; mevcut uygulamanın ölçülmüş performa
 
 | Görev | Başarı ölçütü |
 |---|---|
+| Toplu üretimi bul | Girişten sonra fotoğraf yükleyici, seçili şablon ve AI komutu ana ekranda; ek menü açmak gerekmez. |
+| Fotoğraflardan oluştur | Örneğin 12 fotoğraf, seçili şablon ve tek komutla üretim başlar; her fotoğraf için ayrı komut gerekmez. Sayfa sayısı şablon kurallarıyla tutarlıdır. |
+| Toplu sonuçları al | İşlem sonunda tüm sayfalar görünür; editöre girmeden toplu indirme başlatılır. |
+| Üretim hatasından dön | Fotoğraf seçimi ve komut korunur; başarısız bölüm tekrar denenirken başarılı sonuçlar silinmez. |
+| Yeniden üret | Elle düzenlenen önceki sonuçlar korunur; yeni sürüm açıkça ayırt edilir. |
 | Başlığı düzenle | Tek tıkla Başlık paneli görünür; içerik ve yazı boyutu için mod değiştirmek gerekmez. |
 | Açıklamayı düzenle | Başlıktan açıklamaya tıklayınca panel adı ve değerler doğru değişir; başlığın metni değişmez. |
 | Fotoğrafı kırp | Çift tık veya Kırp ile açılır; Vazgeç önceki kadrajı korur. |
@@ -173,14 +216,15 @@ Aşağıdakiler hedef ölçütlerdir; mevcut uygulamanın ölçülmüş performa
 | Ağ kesildiğinde devam et | Bulut kaydı yapılmış gibi gösterilmez; varsa yerel kayıt açıkça belirtilir. |
 | Klavye ve mobil | Fare olmadan öğe seçimi/ayar erişimi, dar ekranda metin ve görsel düzenleme tamamlanabilir. |
 
-İlk taslaktan sonra uygulamayı daha önce kullanmamış 3–5 kişiyle başlık değiştirme, fotoğraf değiştirme, ikinci sayfaya geçme ve indirme görevleri denenmeli. Yardım isteme sayısı, yanlış panel açma, tamamlanma süresi ve vazgeçme kaydedilmeli. Mevcut ekran ve yeni taslak aynı görevlerle karşılaştırılmalı.
+İlk taslaktan sonra uygulamayı daha önce kullanmamış 3–5 kişiyle önce “12 fotoğraf seç, hazır şablonla tek AI komutundan tasarımlar oluştur ve hepsini indir” görevi denenmeli. Ardından başlık değiştirme, fotoğraf değiştirme ve ikinci sayfaya geçme görevleri uygulanmalı. Ana başarı ölçütü yardım almadan toplu üretimi tamamlamaktır. Yardım isteme sayısı, yanlış panel açma, tamamlanma süresi ve vazgeçme kaydedilmeli. Mevcut ekran ve yeni taslak aynı görevlerle karşılaştırılmalı.
 
 ## 11. Uygulama öncesi doğrulanacak noktalar
 
+- Toplu üretimde fotoğraf sırası, kapak/kolaj dağılımı, AI komutunun bütün sonuçlara uygulanması ve tekrar üretim davranışı. Bunlar önceki gezinme incelemesinde uçtan uca test edilmedi.
 - Çalışma verisi ile şablon verisinin kayıt kapsamı; mevcut düzenlemelerin hangi anda kalıcılaştığı.
 - Eski şablonlardaki metin rolleri, kilitli katmanlar ve Markdown biçimlerinin kayıpsız taşınması.
 - Sayfa seçiminin farklı şablonlarda kaydırma ve odak davranışı.
 - Video içeren sayfaların gerçek çıktı yetenekleri; indirme türleri buna göre adlandırılmalı.
 - Mobil, klavye, ekran okuyucu ve düşük bağlantı testleri.
 
-Bu plan mevcut ekranlarda gözlenen kullanım sorunlarına dayanır. Görsel seçim, ayar paneli ve sayfa gezinmesi düzeldikten sonra yeni kullanıcı testiyle ikinci tur sadeleştirme yapılmalıdır.
+Bu plan mevcut ekranlarda gözlenen kullanım sorunlarına dayanır. İlk öncelik toplu fotoğraf + şablon + AI komutu akışıdır; seçime bağlı düzenleme bu üretimin tamamlayıcısıdır. Yeni kullanıcı testi de önce toplu üretimi, ardından tekil düzeltmeleri değerlendirmelidir.

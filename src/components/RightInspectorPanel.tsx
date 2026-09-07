@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Type, 
   Image as ImageIcon, 
@@ -420,6 +420,9 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
     onExportClick
   } = props;
 
+  const panelBody = useRef<HTMLDivElement>(null);
+  useEffect(() => { panelBody.current?.scrollTo({ top: 0 }); }, [selectedNodeId]);
+
   const [showAdvanced, setShowAdvanced] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -596,7 +599,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
   };
 
   return (
-    <aside 
+    <aside data-selected={!!selectedNodeId}
       className="w-full lg:w-[340px] bg-[#252528] border-l border-[rgba(255,255,255,0.08)] flex flex-col z-20 shrink-0 overflow-hidden select-none transition-all duration-300"
       aria-label="Öğe ayarları paneli"
     >
@@ -657,7 +660,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
       </div>
 
       {/* Panel Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-5">
+      <div ref={panelBody} className="flex-1 overflow-y-auto p-4 space-y-5">
         
         {/* ═══════════════════════════════════════════════
             CASE 1: TEXT REGION (Başlık, Açıklama, Metin)

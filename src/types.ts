@@ -78,6 +78,9 @@ export interface TemplatePage {
 }
 
 export interface DesignTemplate {
+  sourceTemplateId?: string;
+  productionBrief?: string;
+  createdAt?: string;
   id: string;
   name: string;
   width: number;

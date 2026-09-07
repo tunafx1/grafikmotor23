@@ -1,3 +1,5 @@
+import { BatchWorkspace, ProductionNavigation, type WorkspaceScreen } from './components/BatchWorkspace';
+import { buildBatchPages, generateBatchTexts } from './utils/batchProduction';
 import { describeGoogleLoginError } from './lib/authErrors';
 import { getAiTextFields, requestAiText } from './utils/aiText';
 import { MediaDownloaderDialog } from './components/MediaDownloaderDialog';
@@ -1075,8 +1077,16 @@ export default function App() {
   // Active Node / Selected Layer for Phase 1 Design
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [editingImageRegionId, setEditingImageRegionId] = useState<string | null>(null);
+  const cropSnapshot = useRef<{id: string; image: any} | null>(null);
 
   // General App configuration
+  const [templateEditing, setTemplateEditing] = useState(false);
+  const [workspaceScreen, setWorkspaceScreen] = useState<WorkspaceScreen>('create');
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchProgress, setBatchProgress] = useState('');
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const batchController = useRef<AbortController | null>(null);
+  useEffect(() => () => batchController.current?.abort(), [user?.uid, currentView]);
   const [activeTab, setActiveTab] = useState<'presets' | 'phase1' | 'phase2'>('phase2');
 
   const handleTabChange = (targetTab: 'presets' | 'phase1' | 'phase2') => {
@@ -1085,7 +1095,8 @@ export default function App() {
 
   // --- MULTI-PAGE TEMPLATE AND COLLAGE AUTOMATION STATES ---
   const [activePageIndex, setActivePageIndex] = useState<number>(0);
-  const [generatedPages, setGeneratedPages, pagesByTemplate, setPagesByTemplate] = useProjectPages(currentTemplateId);
+  const [storedGeneratedPages, setGeneratedPages, pagesByTemplate, setPagesByTemplate] = useProjectPages(currentTemplateId);
+  const generatedPages = useMemo(() => templateEditing ? [] : storedGeneratedPages, [templateEditing, storedGeneratedPages]);
   const [activeGeneratedPageIndex, setActiveGeneratedPageIndex] = useState<number>(0);
 
   useEffect(() => {
@@ -1137,6 +1148,8 @@ export default function App() {
   // Auto-reset video playback when switching pages, tabs, or templates
   useEffect(() => {
     setPlayingVideoRegionId(null);
+    setEditingImageRegionId(null);
+    cropSnapshot.current = null;
   }, [activeGeneratedPageIndex, activePageIndex, activeTab, currentTemplateId]);
 
   const activePageData = useMemo(() => {
@@ -1193,6 +1206,7 @@ export default function App() {
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
   const [aiSuccessMessage, setAiSuccessMessage] = useState<string | null>(null);
   const [aiCollageBrief, setAiCollageBrief] = useState<string>('');
+  const [aiProposal, setAiProposal] = useState<{texts: Record<string,string>; templateId: string; pageId?: string; regionId?: string; context: {id:string;name:string}[]} | null>(null);
   const [aiTextTarget, setAiTextTarget] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiNoticeLocation, setAiNoticeLocation] = useState<'all' | 'fields'>('fields');
@@ -1201,6 +1215,7 @@ export default function App() {
     aiRequestRef.current?.abort();
     aiRequestRef.current = null;
     setAiTextTarget(null);
+    setAiProposal(null);
     setAiError(null);
     setAiSuccessMessage(null);
     return () => { aiRequestRef.current?.abort(); };
@@ -1242,7 +1257,7 @@ export default function App() {
   };
 
   // --- MOBILE RESPONSIVE PANEL STATE ---
-  const [exportPanelOpen, setExportPanelOpen] = useState(true);
+  const [exportPanelOpen, setExportPanelOpen] = useState(false);
   const [storageError, setStorageError] = useState<string | null>(null);
   useEffect(() => {
     const onError = () => setStorageError('Tarayıcı depolaması dolu veya kullanılamıyor. Son değişiklikler kaydedilemedi.');
@@ -1264,7 +1279,7 @@ export default function App() {
 
   // --- UI-UX REDESIGN STATES & HELPERS ---
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
-  const [leftDrawerTab, setLeftDrawerTab] = useState<ToolDrawerTab | null>('templates');
+  const [leftDrawerTab, setLeftDrawerTab] = useState<ToolDrawerTab | null>(null);
 
   const handleDuplicateTemplate = (templateId: string) => {
     const target = templates.find(t => t.id === templateId);
@@ -1446,9 +1461,24 @@ export default function App() {
   const handleCropPanTrigger = (regionId: string) => {
     const reg = editingTemplate.regions.find(r => r.id === regionId);
     if (reg?.locked) return;
+    cropSnapshot.current = {id: regionId, image: {...activePageData.dynamicImages[regionId]}};
     setEditingImageRegionId(regionId);
     setSelectedNodeId(regionId);
   };
+
+  const cancelCrop = () => {
+    if (cropSnapshot.current) {
+      const {id, image} = cropSnapshot.current;
+      ['scale', 'offsetX', 'offsetY', 'rotation'].forEach(key => updateActiveImageProp(id, key, image[key] ?? (key === 'scale' ? 1 : 0)));
+    }
+    cropSnapshot.current = null; setEditingImageRegionId(null);
+  };
+  useEffect(() => {
+    if (!editingImageRegionId) return;
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') cancelCrop(); };
+    window.addEventListener('keydown', escape);
+    return () => window.removeEventListener('keydown', escape);
+  }, [editingImageRegionId, activePageData.id]);
 
   const handleImageScaleChange = (regionId: string, scale: number) => {
     updateActiveImageProp(regionId, 'scale', scale);
@@ -1490,7 +1520,7 @@ export default function App() {
     const observer = new ResizeObserver(([entry]) => setCanvasWidth(Math.max(160, entry.contentRect.width - 48)));
     observer.observe(viewport);
     return () => observer.disconnect();
-  }, [isAppLoaded, mobileView]);
+  }, [isAppLoaded, mobileView, workspaceScreen]);
   const [panOffset, setPanOffset] = useState<{ x: number, y: number }>({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState<boolean>(false);
   const panStartRef = useRef<{ x: number, y: number }>({ x: 0, y: 0 });
@@ -1527,7 +1557,7 @@ export default function App() {
         editingImageRegionId
       }
     );
-  }, [editingTemplate, activePageData, activeGraphicData.paletteOverrides, showGrid, showSafeMargins, selectedNodeId, vurguColor, editingImageRegionId, isAppLoaded, mobileView]);
+  }, [editingTemplate, activePageData, activeGraphicData.paletteOverrides, showGrid, showSafeMargins, selectedNodeId, vurguColor, editingImageRegionId, isAppLoaded, mobileView, workspaceScreen]);
 
   // --- FIREBASE CLOUD STORAGE INTEGRATION & SYNCING ---
   const lastSavedRef = useRef<string>('');
@@ -1645,7 +1675,7 @@ export default function App() {
     const templatesToSave = Array.isArray(specificTemplates) ? specificTemplates : templates;
     const id = typeof specificTemplateId === 'string' ? specificTemplateId : currentTemplateId;
     const data = specificGraphicData && !('nativeEvent' in specificGraphicData) ? specificGraphicData : graphicData;
-    const allPages = {...pagesByTemplate, [id]:Array.isArray(specificGeneratedPages) ? specificGeneratedPages : generatedPages};
+    const allPages = {...pagesByTemplate, [id]:Array.isArray(specificGeneratedPages) ? specificGeneratedPages : storedGeneratedPages};
     const savedTemplates = JSON.stringify(templatesToSave);
     const savedProject = JSON.stringify({graphicData:data, pagesByTemplate:allPages});
     const beforeSave = historyRef.current;
@@ -4021,8 +4051,7 @@ export default function App() {
     if (hitTarget.type === 'region') {
       const reg = hitTarget.item as Region;
       if (reg.type === 'image') {
-        setEditingImageRegionId(reg.id);
-        setSelectedNodeId(reg.id);
+        handleCropPanTrigger(reg.id);
       } else if (reg.type === 'text') {
         setSelectedNodeId(reg.id);
         setTimeout(() => {
@@ -4209,7 +4238,7 @@ export default function App() {
   };
 
   // Generate only requested text fields on the captured page; never change the palette.
-  const triggerAiGenerator = async (regionId?: string) => {
+  const triggerAiGenerator = async (regionId?: string, brief = aiCollageBrief) => {
     if (aiRequestRef.current || isAiLoading) return;
     const context = getAiTextFields(editingTemplate.regions, activePageData.dynamicTexts);
     const fields = regionId ? context.filter(f => f.id === regionId) : context;
@@ -4232,19 +4261,11 @@ export default function App() {
       if (controller.signal.aborted) throw controller.signal.reason;
       const texts = await requestAiText({
         systemPrompt:currentTemplate.aiSystemPrompt || '', templateName:currentTemplate.name,
-        brief:aiCollageBrief, fields, context, ...(image ? {image} : {}),
+        brief, fields, context, ...(image ? {image} : {}),
       }, controller.signal);
       if (controller.signal.aborted || aiRequestRef.current !== controller) return;
-      if (pageId) {
-        setGeneratedPages(pages => pages.map(page => page.id === pageId
-          ? {...page, dynamicTexts:{...page.dynamicTexts, ...texts}} : page), templateId);
-      } else {
-        setGraphicData(prev => ({...prev, [templateId]:{
-          ...(prev[templateId] || activeGraphicData),
-          dynamicTexts:{...(prev[templateId]?.dynamicTexts || activeGraphicData.dynamicTexts), ...texts},
-        }}));
-      }
-      setAiSuccessMessage(regionId ? `${fields[0].name} şablon promptuna göre oluşturuldu.` : 'Bu sayfanın metinleri şablon promptuna göre oluşturuldu.');
+      setAiProposal({texts, templateId, pageId, regionId, context: fields});
+
     } catch (error) {
       if (aiRequestRef.current === controller) {
         setAiError(controller.signal.aborted ? 'AI isteği zaman aşımına uğradı. Tekrar deneyin; metinleriniz korundu.' :
@@ -4257,6 +4278,14 @@ export default function App() {
         setAiTextTarget(null);
       }
     }
+  };
+
+  const applyAiProposal = () => {
+    if (!aiProposal) return;
+    const {texts, templateId, pageId} = aiProposal;
+    if (pageId) setGeneratedPages(pages => pages.map(page => page.id === pageId ? {...page, dynamicTexts: {...page.dynamicTexts, ...texts}} : page), templateId);
+    else setGraphicData(prev => ({...prev, [templateId]: {...(prev[templateId] || activeGraphicData), dynamicTexts: {...(prev[templateId]?.dynamicTexts || activeGraphicData.dynamicTexts), ...texts}}}));
+    setAiProposal(null); setAiSuccessMessage('Öneri uygulandı.');
   };
 
   // All export paths use the same page resolver and renderer.
@@ -4276,7 +4305,7 @@ export default function App() {
     exportUrls.current = [];
     setExportFiles([]);
   };
-  const exportPages = async (pages: any[], asZip = false) => {
+  const exportPages = async (pages: any[], asZip = false, format = exportFormat, scale = exportScale) => {
     if (isExporting || isExportingZip) return;
     resetExportResults();
     setIsExporting(!asZip);
@@ -4286,7 +4315,7 @@ export default function App() {
       for (const [index, page] of pages.entries()) {
         setExportStatusText(`${index + 1} / ${pages.length} sayfa hazırlanıyor…`);
         const {blob, extension} = await createExportAsset(currentTemplate, page, {
-          format:exportFormat, scale:exportScale, highlightColor:vurguColor,
+          format, scale, highlightColor:vurguColor,
           paletteOverrides:activeGraphicData.paletteOverrides,
           onProgress: percent => setExportStatusText(`${index + 1}. sayfa · %${percent}`),
         });
@@ -4315,6 +4344,44 @@ export default function App() {
     return exportPages(generatedPages.length ? generatedPages : [activePageData]);
   };
   const exportHighResZip = () => exportPages(generatedPages.length ? generatedPages : [activePageData], true);
+
+  const runBatch = async (source: DesignTemplate, media: SequenceMediaItem[], brief: string) => {
+    if (batchController.current) return;
+    const controller = new AbortController();
+    batchController.current = controller;
+    setBatchBusy(true); setBatchError(null); setBatchProgress('Sayfalar hazırlanıyor…');
+    try {
+      const snapshot = structuredClone(ensureMultiPageSupport(source));
+      const draft = buildBatchPages(snapshot, media);
+      const pages = await generateBatchTexts(snapshot, draft, brief, {
+        signal: controller.signal, onProgress: (n, total) => setBatchProgress(`Metinler oluşturuluyor · ${n}/${total}`),
+      });
+      if (controller.signal.aborted) return;
+      const id = `work-${crypto.randomUUID()}`;
+      const work = { ...snapshot, id, sourceTemplateId: source.id, productionBrief: brief,
+        createdAt: new Date().toISOString(), name: `${source.name} · ${new Date().toLocaleString('tr-TR')}` };
+      setTemplates(prev => [...prev, work]);
+      setGeneratedPages(pages, id);
+      setGraphicData(prev => ({ ...prev, [id]: { templateId: id, dynamicTexts: {}, dynamicImages: {}, hiddenElements: [] } }));
+      setCurrentTemplateId(id); setActiveGeneratedPageIndex(0); setSelectedNodeId(null);
+      setTemplateEditing(false); setActiveTab('phase2'); setWorkspaceScreen('results');
+    } catch (error) {
+      setBatchError(controller.signal.aborted ? 'Üretim iptal edildi. Fotoğrafların ve komutun korundu.' : error instanceof Error ? error.message : 'Üretim tamamlanamadı.');
+    } finally { batchController.current = null; setBatchBusy(false); }
+  };
+  const retryBatch = async () => {
+    if (batchController.current) return;
+    const controller = new AbortController(); batchController.current = controller;
+    const id = currentTemplateId;
+    setBatchBusy(true); setBatchError(null);
+    try {
+      const pages = await generateBatchTexts(currentTemplate, generatedPages, currentTemplate.productionBrief || '', {
+        signal: controller.signal, retryOnly: true, onProgress: (n, total) => setBatchProgress(`Yeniden deneniyor · ${n}/${total}`),
+      });
+      setGeneratedPages(pages, id);
+    } catch (error) { setBatchError(error instanceof Error ? error.message : 'Yeniden deneme tamamlanamadı.'); }
+    finally { batchController.current = null; setBatchBusy(false); }
+  };
 
   // --- PALETTE PRESETS ---
   const PALETTE_PRESETS = [
@@ -4398,7 +4465,7 @@ export default function App() {
   }
 
   return (
-    <div id="graphics-engine-app" data-export-open={exportPanelOpen} className="h-[100dvh] bg-[#1D1D1F] dark:bg-[#1D1D1F] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-sans flex flex-col selection:bg-[#FF6B1A] selection:text-[rgba(255,255,255,0.95)] overflow-hidden relative transition-colors duration-300">
+    <div id="graphics-engine-app" data-export-open={exportPanelOpen} data-workspace-screen={workspaceScreen} className="h-[100dvh] bg-[#1D1D1F] dark:bg-[#1D1D1F] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-sans flex flex-col selection:bg-[#FF6B1A] selection:text-[rgba(255,255,255,0.95)] overflow-hidden relative transition-colors duration-300">
       <WorkspaceHeader
         templateName={currentTemplate.name}
         isDark={isDarkMode} onTheme={() => setIsDarkMode(v => !v)}
@@ -4420,7 +4487,7 @@ export default function App() {
           }
         }}
         onOpenTemplates={() => {
-          setLeftDrawerTab(prev => prev === 'templates' ? null : 'templates');
+          if (!batchBusy) setWorkspaceScreen('works');
         }}
         onUndo={handleUndo}
         onRedo={handleRedo}
@@ -4446,8 +4513,20 @@ export default function App() {
         </div>
       )}
 
+      <ProductionNavigation screen={workspaceScreen} disabled={batchBusy} onChange={screen => { if (screen !== 'editor') setTemplateEditing(false); setWorkspaceScreen(screen); }}/>
+      <BatchWorkspace screen={workspaceScreen} templates={templates.map(ensureMultiPageSupport)} current={currentTemplate}
+        projects={pagesByTemplate} mediaLibrary={getUniqueUploadedImages()} busy={batchBusy} progress={batchProgress} error={batchError}
+        onGenerate={runBatch} onRetry={retryBatch} onCancel={() => batchController.current?.abort()}
+        onSelectTemplate={id => { setTemplateEditing(false); setCurrentTemplateId(id); setActiveGeneratedPageIndex(0); setSelectedNodeId(null); }}
+        onOpen={(id, index = 0) => { setTemplateEditing(false); setCurrentTemplateId(id); setActiveGeneratedPageIndex(index); setSelectedNodeId(null); setWorkspaceScreen('editor'); setActiveTab('phase2'); }}
+        onNewTemplate={() => { setTemplateEditing(true); createNewTemplate(); setWorkspaceScreen('editor'); setLeftDrawerTab('templates'); }}
+        onEditTemplate={id => { setTemplateEditing(true); setActivePageIndex(0); setCurrentTemplateId(id); setActiveGeneratedPageIndex(0); setWorkspaceScreen('editor'); setSelectedNodeId(null); setLeftDrawerTab('layers'); }}
+        onExport={() => setIsExportModalOpen(true)} onScreen={screen => { setTemplateEditing(false); setWorkspaceScreen(screen); }}/>
+      {workspaceScreen === 'editor' && <div className="production-editor-actions"><button onClick={() => { setTemplateEditing(false); setWorkspaceScreen(templateEditing ? 'templates' : 'results'); }}>{templateEditing ? '← Şablonlarım' : '← Tüm sonuçlar'}</button><button onClick={() => setWorkspaceScreen('create')}>Yeni toplu üretim</button><span>{templateEditing ? 'Şablon düzenleniyor' : 'Çalışma düzenleniyor · Ana şablon korunur'}</span></div>}
+
+      {workspaceScreen === 'editor' && aiError && <div role="alert" className="workspace-warning">{aiError}</div>}
       {/* WORKSPACE AREA: 3-COLUMN MODERN CANVAS LAYOUT */}
-      <main className="flex-1 flex flex-row overflow-hidden bg-[#18181A] transition-colors duration-300 relative">
+      <main className={`${workspaceScreen !== 'editor' ? 'workspace-editor-hidden' : ''} flex-1 flex flex-row overflow-hidden bg-[#18181A] transition-colors duration-300 relative`}>
         
         {/* 1. LEFT TOOL DRAWER (56px rail + 320px collapsible drawer) */}
         <LeftToolDrawer
@@ -4458,6 +4537,7 @@ export default function App() {
           currentTemplateId={currentTemplateId}
           onSelectTemplate={(id) => {
             setCurrentTemplateId(id);
+            setActiveGeneratedPageIndex(0);
             setSelectedNodeId(null);
           }}
           onCreateTemplate={createNewTemplate}
@@ -4510,11 +4590,11 @@ export default function App() {
           hiddenElementIds={activePageData.hiddenElements || activeGraphicData.hiddenElements || []}
           onGenerateAiBrief={(brief) => {
             setAiCollageBrief(brief);
-            setTimeout(() => triggerAiGenerator(), 50);
+            void triggerAiGenerator(undefined, brief);
           }}
           onGeneratePageTexts={async (brief) => {
             setAiCollageBrief(brief);
-            setTimeout(() => triggerAiGenerator(), 50);
+            void triggerAiGenerator(undefined, brief);
           }}
           isAiLoading={!!aiRequestRef.current || isAiLoading}
         />
@@ -4577,8 +4657,9 @@ export default function App() {
                   onClick={() => setEditingImageRegionId(null)}
                   className="bg-black/30 hover:bg-black/50 text-white px-2 py-0.5 rounded text-[10px] font-extrabold uppercase transition cursor-pointer"
                 >
-                  Tamam
+                  Uygula
                 </button>
+                <button type="button" onClick={cancelCrop} className="underline">Vazgeç</button>
               </div>
             )}
 
@@ -4754,37 +4835,6 @@ export default function App() {
           onExportClick={() => setIsExportModalOpen(true)}
         />
 
-        {/* 4. INDEPENDENT EXPORT MODAL */}
-        <ExportModal
-          isOpen={isExportModalOpen}
-          onClose={() => setIsExportModalOpen(false)}
-          template={currentTemplate}
-          pageCount={generatedPages.length > 0 ? generatedPages.length : (currentTemplate.pages?.length || 1)}
-          activePageIndex={generatedPages.length > 0 ? activeGeneratedPageIndex : activePageIndex}
-          onExportCurrent={async (fmt, sc) => {
-            setExportFormat(fmt);
-            setExportScale(sc);
-            if (generatedPages.length > 0) {
-              exportSingleHighResPage(generatedPages[activeGeneratedPageIndex], activeGeneratedPageIndex);
-            } else {
-              exportHighResGraphic();
-            }
-          }}
-          onExportAll={async (fmt, sc) => {
-            setExportFormat(fmt);
-            setExportScale(sc);
-            exportHighResGraphic();
-          }}
-          onExportZip={async (fmt, sc) => {
-            setExportFormat(fmt);
-            setExportScale(sc);
-            exportHighResZip();
-          }}
-          isExporting={isExporting}
-          isExportingZip={isExportingZip}
-          exportStatusText={exportStatusText || ''}
-        />
-
         {/* Floating Export Progress Toast */}
         {(isExporting || isExportingZip) && exportStatusText && (
           <div className="fixed bottom-6 right-6 z-50 bg-[#1D1D1F]/95 backdrop-blur-md border border-white/20 text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center space-x-3.5 max-w-md animate-fade-in pointer-events-none">
@@ -4798,8 +4848,30 @@ export default function App() {
 
       </main>
 
+        {/* 4. INDEPENDENT EXPORT MODAL */}
+        <ExportModal
+          isOpen={isExportModalOpen}
+          onClose={() => setIsExportModalOpen(false)}
+          template={currentTemplate}
+          pageCount={generatedPages.length > 0 ? generatedPages.length : (currentTemplate.pages?.length || 1)}
+          activePageIndex={generatedPages.length > 0 ? activeGeneratedPageIndex : activePageIndex}
+          onExportCurrent={(fmt, sc) => exportPages([activePageData], false, fmt, sc)}
+          onExportAll={(fmt, sc) => exportPages(generatedPages.length ? generatedPages : [activePageData], false, fmt, sc)}
+          onExportZip={(fmt, sc) => exportPages(generatedPages.length ? generatedPages : [activePageData], true, fmt, sc)}
+          isExporting={isExporting}
+          isExportingZip={isExportingZip}
+          exportStatusText={exportStatusText || ''}
+        />
+
+
+      {aiProposal && <div className="production-dialog-backdrop"><section role="dialog" aria-modal="true" aria-labelledby="ai-proposal-title" className="production-dialog" onKeyDown={e => { if (e.key === 'Escape') setAiProposal(null); }}>
+        <h2 id="ai-proposal-title">AI metin önerisi</h2><p>Mevcut metnin, Kullan düğmesine basana kadar korunur.</p>
+        {aiProposal.context.map(field => <div key={field.id}><strong>{field.name}</strong><p>{aiProposal.texts[field.id]}</p></div>)}
+        <div className="production-dialog-actions"><button autoFocus onClick={() => setAiProposal(null)}>Vazgeç</button><button onClick={() => { const target = aiProposal.regionId; setAiProposal(null); void triggerAiGenerator(target); }}>Yeniden üret</button><button className="production-primary" onClick={applyAiProposal}>Kullan</button></div>
+      </section></div>}
+
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <div id="mobile-nav-bar" className="lg:hidden bg-[#1D1D1F] border-t border-[rgba(255,255,255,0.08)] flex items-center justify-around pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] px-2 z-30 shrink-0 select-none">
+      <div id="mobile-nav-bar" style={{display: workspaceScreen === 'editor' ? undefined : 'none'}} className="lg:hidden bg-[#1D1D1F] border-t border-[rgba(255,255,255,0.08)] flex items-center justify-around pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] px-2 z-30 shrink-0 select-none">
         <button
           onClick={() => setMobileView('editor')}
           className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
@@ -4821,7 +4893,7 @@ export default function App() {
         </button>
 
         <button
-          onClick={() => setMobileView('export')}
+          onClick={() => setIsExportModalOpen(true)}
           className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
             mobileView === 'export' ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
           }`}
