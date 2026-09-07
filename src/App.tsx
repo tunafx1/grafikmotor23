@@ -1160,22 +1160,21 @@ export default function App() {
       regions: currentTemplate.regions || [],
       fixedElements: currentTemplate.fixedElements || []
     };
-    if (activeTab === 'phase1') {
-      return pages[activePageIndex] || pages[0] || fallbackPage;
-    } else {
+    if (generatedPages.length > 0) {
       const pageId = activePageData?.templatePageId;
-      return pages.find(p => p.id === pageId) || pages[0] || fallbackPage;
+      return pages.find(p => p.id === pageId) || pages[activeGeneratedPageIndex] || pages[0] || fallbackPage;
     }
-  }, [currentTemplate, activeTab, activePageIndex, activePageData?.templatePageId]);
+    return pages[activePageIndex] || pages[0] || fallbackPage;
+  }, [currentTemplate, activePageIndex, activeGeneratedPageIndex, generatedPages, activePageData?.templatePageId]);
 
   const editingTemplate = useMemo(() => {
-    const page = activeTab === 'phase1' ? activeTemplatePage : activePageData;
-    return {...currentTemplate,
-      backgroundImageUrl: page.backgroundImageUrl ?? activeTemplatePage.backgroundImageUrl ?? currentTemplate.backgroundImageUrl,
-      regions: page.regions ?? activeTemplatePage.regions ?? currentTemplate.regions,
-      fixedElements: page.fixedElements ?? activeTemplatePage.fixedElements ?? currentTemplate.fixedElements,
+    return {
+      ...currentTemplate,
+      backgroundImageUrl: activeTemplatePage.backgroundImageUrl ?? currentTemplate.backgroundImageUrl,
+      regions: activeTemplatePage.regions ?? currentTemplate.regions ?? [],
+      fixedElements: activeTemplatePage.fixedElements ?? currentTemplate.fixedElements ?? [],
     };
-  }, [currentTemplate, activeTemplatePage, activeTab, activePageData]);
+  }, [currentTemplate, activeTemplatePage]);
 
   const [showGrid, setShowGrid] = useState<boolean>(false);
   const [showSafeMargins, setShowSafeMargins] = useState<boolean>(false);
@@ -1497,10 +1496,10 @@ export default function App() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Use empty/placeholder texts and images when in Phase 1 Template Design Mode
-    const texts = activeTab === 'phase1' ? {} : activePageData.dynamicTexts;
-    const images = activeTab === 'phase1' ? {} : activePageData.dynamicImages;
-    const hidden = activeTab === 'phase1' ? [] : activePageData.hiddenElements;
+    // Use active page dynamic texts, images, and hidden elements with safe fallbacks
+    const texts = activePageData.dynamicTexts || {};
+    const images = activePageData.dynamicImages || {};
+    const hidden = activePageData.hiddenElements || [];
 
     // Render with 1x scale for the live display preview
     renderTemplateToCanvas(
@@ -1519,7 +1518,7 @@ export default function App() {
         editingImageRegionId
       }
     );
-  }, [editingTemplate, activeTab, activePageData, activeGraphicData.paletteOverrides, showGrid, showSafeMargins, selectedNodeId, vurguColor, editingImageRegionId, isAppLoaded, mobileView]);
+  }, [editingTemplate, activePageData, activeGraphicData.paletteOverrides, showGrid, showSafeMargins, selectedNodeId, vurguColor, editingImageRegionId, isAppLoaded, mobileView]);
 
   // --- FIREBASE CLOUD STORAGE INTEGRATION & SYNCING ---
   const lastSavedRef = useRef<string>('');
@@ -3651,7 +3650,7 @@ export default function App() {
 
     // If mouse image positioning is active, drag the image content instead of the frame
     if (editingImageRegionId) {
-      const activeReg = editingTemplate.regions.find(r => r.id === editingImageRegionId);
+      const activeReg = (editingTemplate.regions || []).find(r => r.id === editingImageRegionId);
       if (activeReg) {
         if (x >= activeReg.x && x <= activeReg.x + activeReg.width && y >= activeReg.y && y <= activeReg.y + activeReg.height) {
           const imgData = activePageData.dynamicImages[editingImageRegionId] || {
@@ -3685,12 +3684,12 @@ export default function App() {
     let selectedEl: any = null;
 
     if (selectedNodeId) {
-      const region = editingTemplate.regions.find(r => r.id === selectedNodeId);
+      const region = (editingTemplate.regions || []).find(r => r.id === selectedNodeId);
       if (region) {
         selectedEl = region;
         selectedElType = 'region';
       } else {
-        const fixed = editingTemplate.fixedElements.find(el => el.id === selectedNodeId);
+        const fixed = (editingTemplate.fixedElements || []).find(el => el.id === selectedNodeId);
         if (fixed) {
           selectedEl = fixed;
           selectedElType = 'fixed';
@@ -3737,8 +3736,8 @@ export default function App() {
 
     // Build the visual render list hierarchy exactly as drawn on the canvas (zIndex, order, index)
     const renderList = [
-      ...editingTemplate.fixedElements.map((el, idx) => ({ item: el, isRegion: false, order: 0, index: idx, zIndex: el.zIndex ?? 0 })),
-      ...editingTemplate.regions.map((reg, idx) => ({ item: reg, isRegion: true, order: 1, index: idx, zIndex: reg.zIndex ?? 0 }))
+      ...(editingTemplate.fixedElements || []).map((el, idx) => ({ item: el, isRegion: false, order: 0, index: idx, zIndex: el.zIndex ?? 0 })),
+      ...(editingTemplate.regions || []).map((reg, idx) => ({ item: reg, isRegion: true, order: 1, index: idx, zIndex: reg.zIndex ?? 0 }))
     ];
 
     // Sort by zIndex, then order, then index (matches canvasRenderer.ts)
@@ -3800,7 +3799,7 @@ export default function App() {
 
     if (foundId) {
       setSelectedNodeId(foundId);
-      const activeEl = editingTemplate.regions.find(r => r.id === foundId) || editingTemplate.fixedElements.find(el => el.id === foundId);
+      const activeEl = (editingTemplate.regions || []).find(r => r.id === foundId) || (editingTemplate.fixedElements || []).find(el => el.id === foundId);
       if (activeEl) {
         dragStartRef.current = {
           elementId: foundId,
@@ -3969,15 +3968,32 @@ export default function App() {
     const y = relativeY * scaleY;
 
     // Find if double clicked on an image region
-    const hitRegion = editingTemplate.regions.find(reg => {
+    const hitImageRegion = (editingTemplate.regions || []).find(reg => {
       if (reg.type !== 'image') return false;
       if (activeGraphicData.hiddenElements?.includes(reg.id) || reg.hidden) return false;
       return x >= reg.x && x <= reg.x + reg.width && y >= reg.y && y <= reg.y + reg.height;
     });
 
-    if (hitRegion) {
-      setEditingImageRegionId(hitRegion.id);
-      setSelectedNodeId(hitRegion.id);
+    if (hitImageRegion) {
+      setEditingImageRegionId(hitImageRegion.id);
+      setSelectedNodeId(hitImageRegion.id);
+      return;
+    }
+
+    // Find if double clicked on a text region
+    const hitTextRegion = (editingTemplate.regions || []).find(reg => {
+      if (reg.type !== 'text') return false;
+      if (activeGraphicData.hiddenElements?.includes(reg.id) || reg.hidden) return false;
+      return x >= reg.x && x <= reg.x + reg.width && y >= reg.y && y <= reg.y + reg.height;
+    });
+
+    if (hitTextRegion) {
+      setSelectedNodeId(hitTextRegion.id);
+      setTimeout(() => {
+        const textarea = document.getElementById('text-inspector-input') as HTMLTextAreaElement;
+        if (textarea) textarea.focus();
+      }, 50);
+      return;
     }
   };
 
@@ -3986,7 +4002,7 @@ export default function App() {
     if (!canvas) return;
 
     const handleWheel = (e: WheelEvent) => {
-      const targetRegionId = editingImageRegionId || (selectedNodeId && editingTemplate.regions.find(r => r.id === selectedNodeId && r.type === 'image')?.id);
+      const targetRegionId = editingImageRegionId || (selectedNodeId && (editingTemplate.regions || []).find(r => r.id === selectedNodeId && r.type === 'image')?.id);
       if (!targetRegionId) return;
 
       const rect = canvas.getBoundingClientRect();
@@ -4417,10 +4433,24 @@ export default function App() {
           onAddShape={(type) => addNewFixedElement(type)}
           uploadedImages={getUniqueUploadedImages()}
           onUploadMedia={handleMediaUpload}
-          onUploadImage={handleMediaUpload}
           onSelectMediaImage={(url) => {
             if (selectedNodeId) {
-              updateActiveImageProp(selectedNodeId, 'url', url);
+              const isImageRegion = (editingTemplate.regions || []).some(r => r.id === selectedNodeId && r.type === 'image');
+              if (isImageRegion) {
+                updateActiveImageProp(selectedNodeId, 'url', url);
+                return;
+              }
+            }
+            const firstImg = (editingTemplate.regions || []).find(r => r.type === 'image');
+            if (firstImg) {
+              setSelectedNodeId(firstImg.id);
+              updateActiveImageProp(firstImg.id, 'url', url);
+            } else {
+              addNewRegion('image');
+              setTimeout(() => {
+                const latestImg = (editingTemplate.regions || []).filter(r => r.type === 'image').slice(-1)[0];
+                if (latestImg) updateActiveImageProp(latestImg.id, 'url', url);
+              }, 50);
             }
           }}
           onOpenMediaDownloader={() => setIsToolsModalOpen(true)}
@@ -4643,27 +4673,41 @@ export default function App() {
         {/* 3. RIGHT CONTEXTUAL INSPECTOR PANEL */}
         <RightInspectorPanel
           selectedNodeId={selectedNodeId}
+          isOpen={true}
+          editingTemplate={editingTemplate}
+          currentTemplate={currentTemplate}
           regions={editingTemplate.regions || []}
           fixedElements={editingTemplate.fixedElements || []}
           activeGraphicData={activeGraphicData}
           activePageData={activePageData}
-          editingTemplate={editingTemplate}
-          currentTemplate={currentTemplate}
           vurguColor={vurguColor}
           onCloseSelection={() => setSelectedNodeId(null)}
+          onDeselect={() => setSelectedNodeId(null)}
+          updateActiveText={(regionId, text) => updateActiveText(regionId, text)}
           handleDynamicTextChange={(regionId, text) => updateActiveText(regionId, text)}
+          updateActiveImageProp={updateActiveImageProp}
           handleRegionTextStyleChange={handleRegionTextStyleChange}
+          handleRegionPropertyChange={handleRegionPropertyChange}
+          handleFixedElementPropertyChange={handleFixedElementPropertyChange}
+          handleFixedElementChange={handleFixedElementChange}
           handleDynamicImageUpload={(regionId, file) => handleDynamicImageUpload(regionId, file)}
+          onOpenCrop={handleCropPanTrigger}
           handleCropPanTrigger={handleCropPanTrigger}
           handleImageScaleChange={handleImageScaleChange}
           handleImageRotate90={handleImageRotate90}
-          handleFixedElementChange={handleFixedElementChange}
           handleDeleteNode={handleDeleteNode}
+          onDeleteNode={handleDeleteNode}
           handleDuplicateNode={handleDuplicateNode}
+          onDuplicateNode={handleDuplicateNode}
           handleToggleLock={handleToggleLock}
+          onToggleLock={handleToggleLock}
+          triggerAiGenerator={(regionId) => triggerAiGenerator(regionId)}
           onAiGenerateForField={(regionId) => triggerAiGenerator(regionId)}
+          aiTextTarget={aiTextTarget}
           isAiLoading={!!aiRequestRef.current || isAiLoading}
+          onUpdateHighlightColor={(color) => setVurguColor(color)}
           onVurguColorChange={(color) => setVurguColor(color)}
+          onExportClick={() => setIsExportModalOpen(true)}
         />
 
         {/* 4. INDEPENDENT EXPORT MODAL */}
