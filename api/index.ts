@@ -3,6 +3,7 @@ import path from 'path';
 import { extractVideoId as extractYouTubeVideoId, streamMedia } from '../downloader-service/media-stream.js';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import { createSignedMediaUpload, readCloudinaryConfig } from './cloudinary-upload.js';
 // Text generation types and helper functions (inlined for self-contained Vercel serverless execution)
 export type TextField = {id: string; name: string; role: string; prompt?: string; text: string};
 export type TextRequest = {systemPrompt: string; templateName: string; brief: string; fields: TextField[]; context: TextField[]; image?: string};
@@ -177,7 +178,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Normalize endpoint prefixes while preserving query parameters (video streams need them).
 app.use((req, _res, next) => {
-  const endpoint = req.path.match(/(?:^|\/)(generate-text|generate-content|analyze-collage|yt-info|yt-download|yt-stream)\/?$/i)?.[1];
+  const endpoint = req.path.match(/(?:^|\/)(generate-text|generate-content|analyze-collage|media-upload-signature|yt-info|yt-download|yt-stream)\/?$/i)?.[1];
   if (endpoint) {
     const queryIndex = req.url.indexOf('?');
     req.url = `/api/${endpoint.toLowerCase()}${queryIndex >= 0 ? req.url.slice(queryIndex) : ''}`;
@@ -203,6 +204,37 @@ app.post(['/api/generate-text', '/generate-text'], createTextGenerationHandler({
     return JSON.parse(response.text || '{}');
   },
 }));
+
+const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY || 'AIzaSyDgq1nvKLYKMODxECDmpDCULvdVIPsJY88';
+
+async function getFirebaseUserId(authorization: string | undefined): Promise<string | null> {
+  const match = authorization?.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(FIREBASE_WEB_API_KEY)}`, {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({idToken:match[1]}),
+  });
+  if (!response.ok) return null;
+  const data = await response.json() as {users?: Array<{localId?: string}>};
+  return data.users?.[0]?.localId || null;
+}
+
+app.post(['/api/media-upload-signature', '/media-upload-signature'], async (req, res) => {
+  const config = readCloudinaryConfig();
+  if (!config) return res.status(503).json({success:false, reason:'media_not_configured', error:'Cloudinary medya yedeklemesi henüz yapılandırılmamış.'});
+  const kind = req.body?.kind;
+  const contentHash = req.body?.contentHash;
+  if ((kind !== 'image' && kind !== 'video') || typeof contentHash !== 'string' || !/^[a-f0-9]{64}$/.test(contentHash)) {
+    return res.status(400).json({success:false, reason:'invalid_media_request', error:'Medya yükleme isteği geçersiz.'});
+  }
+  try {
+    const userId = await getFirebaseUserId(req.get('authorization'));
+    if (!userId) return res.status(401).json({success:false, reason:'media_auth_required', error:'Medya yedeklemesi için geçerli bir kullanıcı oturumu gerekiyor.'});
+    return res.json({success:true, ...createSignedMediaUpload(config, {userId, kind, contentHash})});
+  } catch (error) {
+    console.error('Media signature failed:', error instanceof Error ? error.message : 'unknown');
+    return res.status(502).json({success:false, reason:'media_signature_failed', error:'Medya yükleme bağlantısı hazırlanamadı.'});
+  }
+});
 
 // Legacy endpoints retained for existing clients. The editor uses generate-text.
 const fallbackResponses: Record<string, any> = {

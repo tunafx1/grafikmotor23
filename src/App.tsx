@@ -1776,8 +1776,8 @@ export default function App() {
       console.error('Cloud save failed:', error);
       if (/resource-exhausted|quota/i.test(String(error?.code || error?.message || ''))) setFirestoreQuotaExceeded(true);
       const detail = String(error?.code || error?.message || '');
-      setCloudError(/storage\//i.test(detail)
-        ? 'Medya yedeklemesi için Firebase Storage henüz etkin değil veya Storage kuralları yayımlanmamış.'
+      setCloudError(/storage\/|media\//i.test(detail)
+        ? 'Medya yedeklemesi tamamlanamadı. Cloudinary bağlantısını ve dosya sınırını kontrol edin.'
         : /permission-denied/i.test(detail)
           ? 'Firestore erişimi reddedildi. Canlı güvenlik kurallarının yayımlandığını kontrol edin.'
           : 'Bulut kaydı tamamlanamadı. İnternet bağlantısını ve Firebase yapılandırmasını kontrol edin.');

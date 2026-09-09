@@ -10,9 +10,9 @@ import {
   serverTimestamp,
   where
 } from 'firebase/firestore';
-import { getDownloadURL, ref, uploadBytes, uploadString } from 'firebase/storage';
-import { db, auth, ensureUserSignIn, isValidConfig, mediaStorage } from './firebase';
+import { db, auth, ensureUserSignIn, isValidConfig } from './firebase';
 import { getVideoBlob, videoFileExtension } from './mediaStore';
+import { dataUrlToBlob, uploadCloudMedia } from './cloudMedia';
 import { DesignTemplate } from '../types';
 
 export enum OperationType {
@@ -318,9 +318,8 @@ async function uploadDataUrl(userId: string, value: string): Promise<string> {
   const key = `${userId}/image/${hash}.${extension}`;
   if (!uploadedMedia.has(key)) {
     uploadedMedia.set(key, (async () => {
-      const target = ref(mediaStorage, `user-media/${key}`);
-      await uploadString(target, value, 'data_url', {contentType:mime, cacheControl:'public,max-age=31536000,immutable'});
-      return getDownloadURL(target);
+      const blob = await dataUrlToBlob(value);
+      return uploadCloudMedia(blob, {kind:'image', contentHash:hash, fileName:`${hash}.${extension}`});
     })());
   }
   return uploadedMedia.get(key)!;
@@ -333,15 +332,14 @@ async function uploadStoredVideo(userId: string, mediaId: string): Promise<strin
   const key = `${userId}/video/${mediaId}.${extension}`;
   if (!uploadedMedia.has(key)) {
     uploadedMedia.set(key, (async () => {
-      const target = ref(mediaStorage, `user-media/${key}`);
-      await uploadBytes(target, blob, {contentType:blob.type || `video/${extension}`, cacheControl:'private,max-age=86400'});
-      return getDownloadURL(target);
+      const hash = await contentHash(`${mediaId}:${blob.size}:${blob.type}`);
+      return uploadCloudMedia(blob, {kind:'video', contentHash:hash, fileName:`${mediaId}.${extension}`});
     })());
   }
   return uploadedMedia.get(key)!;
 }
 
-/** Move binary media to Storage before the lightweight snapshot reaches Firestore. */
+/** Move binary media to Cloudinary before the lightweight snapshot reaches Firestore. */
 async function prepareCloudValue(value: any, userId: string): Promise<any> {
   if (typeof value === 'string') return value.startsWith('data:image/') ? uploadDataUrl(userId, value) : value;
   if (!value || typeof value !== 'object') return value;
