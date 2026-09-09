@@ -5,10 +5,14 @@ import {
   getDocs, 
   setDoc, 
   deleteDoc, 
+  onSnapshot,
   query, 
-  where 
+  serverTimestamp,
+  where
 } from 'firebase/firestore';
-import { db, auth, ensureUserSignIn, isValidConfig } from './firebase';
+import { getDownloadURL, ref, uploadBytes, uploadString } from 'firebase/storage';
+import { db, auth, ensureUserSignIn, isValidConfig, mediaStorage } from './firebase';
+import { getVideoBlob, videoFileExtension } from './mediaStore';
 import { DesignTemplate } from '../types';
 
 export enum OperationType {
@@ -26,14 +30,7 @@ export interface FirestoreErrorInfo {
   path: string | null;
   authInfo: {
     userId?: string | null;
-    email?: string | null;
-    emailVerified?: boolean | null;
     isAnonymous?: boolean | null;
-    tenantId?: string | null;
-    providerInfo?: {
-      providerId?: string | null;
-      email?: string | null;
-    }[];
   };
 }
 
@@ -42,20 +39,15 @@ function handleFirestoreError(error: unknown, operationType: OperationType, path
     error: error instanceof Error ? error.message : String(error),
     authInfo: {
       userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
       isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData?.map(provider => ({
-        providerId: provider.providerId,
-        email: provider.email,
-      })) || []
     },
     operationType,
     path
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.error('Cloud operation failed:', {code:(error as any)?.code || 'unknown', operationType, path});
+  const wrapped = new Error(errInfo.error);
+  Object.assign(wrapped, {code: (error as any)?.code});
+  throw wrapped;
 }
 
 function mapRegion(r: any): any {
@@ -75,13 +67,25 @@ function mapRegion(r: any): any {
     borderRadius: Number(r.borderRadius ?? 0),
     isDynamic: Boolean(r.isDynamic),
     zIndex: Number(r.zIndex ?? 0),
+    rotation: Number(r.rotation ?? 0),
+    skewX: Number(r.skewX ?? 0),
+    skewY: Number(r.skewY ?? 0),
+    shadowColor: r.shadowColor || null,
+    shadowBlur: Number(r.shadowBlur ?? 0),
+    shadowOffsetX: Number(r.shadowOffsetX ?? 0),
+    shadowOffsetY: Number(r.shadowOffsetY ?? 0),
+    blendMode: r.blendMode || null,
+    padding: Number(r.padding ?? 0),
+    lockAspectRatio: r.lockAspectRatio !== undefined ? Boolean(r.lockAspectRatio) : null,
     hidden: r.hidden !== undefined ? Boolean(r.hidden) : false,
     locked: r.locked !== undefined ? Boolean(r.locked) : false,
     fitBackgroundToText: r.fitBackgroundToText !== undefined ? Boolean(r.fitBackgroundToText) : null,
     hasBackground: r.hasBackground !== undefined ? Boolean(r.hasBackground) : null,
     hasBorder: r.hasBorder !== undefined ? Boolean(r.hasBorder) : null,
     textRole: r.textRole || null,
+    aiPrompt: r.aiPrompt || null,
     clipImage: r.clipImage !== undefined ? Boolean(r.clipImage) : null,
+    objectFit: r.objectFit || null,
     placeholderText: r.placeholderText || null,
     placeholderImage: r.placeholderImage || null,
     textStyle: r.textStyle ? {
@@ -89,6 +93,7 @@ function mapRegion(r: any): any {
       fontSize: Number(r.textStyle.fontSize),
       color: r.textStyle.color,
       fontWeight: r.textStyle.fontWeight,
+      fontStyle: r.textStyle.fontStyle || 'normal',
       lineHeight: Number(r.textStyle.lineHeight ?? 1.2),
       align: r.textStyle.align,
       letterSpacing: r.textStyle.letterSpacing ? Number(r.textStyle.letterSpacing) : null,
@@ -97,6 +102,10 @@ function mapRegion(r: any): any {
       shadowOffsetX: r.textStyle.shadowOffsetX !== undefined ? Number(r.textStyle.shadowOffsetX) : null,
       shadowOffsetY: r.textStyle.shadowOffsetY !== undefined ? Number(r.textStyle.shadowOffsetY) : null,
       hasShadow: r.textStyle.hasShadow !== undefined ? Boolean(r.textStyle.hasShadow) : null,
+      underline: r.textStyle.underline !== undefined ? Boolean(r.textStyle.underline) : null,
+      highlightColor: r.textStyle.highlightColor || null,
+      highlightOpacity: r.textStyle.highlightOpacity !== undefined ? Number(r.textStyle.highlightOpacity) : null,
+      dropCap: r.textStyle.dropCap !== undefined ? Boolean(r.textStyle.dropCap) : null,
       isCustomColor: r.textStyle.isCustomColor !== undefined ? Boolean(r.textStyle.isCustomColor) : null,
     } : null
   };
@@ -115,6 +124,16 @@ function mapFixedElement(fe: any): any {
     zIndex: Number(fe.zIndex ?? 0),
     hidden: fe.hidden !== undefined ? Boolean(fe.hidden) : false,
     locked: fe.locked !== undefined ? Boolean(fe.locked) : false,
+    opacity: Number(fe.opacity ?? 1),
+    rotation: Number(fe.rotation ?? 0),
+    skewX: Number(fe.skewX ?? 0),
+    skewY: Number(fe.skewY ?? 0),
+    shadowColor: fe.shadowColor || null,
+    shadowBlur: Number(fe.shadowBlur ?? 0),
+    shadowOffsetX: Number(fe.shadowOffsetX ?? 0),
+    shadowOffsetY: Number(fe.shadowOffsetY ?? 0),
+    blendMode: fe.blendMode || null,
+    lockAspectRatio: fe.lockAspectRatio !== undefined ? Boolean(fe.lockAspectRatio) : null,
     shapeType: fe.shapeType || null,
     color: fe.color || null,
     backgroundColor: fe.backgroundColor || null,
@@ -128,6 +147,7 @@ function mapFixedElement(fe: any): any {
       fontSize: Number(fe.textStyle.fontSize),
       color: fe.textStyle.color,
       fontWeight: fe.textStyle.fontWeight,
+      fontStyle: fe.textStyle.fontStyle || 'normal',
       lineHeight: Number(fe.textStyle.lineHeight ?? 1.2),
       align: fe.textStyle.align,
       letterSpacing: fe.textStyle.letterSpacing ? Number(fe.textStyle.letterSpacing) : null,
@@ -136,6 +156,10 @@ function mapFixedElement(fe: any): any {
       shadowOffsetX: fe.textStyle.shadowOffsetX !== undefined ? Number(fe.textStyle.shadowOffsetX) : null,
       shadowOffsetY: fe.textStyle.shadowOffsetY !== undefined ? Number(fe.textStyle.shadowOffsetY) : null,
       hasShadow: fe.textStyle.hasShadow !== undefined ? Boolean(fe.textStyle.hasShadow) : null,
+      underline: fe.textStyle.underline !== undefined ? Boolean(fe.textStyle.underline) : null,
+      highlightColor: fe.textStyle.highlightColor || null,
+      highlightOpacity: fe.textStyle.highlightOpacity !== undefined ? Number(fe.textStyle.highlightOpacity) : null,
+      dropCap: fe.textStyle.dropCap !== undefined ? Boolean(fe.textStyle.dropCap) : null,
       isCustomColor: fe.textStyle.isCustomColor !== undefined ? Boolean(fe.textStyle.isCustomColor) : null,
     } : null
   };
@@ -192,6 +216,8 @@ export async function getCloudTemplates(): Promise<DesignTemplate[]> {
         backgroundColor: data.backgroundColor,
         backgroundGradient: data.backgroundGradient,
         backgroundImageUrl: data.backgroundImageUrl,
+        backgroundPattern: data.backgroundPattern,
+        overlay: data.overlay,
         regions,
         fixedElements,
         pages: pages || undefined,
@@ -219,7 +245,7 @@ export async function saveCloudTemplate(template: DesignTemplate): Promise<void>
 
   const path = `templates/${template.id}`;
   try {
-    const payload = sanitizePayload({
+    const payload = sanitizePayload(await prepareCloudValue({
       id: template.id,
       name: template.name,
       width: Number(template.width),
@@ -227,6 +253,8 @@ export async function saveCloudTemplate(template: DesignTemplate): Promise<void>
       backgroundColor: template.backgroundColor || '#1D1D1F',
       backgroundGradient: template.backgroundGradient || null,
       backgroundImageUrl: template.backgroundImageUrl || null,
+      backgroundPattern: template.backgroundPattern || null,
+      overlay: template.overlay || null,
       regions: Array.isArray(template.regions) ? template.regions.map(mapRegion) : [],
       fixedElements: Array.isArray(template.fixedElements) ? template.fixedElements.map(mapFixedElement) : [],
       pages: Array.isArray(template.pages) ? template.pages.map(mapTemplatePage) : null,
@@ -241,9 +269,9 @@ export async function saveCloudTemplate(template: DesignTemplate): Promise<void>
       primaryColor: template.palette.primary || '#FF6B1A',
       accentColor: template.palette.accent || '#FF9F0A',
       textColor: template.palette.text || 'rgba(255,255,255,0.95)',
-      userId: user.uid,
-      updatedAt: new Date().toISOString()
-    });
+      userId: user.uid
+    }, user.uid));
+    payload.updatedAt = serverTimestamp();
 
     await setDoc(doc(db, 'templates', template.id), payload);
   } catch (error) {
@@ -273,6 +301,66 @@ function sanitizePayload(obj: any): any {
     return res;
   }
   return obj;
+}
+
+const uploadedMedia = new Map<string, Promise<string>>();
+
+async function contentHash(value: string): Promise<string> {
+  const bytes = new TextEncoder().encode(value);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+async function uploadDataUrl(userId: string, value: string): Promise<string> {
+  const mime = value.slice(5, value.indexOf(';')) || 'image/jpeg';
+  const extension = mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg';
+  const hash = await contentHash(value);
+  const key = `${userId}/image/${hash}.${extension}`;
+  if (!uploadedMedia.has(key)) {
+    uploadedMedia.set(key, (async () => {
+      const target = ref(mediaStorage, `user-media/${key}`);
+      await uploadString(target, value, 'data_url', {contentType:mime, cacheControl:'public,max-age=31536000,immutable'});
+      return getDownloadURL(target);
+    })());
+  }
+  return uploadedMedia.get(key)!;
+}
+
+async function uploadStoredVideo(userId: string, mediaId: string): Promise<string | null> {
+  const blob = await getVideoBlob(mediaId);
+  if (!blob) return null;
+  const extension = videoFileExtension(blob);
+  const key = `${userId}/video/${mediaId}.${extension}`;
+  if (!uploadedMedia.has(key)) {
+    uploadedMedia.set(key, (async () => {
+      const target = ref(mediaStorage, `user-media/${key}`);
+      await uploadBytes(target, blob, {contentType:blob.type || `video/${extension}`, cacheControl:'private,max-age=86400'});
+      return getDownloadURL(target);
+    })());
+  }
+  return uploadedMedia.get(key)!;
+}
+
+/** Move binary media to Storage before the lightweight snapshot reaches Firestore. */
+async function prepareCloudValue(value: any, userId: string): Promise<any> {
+  if (typeof value === 'string') return value.startsWith('data:image/') ? uploadDataUrl(userId, value) : value;
+  if (!value || typeof value !== 'object') return value;
+  if ((typeof Blob !== 'undefined' && value instanceof Blob) || (typeof File !== 'undefined' && value instanceof File)) return undefined;
+  if (Array.isArray(value)) return Promise.all(value.map(item => prepareCloudValue(item, userId)));
+
+  const output: Record<string, any> = {};
+  for (const [key, child] of Object.entries(value)) {
+    if (key === 'file') continue;
+    if (key === 'videoUrl' && typeof child === 'string' && child.startsWith('blob:') && typeof value.mediaId === 'string') {
+      const videoUrl = await uploadStoredVideo(userId, value.mediaId);
+      if (videoUrl) output[key] = videoUrl;
+      continue;
+    }
+    if (typeof child === 'string' && child.startsWith('blob:')) continue;
+    const prepared = await prepareCloudValue(child, userId);
+    if (prepared !== undefined) output[key] = prepared;
+  }
+  return output;
 }
 
 /**
@@ -308,15 +396,16 @@ export async function saveUserGraphicProject(
   if (!isValidConfig) return;
   const path = `graphic_projects/${userId}`;
   try {
-    const payload = sanitizePayload({
+    const payload = sanitizePayload(await prepareCloudValue({
       userId,
       currentTemplateId,
       graphicData,
       generatedPages,
       templates,
       pagesByTemplate,
-      updatedAt: new Date().toISOString()
-    });
+      syncVersion: 1
+    }, userId));
+    payload.updatedAt = serverTimestamp();
     await setDoc(doc(db, 'graphic_projects', userId), payload);
   } catch (error) {
     handleFirestoreError(error, OperationType.WRITE, path);
@@ -338,4 +427,21 @@ export async function getUserGraphicProject(userId: string): Promise<any | null>
   } catch (error) {
     handleFirestoreError(error, OperationType.GET, path);
   }
+}
+
+export type ProjectSnapshotMetadata = {fromCache: boolean; hasPendingWrites: boolean};
+
+/** Observe committed project changes so other devices update without a refresh. */
+export function subscribeUserGraphicProject(
+  userId: string,
+  onData: (data: any | null, metadata: ProjectSnapshotMetadata) => void,
+  onError: (error: unknown) => void
+): () => void {
+  if (!isValidConfig) return () => {};
+  return onSnapshot(doc(db, 'graphic_projects', userId), {includeMetadataChanges:true}, snapshot => {
+    onData(snapshot.exists() ? snapshot.data() : null, {
+      fromCache:snapshot.metadata.fromCache,
+      hasPendingWrites:snapshot.metadata.hasPendingWrites,
+    });
+  }, onError);
 }

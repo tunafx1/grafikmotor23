@@ -12,8 +12,14 @@ export interface TextStyle {
   shadowOffsetX?: number;
   shadowOffsetY?: number;
   hasShadow?: boolean;
+  underline?: boolean;
+  highlightColor?: string;
+  highlightOpacity?: number;
+  dropCap?: boolean;
   isCustomColor?: boolean;
 }
+
+export type TextRole = 'title' | 'subtitle' | 'description' | 'callToAction' | 'label' | 'date' | 'price' | 'normal';
 
 export interface Region {
   id: string;
@@ -30,6 +36,16 @@ export interface Region {
   borderRadius: number; // Pixels
   isDynamic: boolean;
   zIndex?: number;
+  rotation?: number;
+  skewX?: number;
+  skewY?: number;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  blendMode?: GlobalCompositeOperation;
+  padding?: number;
+  lockAspectRatio?: boolean;
   fitBackgroundToText?: boolean;
   hasBackground?: boolean;
   hasBorder?: boolean;
@@ -38,10 +54,13 @@ export interface Region {
   // If type is text
   textStyle?: TextStyle;
   placeholderText?: string;
-  textRole?: 'title' | 'subtitle' | 'description' | 'normal';
+  textRole?: TextRole;
+  /** This instruction is sent to AI only when generating this text region. */
+  aiPrompt?: string;
   // If type is image
   placeholderImage?: string;
   clipImage?: boolean;
+  objectFit?: 'cover' | 'contain' | 'fill';
 }
 
 export interface FixedElement {
@@ -55,6 +74,16 @@ export interface FixedElement {
   zIndex?: number;
   hidden?: boolean;
   locked?: boolean;
+  opacity?: number;
+  rotation?: number;
+  skewX?: number;
+  skewY?: number;
+  shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
+  blendMode?: GlobalCompositeOperation;
+  lockAspectRatio?: boolean;
   // Shape specific
   shapeType?: 'rect' | 'circle' | 'line' | 'star';
   color?: string; // Fill or stroke color
@@ -92,6 +121,17 @@ export interface DesignTemplate {
     angle?: number;
   };
   backgroundImageUrl?: string;
+  backgroundPattern?: {
+    type: 'none' | 'grid' | 'dots' | 'circles';
+    color: string;
+    size: number;
+    opacity: number;
+  };
+  overlay?: {
+    color: string;
+    opacity: number;
+    vignette?: number;
+  };
   regions: Region[];
   fixedElements: FixedElement[];
   palette: {

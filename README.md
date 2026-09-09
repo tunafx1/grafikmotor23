@@ -15,7 +15,7 @@ Uygulamayı http://localhost:3000 adresinde açın. Google hesabına giriş yapm
 
 Yapay zekâ özellikleri için `.env.example` dosyasını `.env.local` adıyla kopyalayıp kendi `GEMINI_API_KEY` değerinizi girin. Anahtar yoksa metin sihirbazı nedenini gösterir ve mevcut metni korur. Alanların yanındaki sihirbaz yalnızca o alanı; genel üretim düğmesi aktif sayfanın metinlerini, şablondaki AI promptuna göre üretir. Renkler değiştirilmez. Şablon promptunu Tasarım sekmesindeki Kurumsal Dil / AI Prompt alanından düzenleyebilirsiniz. Model adları `GEMINI_MODEL` ve isteğe bağlı `GEMINI_FALLBACK_MODEL` üzerinden ayarlanabilir.
 
-Google girişi ve buluta kayıt için `firebase-applet-config.json` projenize ait olmalı; Firebase Authentication ve Firestore yapılandırılmalıdır. Depodaki `firestore.rules` dosyasının varlığı, bu kuralların canlı projeye yayımlandığı anlamına gelmez. Bulut kaydı hesap gerektirir. Videolar IndexedDB içinde yerel saklanır; video dosyaları buluta yüklenmez ve başka cihazlara taşınmaz.
+Google girişi ve cihazlar arası senkronizasyon için `firebase-applet-config.json` projenize ait olmalı; Firebase Authentication, Firestore ve Storage yapılandırılmalıdır. Oturum açmış kullanıcının değişiklikleri kısa bir beklemeden sonra otomatik kaydedilir; Firestore dinleyicisi diğer cihazlarda tamamlanan kayıtları yenileme gerektirmeden uygular. Görseller ve videolar Storage içindeki kullanıcıya özel dizine yüklenir, proje belgesinde yalnızca URL'leri tutulur. Depodaki `firestore.rules` ve `storage.rules` dosyalarının varlığı, bu kuralların canlı projeye yayımlandığı anlamına gelmez; dağıtım öncesinde her iki kural dosyası da yayımlanmalıdır. Hesapsız kullanım yalnızca bu cihazda saklanır.
 
 ## Doğrulama ve üretim
 

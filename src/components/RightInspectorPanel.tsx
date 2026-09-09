@@ -41,7 +41,18 @@ import {
   Crosshair,
   MoveHorizontal
 } from 'lucide-react';
-import { DesignTemplate, Region, FixedElement, TextStyle } from '../types';
+import { DesignTemplate, Region, FixedElement, TextStyle, TextRole } from '../types';
+
+const TEXT_ROLE_OPTIONS: {value: TextRole; label: string}[] = [
+  {value: 'title', label: 'Başlık'},
+  {value: 'subtitle', label: 'Alt başlık'},
+  {value: 'description', label: 'Açıklama'},
+  {value: 'callToAction', label: 'Eylem çağrısı (CTA)'},
+  {value: 'label', label: 'Etiket / rozet'},
+  {value: 'date', label: 'Tarih'},
+  {value: 'price', label: 'Fiyat'},
+  {value: 'normal', label: 'Genel metin'},
+];
 
 export type AlignmentPreset = 
   | 'left' 
@@ -99,6 +110,108 @@ export interface RightInspectorPanelProps {
   handleToggleLock?: (id: string) => void;
   onToggleLock?: (id: string) => void;
   onExportClick?: () => void;
+  onTemplatePropertiesChange?: (updates: Partial<DesignTemplate>) => void;
+}
+
+type StyleableNode = Region | FixedElement;
+
+function ElementStyleControls({
+  node,
+  allNodes,
+  onUpdate,
+  showPadding = false
+}: {
+  node: StyleableNode;
+  allNodes: StyleableNode[];
+  onUpdate: (updates: any) => void;
+  showPadding?: boolean;
+}) {
+  const fill = ('backgroundColor' in node && node.backgroundColor) || ('color' in node && node.color) || 'transparent';
+  const maxZ = Math.max(0, ...allNodes.map(item => item.zIndex ?? 0));
+  const minZ = Math.min(0, ...allNodes.map(item => item.zIndex ?? 0));
+  const colorValue = (value?: string) => value && /^#[0-9a-f]{6}$/i.test(value) ? value : '#000000';
+
+  return (
+    <div className="space-y-2 border-t border-[rgba(255,255,255,0.08)] pt-3">
+      <details className="group rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#1D1D1F]/70">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-[rgba(255,255,255,0.75)]">
+          Görünüm & Kenarlık <ChevronDown size={13} className="transition group-open:rotate-180" />
+        </summary>
+        <div className="space-y-3 border-t border-[rgba(255,255,255,0.07)] p-3">
+          <div className="grid grid-cols-2 gap-2">
+            <label className="space-y-1 text-[10px] text-white/55">Dolgu rengi
+              <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/15 p-1.5">
+                <input type="color" value={colorValue(fill)} onChange={e => onUpdate({backgroundColor: e.target.value, hasBackground: true})} className="h-5 w-6 cursor-pointer bg-transparent" />
+                <span className="truncate font-mono text-white/80">{fill === 'transparent' ? 'Yok' : fill}</span>
+              </div>
+            </label>
+            <label className="space-y-1 text-[10px] text-white/55">Çizgi rengi
+              <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/15 p-1.5">
+                <input type="color" value={colorValue(node.borderColor)} onChange={e => onUpdate({borderColor: e.target.value, hasBorder: true})} className="h-5 w-6 cursor-pointer bg-transparent" />
+                <span className="truncate font-mono text-white/80">{node.borderColor || 'Yok'}</span>
+              </div>
+            </label>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <label className="text-[10px] text-white/55">Çizgi
+              <input type="number" min="0" max="80" value={node.borderWidth || 0} onChange={e => onUpdate({borderWidth: Math.max(0, Number(e.target.value)), hasBorder: Number(e.target.value) > 0})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" />
+            </label>
+            <label className="text-[10px] text-white/55">Köşe
+              <input type="number" min="0" max="500" value={node.borderRadius || 0} onChange={e => onUpdate({borderRadius: Math.max(0, Number(e.target.value))})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" />
+            </label>
+            {showPadding && <label className="text-[10px] text-white/55">İç boşluk
+              <input type="number" min="0" max="200" value={(node as Region).padding || 0} onChange={e => onUpdate({padding: Math.max(0, Number(e.target.value))})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" />
+            </label>}
+          </div>
+          <label className="block space-y-1 text-[10px] text-white/55">
+            <span className="flex justify-between"><span>Opaklık</span><span>{Math.round((node.opacity ?? 1) * 100)}%</span></span>
+            <input type="range" min="0" max="1" step="0.05" value={node.opacity ?? 1} onChange={e => onUpdate({opacity: Number(e.target.value)})} className="w-full accent-[#FF6B1A]" />
+          </label>
+          <label className="flex items-center justify-between text-[11px] text-white/70">
+            En-boy oranını koru
+            <input type="checkbox" checked={!!node.lockAspectRatio} onChange={e => onUpdate({lockAspectRatio: e.target.checked})} className="accent-[#FF6B1A]" />
+          </label>
+        </div>
+      </details>
+
+      <details className="group rounded-xl border border-[rgba(255,255,255,0.08)] bg-[#1D1D1F]/70">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-[rgba(255,255,255,0.75)]">
+          Efekt & Dönüşüm <ChevronDown size={13} className="transition group-open:rotate-180" />
+        </summary>
+        <div className="space-y-3 border-t border-[rgba(255,255,255,0.07)] p-3">
+          <div className="grid grid-cols-3 gap-2">
+            {([['rotation', 'Döndür'], ['skewX', 'Eğ X'], ['skewY', 'Eğ Y']] as const).map(([prop, label]) => (
+              <label key={prop} className="text-[10px] text-white/55">{label}
+                <input type="number" min="-180" max="180" value={node[prop] || 0} onChange={e => onUpdate({[prop]: Number(e.target.value)})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" />
+              </label>
+            ))}
+          </div>
+          <div className="grid grid-cols-[auto_1fr] items-end gap-2">
+            <label className="text-[10px] text-white/55">Gölge rengi
+              <input type="color" value={colorValue(node.shadowColor)} onChange={e => onUpdate({shadowColor: e.target.value})} className="mt-1 block h-8 w-10 cursor-pointer rounded bg-transparent" />
+            </label>
+            <label className="text-[10px] text-white/55">Gölge bulanıklığı
+              <input type="range" min="0" max="80" value={node.shadowBlur || 0} onChange={e => onUpdate({shadowBlur: Number(e.target.value)})} className="mt-2 w-full accent-[#FF6B1A]" />
+            </label>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="text-[10px] text-white/55">Gölge X<input type="number" value={node.shadowOffsetX || 0} onChange={e => onUpdate({shadowOffsetX: Number(e.target.value)})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" /></label>
+            <label className="text-[10px] text-white/55">Gölge Y<input type="number" value={node.shadowOffsetY || 0} onChange={e => onUpdate({shadowOffsetY: Number(e.target.value)})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" /></label>
+          </div>
+          <label className="block text-[10px] text-white/55">Karışım modu
+            <select value={node.blendMode || 'source-over'} onChange={e => onUpdate({blendMode: e.target.value as GlobalCompositeOperation})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#171719] px-2 py-2 text-xs text-white">
+              <option value="source-over">Normal</option><option value="multiply">Çarpma</option><option value="screen">Ekran</option><option value="overlay">Kaplama</option><option value="soft-light">Yumuşak ışık</option><option value="difference">Fark</option>
+            </select>
+          </label>
+        </div>
+      </details>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" onClick={() => onUpdate({zIndex: minZ - 1})} className="rounded-lg border border-white/10 bg-[#1D1D1F] px-2 py-2 text-[11px] font-semibold text-white/75 hover:text-white">En arkaya gönder</button>
+        <button type="button" onClick={() => onUpdate({zIndex: maxZ + 1})} className="rounded-lg border border-white/10 bg-[#1D1D1F] px-2 py-2 text-[11px] font-semibold text-white/75 hover:text-white">En öne getir</button>
+      </div>
+    </div>
+  );
 }
 
 interface ElementAlignmentSectionProps {
@@ -417,7 +530,8 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
     handleFixedElementPropertiesChange,
     handleAlignElement,
     onAlignElement,
-    onExportClick
+    onExportClick,
+    onTemplatePropertiesChange
   } = props;
 
   const panelBody = useRef<HTMLDivElement>(null);
@@ -425,6 +539,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
 
   const [showAdvanced, setShowAdvanced] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
 
   // Unify handlers
   const onTextChange = updateActiveText || handleDynamicTextChange;
@@ -482,6 +597,18 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
         handleFixedElementChange(id, k, v);
       });
     }
+  };
+
+  const preserveAspectRatio = <T extends {width: number; height: number; lockAspectRatio?: boolean}>(node: T, updates: Partial<T>): Partial<T> => {
+    if (!node.lockAspectRatio || (!('width' in updates) && !('height' in updates))) return updates;
+    const ratio = node.width / Math.max(1, node.height);
+    if ('width' in updates && updates.width !== undefined && !('height' in updates)) {
+      return {...updates, height: Math.max(1, Number(updates.width) / ratio)};
+    }
+    if ('height' in updates && updates.height !== undefined && !('width' in updates)) {
+      return {...updates, width: Math.max(1, Number(updates.height) * ratio)};
+    }
+    return updates;
   };
 
   // Unified element alignment handler
@@ -600,7 +727,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
 
   return (
     <aside data-selected={!!selectedNodeId}
-      className="w-full lg:w-[340px] bg-[#252528] border-l border-[rgba(255,255,255,0.08)] flex flex-col z-20 shrink-0 overflow-hidden select-none transition-all duration-300"
+      className="workspace-inspector w-full lg:w-[340px] bg-[#252528] border-l border-[rgba(255,255,255,0.08)] flex flex-col z-20 shrink-0 overflow-hidden select-none transition-all duration-300"
       aria-label="Öğe ayarları paneli"
     >
       {/* Hidden File Input for direct image replacement */}
@@ -610,6 +737,20 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
         onChange={handleImageFilePicked} 
         accept="image/*" 
         className="hidden" 
+      />
+      <input
+        type="file"
+        ref={logoInputRef}
+        accept="image/*"
+        className="hidden"
+        onChange={event => {
+          const file = event.target.files?.[0];
+          if (!file || !selectedFixed || selectedFixed.type !== 'logo') return;
+          const reader = new FileReader();
+          reader.onload = () => onFixedProp(selectedFixed.id, 'content', String(reader.result || ''));
+          reader.readAsDataURL(file);
+          event.target.value = '';
+        }}
       />
 
       {/* Panel Header */}
@@ -621,7 +762,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
               ? selectedRegion.name 
               : selectedFixed 
                 ? (selectedFixed.name || 'Sabit Öğe') 
-                : 'Sayfa & Tasarım Ayarları'}
+                : 'Öğe ayarları'}
           </span>
         </div>
 
@@ -667,7 +808,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
            ═══════════════════════════════════════════════ */}
         {selectedRegion && selectedRegion.type === 'text' && (() => {
           const r = selectedRegion;
-          const style = r.textStyle || {};
+          const style: Partial<TextStyle> = r.textStyle || {};
           const textVal = activePageData?.dynamicTexts?.[r.id] !== undefined
             ? activePageData.dynamicTexts[r.id]
             : (activeGraphicData?.dynamicTexts?.[r.id] !== undefined
@@ -709,6 +850,23 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                     <span>{isTitle ? 'Başlığı AI ile Üret' : 'Metni AI ile Üret'}</span>
                   </button>
                 )}
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor={`text-role-${r.id}`} className="block text-[11px] font-bold uppercase tracking-wider text-[rgba(255,255,255,0.7)]">
+                  AI metin kategorisi
+                </label>
+                <select
+                  id={`text-role-${r.id}`}
+                  value={r.textRole || 'normal'}
+                  onChange={event => onUpdateRegionProps(r.id, {textRole: event.target.value as TextRole})}
+                  className="w-full cursor-pointer rounded-xl border border-[rgba(255,255,255,0.1)] bg-[#1D1D1F] px-3 py-2 text-xs text-white outline-none transition focus:border-[#FF6B1A]"
+                >
+                  {TEXT_ROLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+                <p className="text-[10px] leading-relaxed text-[rgba(255,255,255,0.4)]">
+                  AI bu alanı üretirken seçilen içerik türünün kurallarını uygular.
+                </p>
               </div>
 
               {/* Text Input Content */}
@@ -853,6 +1011,22 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-[#1D1D1F]/70 p-3">
+                <label className="flex items-center justify-between gap-2 text-[10px] text-white/65">Metin arka planı
+                  <input type="checkbox" checked={r.hasBackground !== false && r.backgroundColor !== 'transparent'} onChange={e => onUpdateRegionProps(r.id, {hasBackground: e.target.checked, backgroundColor: e.target.checked && r.backgroundColor === 'transparent' ? '#FF6B1A' : r.backgroundColor})} className="accent-[#FF6B1A]" />
+                </label>
+                <label className="flex items-center justify-between gap-2 text-[10px] text-white/65">Metne sığdır
+                  <input type="checkbox" checked={!!r.fitBackgroundToText} onChange={e => onUpdateRegionProps(r.id, {fitBackgroundToText: e.target.checked})} className="accent-[#FF6B1A]" />
+                </label>
+              </div>
+
+              <ElementStyleControls
+                node={r}
+                allNodes={[...regionList, ...fixedList]}
+                showPadding
+                onUpdate={(updates) => onUpdateRegionProps(r.id, updates)}
+              />
+
               {/* Element Alignment & Canvas Placement */}
               <ElementAlignmentSection
                 id={r.id}
@@ -865,7 +1039,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 canvasHeight={templateHeight}
                 onToggleLock={onLock}
                 onAlign={(alignment) => onAlign(r.id, alignment)}
-                onUpdateProps={(updates) => onUpdateRegionProps(r.id, updates)}
+                onUpdateProps={(updates) => onUpdateRegionProps(r.id, preserveAspectRatio(r, updates))}
               />
 
               {/* Collapsible Advanced Typography Settings */}
@@ -913,6 +1087,30 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                         onChange={(e) => handleRegionTextStyleChange && handleRegionTextStyleChange(r.id, 'letterSpacing', parseFloat(e.target.value))}
                         className="w-full accent-[#FF6B1A]"
                       />
+                    </div>
+
+                    <div className="space-y-2 border-t border-white/10 pt-3">
+                      <label className="flex items-center justify-between text-[11px] text-white/70">Alt çizgi
+                        <input type="checkbox" checked={!!style.underline} onChange={e => handleRegionTextStyleChange?.(r.id, 'underline', e.target.checked)} className="accent-[#FF6B1A]" />
+                      </label>
+                      <label className="flex items-center justify-between text-[11px] text-white/70">Başlangıç harfi (drop cap)
+                        <input type="checkbox" checked={!!style.dropCap} onChange={e => handleRegionTextStyleChange?.(r.id, 'dropCap', e.target.checked)} className="accent-[#FF6B1A]" />
+                      </label>
+                      <div className="grid grid-cols-[auto_1fr] items-end gap-3">
+                        <label className="text-[10px] text-white/55">Marker rengi
+                          <input type="color" value={style.highlightColor && /^#[0-9a-f]{6}$/i.test(style.highlightColor) ? style.highlightColor : '#FFE66D'} onChange={e => handleRegionTextStyleChange?.(r.id, 'highlightColor', e.target.value)} className="mt-1 block h-8 w-10 bg-transparent" />
+                        </label>
+                        <label className="text-[10px] text-white/55">Marker yoğunluğu
+                          <input type="range" min="0" max="1" step="0.05" value={style.highlightOpacity ?? 0.7} onChange={e => handleRegionTextStyleChange?.(r.id, 'highlightOpacity', Number(e.target.value))} className="mt-2 w-full accent-[#FF6B1A]" />
+                        </label>
+                      </div>
+                      <label className="flex items-center justify-between text-[11px] text-white/70">Metin gölgesi
+                        <input type="checkbox" checked={!!style.hasShadow} onChange={e => handleRegionTextStyleChange?.(r.id, 'hasShadow', e.target.checked)} className="accent-[#FF6B1A]" />
+                      </label>
+                      {style.hasShadow && <div className="grid grid-cols-2 gap-2">
+                        <input type="color" value={style.shadowColor && /^#[0-9a-f]{6}$/i.test(style.shadowColor) ? style.shadowColor : '#000000'} onChange={e => handleRegionTextStyleChange?.(r.id, 'shadowColor', e.target.value)} className="h-8 w-full bg-transparent" title="Metin gölge rengi" />
+                        <input type="number" min="0" max="60" value={style.shadowBlur ?? 4} onChange={e => handleRegionTextStyleChange?.(r.id, 'shadowBlur', Number(e.target.value))} className="rounded-lg border border-white/10 bg-black/15 px-2 text-xs text-white" title="Metin gölge bulanıklığı" />
+                      </div>}
                     </div>
                   </div>
                 )}
@@ -1025,6 +1223,27 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 )}
               </div>
 
+              <div className="space-y-3 rounded-xl border border-white/10 bg-[#1D1D1F]/70 p-3">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-white/60">Görsel yerleşimi
+                  <select value={r.objectFit || 'cover'} onChange={e => onUpdateRegionProps(r.id, {objectFit: e.target.value as Region['objectFit']})} className="mt-2 w-full rounded-lg border border-white/10 bg-[#171719] px-2 py-2 text-xs text-white">
+                    <option value="cover">Alanı kapla (cover)</option><option value="contain">Tamamını göster (contain)</option><option value="fill">Alanı doldur (fill)</option>
+                  </select>
+                </label>
+                <label className="flex items-center justify-between text-[11px] text-white/70">Görsel maskesi / kırpma
+                  <input type="checkbox" checked={r.clipImage !== false} onChange={e => onUpdateRegionProps(r.id, {clipImage: e.target.checked})} className="accent-[#FF6B1A]" />
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[['Kare', 0], ['Yumuşak', 24], ['Daire', Math.round(Math.min(r.width, r.height) / 2)]].map(([label, radius]) => <button key={String(label)} type="button" onClick={() => onUpdateRegionProps(r.id, {borderRadius: Number(radius), clipImage: true})} className="rounded-lg border border-white/10 bg-black/15 py-1.5 text-[10px] text-white/70 hover:text-white">{label}</button>)}
+                </div>
+              </div>
+
+              <ElementStyleControls
+                node={r}
+                allNodes={[...regionList, ...fixedList]}
+                showPadding
+                onUpdate={(updates) => onUpdateRegionProps(r.id, updates)}
+              />
+
               {/* Element Alignment & Canvas Placement */}
               <ElementAlignmentSection
                 id={r.id}
@@ -1037,7 +1256,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 canvasHeight={templateHeight}
                 onToggleLock={onLock}
                 onAlign={(alignment) => onAlign(r.id, alignment)}
-                onUpdateProps={(updates) => onUpdateRegionProps(r.id, updates)}
+                onUpdateProps={(updates) => onUpdateRegionProps(r.id, preserveAspectRatio(r, updates))}
               />
             </div>
           );
@@ -1061,38 +1280,25 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 )}
               </div>
 
-              {/* Color fill */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-[rgba(255,255,255,0.7)] uppercase tracking-wider block">
-                  Dolgu Rengi
-                </label>
-                <div className="flex items-center space-x-2 bg-[#1D1D1F] border border-[rgba(255,255,255,0.1)] rounded-xl p-2">
-                  <input
-                    type="color"
-                    value={el.color || '#000000'}
-                    onChange={(e) => onFixedProp(el.id, 'color', e.target.value)}
-                    className="w-7 h-7 rounded cursor-pointer border-0 bg-transparent p-0"
-                  />
-                  <span className="text-xs font-mono text-white">{el.color || '#000000'}</span>
+              {(el.type === 'logo' || el.type === 'social' || el.type === 'text') && (
+                <div className="space-y-2 rounded-xl border border-white/10 bg-[#1D1D1F]/70 p-3">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-white/55">İçerik
+                    <input type="text" value={el.content || ''} onChange={e => onFixedProp(el.id, 'content', e.target.value)} className="mt-1.5 w-full rounded-lg border border-white/10 bg-black/15 px-2.5 py-2 text-xs text-white" />
+                  </label>
+                  {el.type === 'logo' && <button type="button" onClick={() => logoInputRef.current?.click()} className="w-full rounded-lg border border-[#FF6B1A]/40 bg-[#FF6B1A]/10 px-2 py-2 text-[11px] font-bold text-[#FF9F0A]">Logo görseli yükle</button>}
+                  {el.type === 'social' && <label className="block text-[10px] text-white/55">İkon
+                    <select value={el.iconType || 'none'} onChange={e => onFixedProp(el.id, 'iconType', e.target.value as FixedElement['iconType'])} className="mt-1 w-full rounded-lg border border-white/10 bg-[#171719] px-2 py-2 text-xs text-white">
+                      <option value="none">Yok</option><option value="instagram">Instagram</option><option value="globe">Web</option><option value="mail">E-posta</option><option value="phone">Telefon</option>
+                    </select>
+                  </label>}
                 </div>
-              </div>
+              )}
 
-              {/* Opacity */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-[11px] text-[rgba(255,255,255,0.7)]">
-                  <span>Opaklık</span>
-                  <span>{Math.round((el.opacity ?? 1) * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={el.opacity ?? 1}
-                  onChange={(e) => onFixedProp(el.id, 'opacity', parseFloat(e.target.value))}
-                  className="w-full accent-[#FF6B1A]"
-                />
-              </div>
+              <ElementStyleControls
+                node={el}
+                allNodes={[...regionList, ...fixedList]}
+                onUpdate={(updates) => onUpdateFixedProps(el.id, updates)}
+              />
 
               {/* Element Alignment & Canvas Placement */}
               <ElementAlignmentSection
@@ -1107,7 +1313,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 canvasHeight={templateHeight}
                 onToggleLock={onLock}
                 onAlign={(alignment) => onAlign(el.id, alignment)}
-                onUpdateProps={(updates) => onUpdateFixedProps(el.id, updates)}
+                onUpdateProps={(updates) => onUpdateFixedProps(el.id, preserveAspectRatio(el, updates))}
               />
 
               {/* Lock toggle */}
@@ -1165,6 +1371,57 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                   <span className="text-xs font-mono text-white">{vurguColor}</span>
                 </div>
               </div>
+
+              {onTemplatePropertiesChange && editingTemplate && (
+                <details className="group rounded-xl border border-white/10 bg-[#1D1D1F]/70" open>
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2 text-[11px] font-bold uppercase tracking-wider text-white/70">
+                    Arka plan & Desen <ChevronDown size={13} className="transition group-open:rotate-180" />
+                  </summary>
+                  <div className="space-y-3 border-t border-white/10 p-3">
+                    <label className="flex items-center justify-between text-[11px] text-white/70">Arka plan rengi
+                      <input type="color" value={editingTemplate.palette?.bg || editingTemplate.backgroundColor || '#1D1D1F'} onChange={e => onTemplatePropertiesChange({backgroundColor: e.target.value, palette: {...editingTemplate.palette, bg: e.target.value}})} className="h-7 w-10 bg-transparent" />
+                    </label>
+
+                    <label className="block text-[10px] text-white/55">Gradyan
+                      <select value={editingTemplate.backgroundGradient?.type || 'none'} onChange={e => onTemplatePropertiesChange({backgroundGradient: e.target.value === 'none' ? undefined : {type: e.target.value as 'linear' | 'radial', colors: editingTemplate.backgroundGradient?.colors || [editingTemplate.palette?.bg || '#1D1D1F', editingTemplate.palette?.primary || '#FF6B1A'], angle: editingTemplate.backgroundGradient?.angle || 0}})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#171719] px-2 py-2 text-xs text-white">
+                        <option value="none">Yok</option><option value="linear">Doğrusal</option><option value="radial">Dairesel</option>
+                      </select>
+                    </label>
+                    {editingTemplate.backgroundGradient && <div className="grid grid-cols-[auto_auto_1fr] items-end gap-2">
+                      <input type="color" value={editingTemplate.backgroundGradient.colors[0] || '#1D1D1F'} onChange={e => onTemplatePropertiesChange({backgroundGradient: {...editingTemplate.backgroundGradient!, colors: [e.target.value, editingTemplate.backgroundGradient!.colors[1] || '#FF6B1A']}})} className="h-8 w-10 bg-transparent" title="Gradyan başlangıç rengi" />
+                      <input type="color" value={editingTemplate.backgroundGradient.colors[1] || '#FF6B1A'} onChange={e => onTemplatePropertiesChange({backgroundGradient: {...editingTemplate.backgroundGradient!, colors: [editingTemplate.backgroundGradient!.colors[0] || '#1D1D1F', e.target.value]}})} className="h-8 w-10 bg-transparent" title="Gradyan bitiş rengi" />
+                      <label className="text-[10px] text-white/55">Açı<input type="number" min="0" max="360" value={editingTemplate.backgroundGradient.angle || 0} onChange={e => onTemplatePropertiesChange({backgroundGradient: {...editingTemplate.backgroundGradient!, angle: Number(e.target.value)}})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" /></label>
+                    </div>}
+
+                    <label className="block text-[10px] text-white/55">Desen
+                      <select value={editingTemplate.backgroundPattern?.type || 'none'} onChange={e => onTemplatePropertiesChange({backgroundPattern: {type: e.target.value as NonNullable<DesignTemplate['backgroundPattern']>['type'], color: editingTemplate.backgroundPattern?.color || '#FFFFFF', size: editingTemplate.backgroundPattern?.size || 28, opacity: editingTemplate.backgroundPattern?.opacity ?? 0.16}})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#171719] px-2 py-2 text-xs text-white">
+                        <option value="none">Yok</option><option value="grid">Kareli / grafik kâğıdı</option><option value="dots">Nokta deseni</option><option value="circles">Daire sırası</option>
+                      </select>
+                    </label>
+                    {editingTemplate.backgroundPattern && editingTemplate.backgroundPattern.type !== 'none' && <div className="grid grid-cols-[auto_1fr] items-end gap-3">
+                      <input type="color" value={editingTemplate.backgroundPattern.color} onChange={e => onTemplatePropertiesChange({backgroundPattern: {...editingTemplate.backgroundPattern!, color: e.target.value}})} className="h-8 w-10 bg-transparent" title="Desen rengi" />
+                      <label className="text-[10px] text-white/55">Desen aralığı
+                        <input type="range" min="8" max="120" value={editingTemplate.backgroundPattern.size} onChange={e => onTemplatePropertiesChange({backgroundPattern: {...editingTemplate.backgroundPattern!, size: Number(e.target.value)}})} className="mt-2 w-full accent-[#FF6B1A]" />
+                      </label>
+                    </div>}
+                    {editingTemplate.backgroundPattern && editingTemplate.backgroundPattern.type !== 'none' && <label className="block text-[10px] text-white/55">Desen opaklığı
+                      <input type="range" min="0" max="1" step="0.02" value={editingTemplate.backgroundPattern.opacity} onChange={e => onTemplatePropertiesChange({backgroundPattern: {...editingTemplate.backgroundPattern!, opacity: Number(e.target.value)}})} className="mt-2 w-full accent-[#FF6B1A]" />
+                    </label>}
+
+                    <div className="grid grid-cols-[auto_1fr] items-end gap-3 border-t border-white/10 pt-3">
+                      <label className="text-[10px] text-white/55">Kaplama
+                        <input type="color" value={editingTemplate.overlay?.color || '#000000'} onChange={e => onTemplatePropertiesChange({overlay: {...(editingTemplate.overlay || {opacity: 0}), color: e.target.value}})} className="mt-1 block h-8 w-10 bg-transparent" />
+                      </label>
+                      <label className="text-[10px] text-white/55">Kaplama opaklığı
+                        <input type="range" min="0" max="1" step="0.05" value={editingTemplate.overlay?.opacity || 0} onChange={e => onTemplatePropertiesChange({overlay: {...(editingTemplate.overlay || {color: '#000000'}), opacity: Number(e.target.value)}})} className="mt-2 w-full accent-[#FF6B1A]" />
+                      </label>
+                    </div>
+                    <label className="block text-[10px] text-white/55">Vinyet
+                      <input type="range" min="0" max="1" step="0.05" value={editingTemplate.overlay?.vignette || 0} onChange={e => onTemplatePropertiesChange({overlay: {...(editingTemplate.overlay || {color: '#000000', opacity: 0}), vignette: Number(e.target.value)}})} className="mt-2 w-full accent-[#FF6B1A]" />
+                    </label>
+                  </div>
+                </details>
+              )}
 
               {/* Template Dimension Info */}
               <div className="p-3 rounded-xl bg-[#1D1D1F]/60 border border-[rgba(255,255,255,0.06)] flex items-center justify-between text-xs">

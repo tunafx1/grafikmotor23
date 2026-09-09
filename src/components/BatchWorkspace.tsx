@@ -1,82 +1,52 @@
-import React, { useRef, useState } from 'react';
-import { Upload, Sparkles, ArrowRight, X, ArrowLeft, Plus, Images, Download } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Upload, Sparkles, ArrowRight, X, ArrowLeft, Plus, Images, Download, FolderOpen, LayoutTemplate, Check, Trash2, Pencil } from 'lucide-react';
 import type { DesignTemplate, SequenceMediaItem } from '../types';
 import { TemplateThumbnail } from './TemplateThumbnail';
 import { resolveExportTemplate } from '../utils/exportAssets';
 import { buildBatchPages } from '../utils/batchProduction';
 import { createSequenceMediaItem } from '../utils/mediaUtils';
 import './BatchWorkspace.css';
+import './BatchWorkspace.simple.css';
+import './BatchCreate.css';
 
 export type WorkspaceScreen = 'create' | 'results' | 'works' | 'templates' | 'editor';
 export function ProductionNavigation({ screen, disabled, onChange }: { screen: WorkspaceScreen; disabled: boolean; onChange: (screen: WorkspaceScreen) => void }) {
+  const primaryScreen = screen === 'results' || screen === 'editor' ? null : screen;
   return (
     <nav className="production-nav" aria-label="Çalışma alanı">
       <div className="production-nav-left">
         <button
           disabled={disabled}
-          aria-current={screen === 'create' ? 'page' : undefined}
-          className={`production-nav-btn ${screen === 'create' ? 'active-create' : ''}`}
-          onClick={() => onChange('create')}
-          title="Toplu fotoğraf seç, AI komutu ver ve seçili şablona tasarımlar üret"
-        >
-          <Sparkles size={14} className="text-[#FF9F0A]" />
-          <strong>Toplu Oluştur (Ana Akış)</strong>
-          <span className="production-badge">ANA AMAÇ</span>
-        </button>
-
-        <button
-          disabled={disabled}
-          aria-current={screen === 'results' ? 'page' : undefined}
+          aria-current={primaryScreen === 'create' ? 'page' : undefined}
           className="production-nav-btn"
-          onClick={() => onChange('results')}
-          title="En son üretilen sayfaları incele"
+          onClick={() => onChange('create')}
         >
-          <span>Üretim Sonuçları</span>
+          <Sparkles size={15} />
+          <span>Toplu Oluştur</span>
         </button>
 
         <button
           disabled={disabled}
-          aria-current={screen === 'works' ? 'page' : undefined}
+          aria-current={primaryScreen === 'works' ? 'page' : undefined}
           className="production-nav-btn"
           onClick={() => onChange('works')}
           title="Önceki üretimlerin ve kayıtlı çalışmaların"
         >
+          <FolderOpen size={15} />
           <span>Çalışmalarım</span>
         </button>
 
         <button
           disabled={disabled}
-          aria-current={screen === 'templates' ? 'page' : undefined}
+          aria-current={primaryScreen === 'templates' ? 'page' : undefined}
           className="production-nav-btn"
           onClick={() => onChange('templates')}
           title="Tasarım şablonlarını incele ve düzenle"
         >
+          <LayoutTemplate size={15} />
           <span>Şablonlarım</span>
         </button>
 
-        <button
-          disabled={disabled}
-          aria-current={screen === 'editor' ? 'page' : undefined}
-          className={`production-nav-btn ${screen === 'editor' ? 'active-editor' : ''}`}
-          onClick={() => onChange('editor')}
-          title="Tuval üzerinde tek sayfa detaylı düzenleyici"
-        >
-          <span>Tek Sayfa Düzenleyici</span>
-        </button>
-      </div>
-
-      <div className="production-nav-right">
-        {screen === 'editor' && (
-          <span className="text-xs text-amber-400 font-semibold flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            <span>Detaylı Sayfa Düzenleyici Açık</span>
-          </span>
-        )}
-        {screen === 'create' && (
-          <span className="text-xs text-white/70 hidden sm:inline-block">
-            ⚡ Fotoğraflar + AI Komutu → Seçili Şablona Toplu Üretim
-          </span>
-        )}
       </div>
     </nav>
   );
@@ -88,7 +58,8 @@ export function BatchWorkspace(p: {
   mediaLibrary: string[];
   onGenerate: (template: DesignTemplate, media: SequenceMediaItem[], brief: string) => Promise<void>;
   onOpen: (id: string, page?: number) => void; onSelectTemplate: (id: string) => void;
-  onNewTemplate: () => void; onEditTemplate: (id: string) => void;
+  onNewTemplate: () => void; onEditTemplate: (id: string) => void; onDeleteTemplate: (id: string) => void;
+  onDeleteWorks: (ids: string[]) => void; onDownloadWorks: (ids: string[]) => Promise<void>;
   onExport: () => void; onRetry: () => void; onCancel: () => void; onScreen: (screen: WorkspaceScreen) => void;
 }) {
   const [photos, setPhotos] = useState<SequenceMediaItem[]>([]);
@@ -97,11 +68,19 @@ export function BatchWorkspace(p: {
   const [fileError, setFileError] = useState('');
   const [dragging, setDragging] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [selectedWorks, setSelectedWorks] = useState<Set<string>>(new Set());
   const fileInput = useRef<HTMLInputElement>(null);
   const loadingRef = useRef(false);
   const sourceTemplates = p.templates.filter(t => !t.sourceTemplateId);
   const source = sourceTemplates.find(t => t.id === p.current.sourceTemplateId) || sourceTemplates.find(t => t.id === p.current.id) || sourceTemplates[0];
   const disabled = p.busy || loading;
+  const archivedWorks = p.templates.filter(template => !!p.projects[template.id]?.length);
+  useEffect(() => { if (p.screen !== 'works') setSelectedWorks(new Set()); }, [p.screen]);
+  const toggleWork = (id: string) => setSelectedWorks(previous => {
+    const next = new Set(previous);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
   let planned = 0; let layoutError = '';
   if (source && photos.length) { try { planned = buildBatchPages(source, photos).length; } catch (e) { layoutError = (e as Error).message; } }
   const addFiles = async (files: File[]) => {
@@ -127,20 +106,16 @@ export function BatchWorkspace(p: {
   };
   const move = (index: number, direction: number) => setPhotos(old => { const next = [...old]; [next[index], next[index + direction]] = [next[index + direction], next[index]]; return next; });
   const pages = p.projects[p.current.id] || [];
-  return <section className="batch-workspace" hidden={p.screen === 'editor'}>
-    {p.screen === 'create' && <div className="production-container">
+  return <section className="batch-workspace" data-screen={p.screen} hidden={p.screen === 'editor'}>
+    {p.screen === 'create' && <div className="production-container production-create-container">
       <div className="production-heading">
-        <div className="flex items-center gap-2 mb-2 flex-wrap">
-          <span className="production-eyebrow">SİTENİN ASIL AMACI · BİR KOMUTLA TOPLU TASARIM</span>
-          <span className="px-2.5 py-0.5 rounded-full bg-[#FF6B1A]/20 text-[#FF9F0A] border border-[#FF6B1A]/40 text-[10px] font-extrabold tracking-wider">
-            YAPAY ZEKÂ MOTORU
-          </span>
-        </div>
-        <h1>Toplu Fotoğraflarından Tasarımlar Oluştur</h1>
-        <p>Fotoğraflarını ekle, şablonunu seç ve ne anlatmak istediğini yaz. Yapay zekâ tüm fotoğraflarını şablon düzenlerine yerleştirip metinleriyle birlikte hazır tasarımlara dönüştürsün.</p>
+        <span className="production-eyebrow">YENİ ÜRETİM</span>
+        <h1>Fotoğraflarından tasarımlar oluştur</h1>
+        <p>Fotoğraflarını ekle, şablonunu seç ve komutunu yaz. Geri kalanını Grafik Motoru hazırlasın.</p>
       </div>
-      <div className="production-grid">
-        <section className="production-card"><h2><span>1</span> Fotoğraflarını ekle <small>{photos.length} / 25</small></h2>
+      <div className="production-builder">
+        <div className="production-grid">
+        <section className="production-card production-photo-card"><h2><span>1</span> Fotoğraflar <small>{photos.length} / 25</small></h2>
           <input ref={fileInput} type="file" multiple accept="image/*" aria-label="Toplu fotoğraf seç" hidden onChange={e => { void addFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
           <button className={`production-drop ${dragging ? 'dragging' : ''}`} disabled={disabled} onClick={() => fileInput.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); void addFiles(Array.from(e.dataTransfer.files)); }}>
             <Upload size={30}/><strong>{loading ? 'Fotoğraflar hazırlanıyor…' : 'Fotoğrafları seç veya buraya bırak'}</strong><span>Birden fazla fotoğraf seçebilirsin · Dosya başına en fazla 25 MB</span>
@@ -156,30 +131,46 @@ export function BatchWorkspace(p: {
           {!!photos.length && <p className="production-hint">Fotoğraflar bu sırayla yerleştirilir. İlk fotoğraflar kapakta kullanılır.</p>}
         </section>
         <div className="production-settings">
-          <section className="production-card"><h2><span>2</span> Şablonun</h2>
+          <section className="production-card production-template-card"><h2><span>2</span> Şablon</h2>
             {source ? <><label htmlFor="production-template">Kullanılacak şablon</label><select id="production-template" disabled={disabled} value={source.id} onChange={e => p.onSelectTemplate(e.target.value)}>{sourceTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
             <div className="production-template-preview"><TemplateThumbnail template={source}/><div><strong>{source.name}</strong><p>{source.width} × {source.height} px</p><small>Fotoğraflar şablonun kapak ve kolaj alanlarına yerleştirilir.</small></div></div></> : <button onClick={p.onNewTemplate}>Şablon oluştur</button>}
           </section>
-          <section className="production-card"><h2><span>3</span> Ne anlatalım?</h2><label htmlFor="production-brief">Tüm fotoğraf grubu için AI komutun</label><textarea id="production-brief" disabled={disabled} value={brief} maxLength={3000} onChange={e => setBrief(e.target.value)} placeholder="Okulumuzun yıl sonu etkinliği için samimi bir başlık ve kısa açıklama oluştur." rows={5}/>
+          <section className="production-card production-brief-card"><h2><span>3</span> İçerik komutu</h2><label htmlFor="production-brief">Bu fotoğraflarla ne anlatalım?</label><textarea id="production-brief" disabled={disabled} value={brief} maxLength={3000} onChange={e => setBrief(e.target.value)} placeholder="Örnek: Okulumuzun yıl sonu etkinliği için samimi bir başlık ve kısa açıklama oluştur." rows={5}/>
             <p className="production-hint">{source?.aiSystemPrompt ? 'Şablonun marka dili kullanılacak.' : 'Komutun, şablonun metin alanlarına uygulanacak.'} Fotoğraflarının yerine yeni görsel üretilmez.</p>
           </section>
-          <div className="production-submit" aria-live="polite"><p>{planned ? `${photos.length} fotoğraf → ${planned} sayfa` : 'Fotoğraflarını ekleyerek başla.'}</p>
+        </div>
+        </div>
+        <div className="production-submit" aria-live="polite">
+          <div className="production-submit-copy">
+            <p className="production-summary">{planned ? <><Check size={15}/><span><strong>{photos.length} fotoğraf</strong> ile yaklaşık <strong>{planned} sayfa</strong> hazırlanacak</span></> : <span><strong>Başlamak için fotoğraflarını ekle</strong><small>Seçimin ve komutun bu ekranda korunur.</small></span>}</p>
             {(p.error || layoutError) && <p className="production-error" role="alert">{p.error || layoutError}</p>}
-            <button className="production-primary" disabled={disabled || !planned || !brief.trim()} onClick={() => source && void p.onGenerate(source, photos, brief)}><Sparkles size={18}/>{p.busy ? p.progress : 'Tasarımları oluştur'}{!p.busy && <ArrowRight size={18}/>}</button>
-            {p.busy ? <button className="production-link" onClick={p.onCancel}>Üretimi iptal et</button> : planned > 0 && !brief.trim() ? <small>Üretmek için ne anlatmak istediğini yaz.</small> : <small>Yeni üretim, önceki çalışmalarını değiştirmez.</small>}
+            {p.busy ? <button className="production-link" onClick={p.onCancel}>Üretimi iptal et</button> : planned > 0 && !brief.trim() ? <small>Devam etmek için içerik komutunu yaz.</small> : planned > 0 ? <small>Yeni üretim önceki çalışmalarını değiştirmez.</small> : null}
           </div>
+          <button className="production-primary" disabled={disabled || !planned || !brief.trim()} onClick={() => source && void p.onGenerate(source, photos, brief)}><Sparkles size={18}/>{p.busy ? p.progress : 'Tasarımları oluştur'}{!p.busy && <ArrowRight size={18}/>}</button>
         </div>
       </div>
     </div>}
-    {p.screen === 'results' && <div className="production-container"><div className="production-heading production-heading-row"><div><span className="production-eyebrow">ÜRETİM SONUÇLARI</span><h1>{pages.length} sayfan hazır.</h1><p>Toplu indir veya bir sayfaya tıklayıp son dokunuşları yap.</p></div><button className="production-primary" disabled={!pages.length || p.busy} onClick={p.onExport}><Download size={18}/>Tümünü indir</button></div>
+    {p.screen === 'results' && <div className="production-container"><div className="production-heading production-heading-row"><div><h1>{pages.length ? `${pages.length} sayfan hazır` : 'Henüz bir sonuç yok'}</h1><p>{pages.length ? 'Toplu indir veya bir sayfaya tıklayıp son dokunuşları yap.' : 'Fotoğraflarını ekleyerek ilk tasarımlarını oluştur.'}</p></div>{pages.length > 0 && <button className="production-primary" disabled={p.busy} onClick={p.onExport}><Download size={18}/>Tümünü indir</button>}</div>
       {pages.some(page => page.productionError) && <div className="production-error" role="alert">Bazı metinler üretilemedi. Bu sayfalarda şablon metinleri korunuyor. <button disabled={p.busy} onClick={p.onRetry}>{p.busy ? p.progress : 'Başarısız metinleri yeniden dene'}</button></div>}
       {p.error && <p role="alert" className="production-error">{p.error}</p>}
-      <div className="production-gallery">{pages.map((page, i) => <button key={page.id} className="production-result" disabled={p.busy} onClick={() => p.onOpen(p.current.id, i)}><TemplateThumbnail template={resolveExportTemplate(p.current, page)} data={page}/><div><strong>{page.name}</strong><span>{page.productionError ? 'Metin üretilemedi · Düzenle' : 'Düzenle →'}</span></div></button>)}</div>
-      <button className="production-link" disabled={p.busy} onClick={() => p.onScreen('create')}>Üretim ayarlarına dön · Yeni sürüm oluştur</button>
+      <div className="production-gallery">{pages.map((page, i) => <button key={page.id} className="production-result" disabled={p.busy} onClick={() => p.onOpen(p.current.id, i)}><TemplateThumbnail template={resolveExportTemplate(p.current, page)} data={page}/><div><strong>{page.name}</strong><span>{page.productionError ? 'Metin üretilemedi' : `Sayfa ${i + 1}`}</span><span className="production-card-action">Düzenle <ArrowRight size={13}/></span></div></button>)}</div>
+      <button className="production-link" disabled={p.busy} onClick={() => p.onScreen('create')}>{pages.length ? 'Üretim ayarlarına dön' : 'Toplu oluşturmaya başla'}</button>
     </div>}
-    {(p.screen === 'works' || p.screen === 'templates') && <div className="production-container"><div className="production-heading production-heading-row"><div><span className="production-eyebrow">ÇALIŞMA ALANIN</span><h1>{p.screen === 'works' ? 'Çalışmalarım' : 'Şablonlarım'}</h1><p>{p.screen === 'works' ? 'Önceki üretimlerin burada. Kaldığın yerden devam et.' : 'Bir şablon seç, fotoğraflarını topluca tasarımlara dönüştür.'}</p></div><button className="production-primary" onClick={p.screen === 'works' ? () => p.onScreen('create') : p.onNewTemplate}><Plus size={18}/>{p.screen === 'works' ? 'Yeni toplu üretim' : 'Yeni şablon'}</button></div>
-      <div className="production-gallery">{p.templates.filter(t => p.screen === 'works' ? !!p.projects[t.id]?.length : !t.sourceTemplateId).map(t => <article className="production-result" key={t.id}><TemplateThumbnail template={p.screen === 'works' ? resolveExportTemplate(t, p.projects[t.id][0]) : t} data={p.screen === 'works' ? p.projects[t.id][0] : undefined}/><div><strong>{t.name}</strong><span>{p.screen === 'works' ? `${p.projects[t.id].length} sayfa` : `${t.width} × ${t.height} px`}</span></div>{p.screen === 'works' ? <button className="production-link" onClick={() => { p.onSelectTemplate(t.id); p.onScreen('results'); }}>Sonuçları aç →</button> : <><button className="production-link" onClick={() => { p.onSelectTemplate(t.id); p.onScreen('create'); }}>Bu şablonla oluştur →</button><button className="production-link secondary" onClick={() => p.onEditTemplate(t.id)}>Şablonu düzenle</button></>}</article>)}</div>
+    {(p.screen === 'works' || p.screen === 'templates') && <div className="production-container"><div className="production-heading production-heading-row"><div><span className="production-eyebrow">{p.screen === 'works' ? 'ARŞİV' : 'ŞABLON KÜTÜPHANESİ'}</span><h1>{p.screen === 'works' ? 'Çalışmalarım' : 'Şablonlarım'}</h1><p>{p.screen === 'works' ? 'Önceki üretimlerini aç ve kaldığın yerden devam et.' : 'Bir şablon seç veya kendi düzenini hazırla.'}</p></div><button className="production-primary" onClick={p.screen === 'works' ? () => p.onScreen('create') : p.onNewTemplate}><Plus size={18}/>{p.screen === 'works' ? 'Yeni üretim' : 'Yeni şablon'}</button></div>
+      {p.screen === 'works' && archivedWorks.length > 0 && <div className="archive-selection-bar">
+        <label><input type="checkbox" checked={selectedWorks.size === archivedWorks.length} onChange={() => setSelectedWorks(selectedWorks.size === archivedWorks.length ? new Set() : new Set(archivedWorks.map(work => work.id)))}/><span>{selectedWorks.size ? `${selectedWorks.size} çalışma seçildi` : 'Tümünü seç'}</span></label>
+        <div><button disabled={!selectedWorks.size || p.busy} onClick={() => void p.onDownloadWorks([...selectedWorks])}><Download size={14}/> İndir</button><button className="danger" disabled={!selectedWorks.size || p.busy} onClick={() => { p.onDeleteWorks([...selectedWorks]); setSelectedWorks(new Set()); }}><Trash2 size={14}/> Sil</button></div>
+      </div>}
+      <div className="production-gallery">{p.templates.filter(t => p.screen === 'works' ? !!p.projects[t.id]?.length : !t.sourceTemplateId).map(t => <article className="production-result" key={t.id}>
+        <div className="production-result-preview-wrap">
+          <TemplateThumbnail template={p.screen === 'works' ? resolveExportTemplate(t, p.projects[t.id][0]) : t} data={p.screen === 'works' ? p.projects[t.id][0] : undefined}/>
+          {p.screen === 'works' && <><label className="production-work-check"><input type="checkbox" checked={selectedWorks.has(t.id)} onChange={() => toggleWork(t.id)} aria-label={`${t.name} çalışmasını seç`}/><span/></label><button className="production-work-edit" onClick={() => p.onOpen(t.id, 0)} title="Yalnızca bu çalışmayı düzenle" aria-label={`${t.name} çalışmasını düzenle`}><Pencil size={16}/><span>Mevcut tasarımı düzenle</span></button></>}
+        </div>
+        <div><strong>{t.name}</strong><span>{p.screen === 'works' ? `${p.projects[t.id].length} sayfa · Ana şablondan bağımsız` : `${t.width} × ${t.height} px · ${t.pages?.length || 1} düzen`}</span></div>
+        <div className="production-result-actions">{p.screen === 'works' ? <><button className="production-card-primary" onClick={() => { p.onSelectTemplate(t.id); p.onScreen('results'); }}>Çalışmayı aç <ArrowRight size={13}/></button><button className="production-card-secondary production-work-edit-secondary" onClick={() => p.onOpen(t.id, 0)}><Pencil size={13}/> Tasarımı düzenle</button></> : <><button className="production-card-primary" onClick={() => { p.onSelectTemplate(t.id); p.onScreen('create'); }}>Bu şablonla oluştur</button><button className="production-card-secondary" onClick={() => p.onEditTemplate(t.id)}>Düzenle</button><button className="production-card-delete" disabled={sourceTemplates.length <= 1} onClick={() => p.onDeleteTemplate(t.id)} aria-label={`${t.name} şablonunu sil`} title={sourceTemplates.length <= 1 ? 'Son şablon silinemez' : 'Şablonu sil'}><Trash2 size={14}/></button></>}</div>
+      </article>)}</div>
       {p.screen === 'works' && !Object.values(p.projects).some(pages => pages.length) && <div className="production-empty"><Images size={36}/><h2>İlk üretimin için hazırsın.</h2><p>Fotoğraflarını ve komutunu ekle; tasarımlarını birlikte hazırlayalım.</p><button className="production-primary" onClick={() => p.onScreen('create')}>Toplu oluştur</button></div>}
+      {p.screen === 'templates' && sourceTemplates.length === 0 && <div className="production-empty"><LayoutTemplate size={36}/><h2>Henüz bir şablonun yok.</h2><p>İlk şablonunu oluşturarak kendi tasarım düzenini hazırla.</p><button className="production-primary" onClick={p.onNewTemplate}>Şablon oluştur</button></div>}
     </div>}
   </section>;
 }

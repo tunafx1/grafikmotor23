@@ -17,6 +17,7 @@ type Props = {
   onRedo?: () => void;
   canUndo?: boolean;
   canRedo?: boolean;
+  editorMode?: boolean;
 };
 
 export function WorkspaceHeader(p: Props) {
@@ -51,7 +52,7 @@ export function WorkspaceHeader(p: Props) {
 
   return (
     <>
-      <header id="app-header" className="workspace-header">
+      <header id="app-header" className="workspace-header" data-mode={p.editorMode ? 'editor' : 'library'}>
         <div className="workspace-brand">
           <div className="workspace-mark">
             <img src="/grafik_motoru_icon_512.png" alt="Grafik Motoru" className="workspace-logo-img" />
@@ -59,7 +60,7 @@ export function WorkspaceHeader(p: Props) {
           <span>grafik<span className="brand-light">motoru</span><small>TASARIM STÜDYOSU</small></span>
         </div>
 
-        <div className="workspace-breadcrumb">
+        {p.editorMode && <div className="workspace-breadcrumb">
           <button
             type="button"
             onClick={p.onOpenTemplates}
@@ -97,29 +98,24 @@ export function WorkspaceHeader(p: Props) {
               {p.onRename && <Pencil size={11} className="workspace-title-pencil" />}
             </button>
           )}
-        </div>
+        </div>}
 
         {/* Prominent Primary CTA: Toplu Tasarım Üret (Sitenin Asıl Amacı) */}
-        {p.onOpenBatch && (
+        {p.editorMode && p.onOpenBatch && (
           <button
             type="button"
             onClick={p.onOpenBatch}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-extrabold tracking-wide transition-all shadow-md active:scale-95 cursor-pointer select-none ${
-              p.isBatchActive
-                ? 'bg-[#FF6B1A] text-white ring-2 ring-[#FF6B1A]/40 shadow-[#FF6B1A]/30 scale-105'
-                : 'bg-gradient-to-r from-[#FF6B1A] to-[#FF8843] hover:from-[#FF782D] hover:to-[#FFA066] text-white shadow-[#FF6B1A]/25 hover:scale-105'
-            }`}
-            title="Sitenin Asıl Amacı: Toplu fotoğraf yükle, AI komutu ver ve seçili şablona tasarımlar oluştur"
+            className="workspace-button"
+            title="Fotoğrafları, şablonu ve üretim komutunu değiştir"
           >
-            <Sparkles size={14} className="animate-pulse text-amber-200" />
-            <span>Toplu Tasarım Üret</span>
-            <span className="hidden sm:inline-block text-[9px] bg-black/25 px-1.5 py-0.5 rounded-full font-mono text-amber-100">AI</span>
+            <Sparkles size={14} />
+            <span>Üretim ayarları</span>
           </button>
         )}
 
         <div className="workspace-header-actions">
           {/* Undo / Redo */}
-          {p.onUndo && (
+          {p.editorMode && p.onUndo && (
             <button
               type="button"
               className="workspace-icon-button disabled:opacity-30"
@@ -131,7 +127,7 @@ export function WorkspaceHeader(p: Props) {
               <Undo2 size={15} />
             </button>
           )}
-          {p.onRedo && (
+          {p.editorMode && p.onRedo && (
             <button
               type="button"
               className="workspace-icon-button disabled:opacity-30"
@@ -145,7 +141,7 @@ export function WorkspaceHeader(p: Props) {
           )}
 
           {/* Unified Save Status */}
-          <div className="workspace-save-status" role="status">
+          {p.editorMode && <div className="workspace-save-status" role="status">
             {p.cloudStatus === 'syncing' ? (
               <span className="ws-status-badge syncing">
                 <Loader2 size={13} className="animate-spin text-[#FF6B1A]"/>
@@ -154,7 +150,7 @@ export function WorkspaceHeader(p: Props) {
             ) : p.userName && p.isCloudSynced && p.cloudStatus === 'synced' ? (
               <span className="ws-status-badge synced">
                 <span className="ws-status-dot-green" />
-                <span>Buluta kaydedildi</span>
+                <span>Tüm cihazlarda güncel</span>
               </span>
             ) : p.cloudStatus === 'error' ? (
               <span className="ws-status-badge error text-red-400">
@@ -167,16 +163,16 @@ export function WorkspaceHeader(p: Props) {
                 <span>Bu cihazda kayıtlı</span>
               </span>
             )}
-          </div>
+          </div>}
 
-          {p.userName && (!p.isCloudSynced || p.cloudStatus === 'error') && (
+          {p.editorMode && p.userName && (!p.isCloudSynced || p.cloudStatus === 'error') && (
             <button className="workspace-button ws-save-btn" onClick={p.onSave}>
               <CloudUpload size={15}/>
               <span>Kaydet</span>
             </button>
           )}
 
-          {p.onTools && (
+          {p.editorMode && p.onTools && (
             <button className="workspace-icon-button" onClick={p.onTools} title="Medya araçları" aria-label="Medya araçları">
               <Wrench size={16}/>
             </button>
@@ -222,14 +218,14 @@ export function WorkspaceHeader(p: Props) {
           )}
 
           {/* Prominent Download Button */}
-          <button 
+          {p.editorMode && <button
             className="workspace-button workspace-primary ws-export-btn" 
             onClick={p.onExport} 
             aria-label="İndir" 
           >
             <Download size={15}/>
             <span>İndir</span>
-          </button>
+          </button>}
         </div>
       </header>
 

@@ -2,6 +2,7 @@ import { BatchWorkspace, ProductionNavigation, type WorkspaceScreen } from './co
 import { buildBatchPages, generateBatchTexts } from './utils/batchProduction';
 import { describeGoogleLoginError } from './lib/authErrors';
 import { getAiTextFields, requestAiText } from './utils/aiText';
+import { resizePageLayout, resizeTemplate } from './utils/templateResize';
 import { MediaDownloaderDialog } from './components/MediaDownloaderDialog';
 import { LandingPage } from './components/LandingPage';
 import { AuthPortal } from './components/AuthPortal';
@@ -90,11 +91,13 @@ import { TemplateThumbnail } from './components/TemplateThumbnail';
 import { useProjectPages } from './hooks/useProjectPages';
 import { storage } from './lib/storage';
 import './workspace.css';
+import './workspace-refined.css';
 import { CanvasVideoOverlay } from './components/CanvasVideoOverlay';
 import { LeftToolDrawer, ToolDrawerTab } from './components/LeftToolDrawer';
 import { RightInspectorPanel } from './components/RightInspectorPanel';
 import { PageFilmstrip } from './components/PageFilmstrip';
 import { ExportModal } from './components/ExportModal';
+import { WorkQuickEditor } from './components/WorkQuickEditor';
 
 const INITIAL_FALLBACK_TEMPLATE: DesignTemplate = {
   id: 'default-template-1',
@@ -275,18 +278,16 @@ export function InfoTooltip({ text }: { text: string }) {
 }
 
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { collection, query, where, onSnapshot, doc } from 'firebase/firestore';
 import { 
   getCloudTemplates, 
   saveCloudTemplate, 
   deleteCloudTemplate,
   saveUserGraphicProject,
-  getUserGraphicProject
+  getUserGraphicProject,
+  subscribeUserGraphicProject
 } from './lib/templatesDb';
 import { 
   auth, 
-  db,
-  ensureUserSignIn, 
   isValidConfig,
   loginWithGoogle,
   logoutUser,
@@ -805,6 +806,8 @@ export default function App() {
   });
   const [user, setUser] = useState<User | null>(null);
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'syncing' | 'synced' | 'error' | 'offline'>('idle');
+  const [cloudInitialized, setCloudInitialized] = useState(false);
+  const [cloudError, setCloudError] = useState<string | null>(null);
   const [firestoreQuotaExceeded, setFirestoreQuotaExceededState] = useState<boolean>(() => {
     return storage.getItem('firestore_quota_exceeded') === 'true';
   });
@@ -1471,7 +1474,7 @@ export default function App() {
   };
 
   const handleDynamicImageUpload = (regionId: string, file: File) => {
-    handleImageUpload(regionId, file);
+    void handleImageFile(file, regionId);
   };
 
   const handleCropPanTrigger = (regionId: string) => {
@@ -1485,7 +1488,8 @@ export default function App() {
   const cancelCrop = () => {
     if (cropSnapshot.current) {
       const {id, image} = cropSnapshot.current;
-      ['scale', 'offsetX', 'offsetY', 'rotation'].forEach(key => updateActiveImageProp(id, key, image[key] ?? (key === 'scale' ? 1 : 0)));
+      const keys: Array<'scale' | 'offsetX' | 'offsetY' | 'rotation'> = ['scale', 'offsetX', 'offsetY', 'rotation'];
+      keys.forEach(key => updateActiveImageProp(id, key, image[key] ?? (key === 'scale' ? 1 : 0)));
     }
     cropSnapshot.current = null; setEditingImageRegionId(null);
   };
@@ -1519,7 +1523,7 @@ export default function App() {
     if (selectedNodeId) {
       const reg = editingTemplate.regions.find(r => r.id === selectedNodeId && r.type === 'image');
       if (reg) {
-        handleImageUpload(reg.id, file);
+        void handleImageFile(file, reg.id);
         return;
       }
     }
@@ -1576,7 +1580,19 @@ export default function App() {
   }, [editingTemplate, activePageData, activeGraphicData.paletteOverrides, showGrid, showSafeMargins, selectedNodeId, vurguColor, editingImageRegionId, isAppLoaded, mobileView, workspaceScreen]);
 
   // --- FIREBASE CLOUD STORAGE INTEGRATION & SYNCING ---
+  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
   const lastSavedRef = useRef<string>('');
+  const saveInFlightRef = useRef(false);
+  const saveQueuedRef = useRef(false);
+  const graphicDataRef = useRef(graphicData);
+  const pagesByTemplateRef = useRef(pagesByTemplate);
+  const currentTemplateIdRef = useRef(currentTemplateId);
+  graphicDataRef.current = graphicData;
+  pagesByTemplateRef.current = pagesByTemplate;
+  currentTemplateIdRef.current = currentTemplateId;
+
+  const projectHash = (data: Record<string, GraphicData>, pages: Record<string, any[]>, templateId: string) =>
+    JSON.stringify({graphicData:data, pagesByTemplate:pages, currentTemplateId:templateId});
 
   const syncAndLoadUserData = async (uid: string) => {
     if (!isValidConfig) return;
@@ -1604,6 +1620,7 @@ export default function App() {
       const nextData = saved.graphicData || {};
       const nextPages = saved.pagesByTemplate || {[nextId]:saved.generatedPages || []};
       restoringHistory.current = true;
+      templatesRef.current = nextTemplates;
       setTemplatesState(nextTemplates);
       setGraphicData(nextData);
       setPagesByTemplate(nextPages);
@@ -1611,7 +1628,7 @@ export default function App() {
       setUndoStack([]);
       setRedoStack([]);
       lastSavedRef.current = JSON.stringify(nextTemplates);
-      lastSavedProjectRef.current = JSON.stringify({graphicData:nextData, pagesByTemplate:nextPages});
+      lastSavedProjectRef.current = projectHash(nextData, nextPages, nextId);
       storage.setItem('project_dirty', 'false');
       setIsCloudSynced(true);
       setCloudStatus('synced');
@@ -1634,6 +1651,7 @@ export default function App() {
     // Auth Listener
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
+        setCloudInitialized(false);
         setUser(currentUser);
         const isVerified = currentUser.emailVerified || currentUser.providerData.some((p: any) => p.providerId === 'google.com');
         if (isVerified) {
@@ -1643,6 +1661,7 @@ export default function App() {
         }
         await syncAndLoadUserData(currentUser.uid);
         isLoadedRef.current = true;
+        setCloudInitialized(true);
         setIsAppLoaded(true);
       } else {
         setUser(null);
@@ -1655,6 +1674,7 @@ export default function App() {
           return prev;
         });
         setCloudStatus('offline');
+        setCloudInitialized(false);
         isLoadedRef.current = true;
         setIsAppLoaded(true);
       }
@@ -1664,9 +1684,52 @@ export default function App() {
   }, []);
 
   // --- REAL-TIME CLOUD SYNCHRONIZATION ---
-  // Real-time listeners (onSnapshot) have been removed to completely prevent infinite sync loops and avoid Firestore quota exhaustion.
-  // Data is securely loaded once on startup or Google Sign-In.
-  // Automatic sync-on-focus has been removed to respect manual synchronization and prevent overwriting unsaved local changes.
+  useEffect(() => {
+    if (!isValidConfig || !user?.uid || user.isAnonymous || firestoreQuotaExceeded) return;
+    const uid = user.uid;
+    return subscribeUserGraphicProject(uid, async (saved, metadata) => {
+      if (!saved || metadata.hasPendingWrites || metadata.fromCache || auth.currentUser?.uid !== uid) return;
+      const nextTemplates: DesignTemplate[] = Array.isArray(saved.templates) && saved.templates.length ? saved.templates : templatesRef.current;
+      const nextId = nextTemplates.some(template => template.id === saved.currentTemplateId)
+        ? saved.currentTemplateId : nextTemplates[0]?.id || currentTemplateIdRef.current;
+      const nextData = saved.graphicData || {};
+      const nextPages = saved.pagesByTemplate || {[nextId]:saved.generatedPages || []};
+      const remoteTemplatesHash = JSON.stringify(nextTemplates);
+      const remoteProjectHash = projectHash(nextData, nextPages, nextId);
+      const localTemplatesHash = JSON.stringify(templatesRef.current);
+      const localProjectHash = projectHash(graphicDataRef.current, pagesByTemplateRef.current, currentTemplateIdRef.current);
+
+      if (remoteTemplatesHash === localTemplatesHash && remoteProjectHash === localProjectHash) {
+        lastSavedRef.current = remoteTemplatesHash;
+        lastSavedProjectRef.current = remoteProjectHash;
+        storage.setItem('project_dirty', 'false');
+        setIsCloudSynced(true);
+        setCloudStatus('synced');
+        return;
+      }
+      // Never overwrite unsaved local edits. The debounce below sends the newer local snapshot.
+      if (storage.getItem('project_dirty') === 'true' || saveInFlightRef.current) return;
+
+      restoringHistory.current = true;
+      templatesRef.current = nextTemplates;
+      setTemplatesState(nextTemplates);
+      setGraphicData(nextData);
+      setPagesByTemplate(nextPages);
+      setCurrentTemplateId(nextId);
+      setUndoStack([]);
+      setRedoStack([]);
+      lastSavedRef.current = remoteTemplatesHash;
+      lastSavedProjectRef.current = remoteProjectHash;
+      storage.setItem('project_dirty', 'false');
+      setIsCloudSynced(true);
+      setCloudStatus('synced');
+    }, error => {
+      console.error('Real-time cloud sync failed:', error);
+      setCloudError('Firestore gerçek zamanlı bağlantısı kurulamadı. Güvenlik kurallarını ve internet bağlantısını kontrol edin.');
+      setCloudStatus('error');
+      setIsCloudSynced(false);
+    });
+  }, [user?.uid, user?.isAnonymous, firestoreQuotaExceeded]);
 
   // Synchronize Firestore network state with firestoreQuotaExceeded state to prevent infinite background write retries and console spam
   useEffect(() => {
@@ -1678,49 +1741,62 @@ export default function App() {
     }
   }, [firestoreQuotaExceeded]);
 
-  const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
-
-  // Save a complete user-owned snapshot in one document. Loading never writes or deletes remote data.
-  const saveDataToCloud = async (
-    specificTemplates?: DesignTemplate[] | any,
-    specificTemplateId?: string,
-    specificGraphicData?: Record<string, GraphicData> | any,
-    specificGeneratedPages?: any[]
-  ) => {
-    if (!isValidConfig || !user?.uid || cloudStatus === 'syncing') return;
-    const templatesToSave = Array.isArray(specificTemplates) ? specificTemplates : templates;
-    const id = typeof specificTemplateId === 'string' ? specificTemplateId : currentTemplateId;
-    const data = specificGraphicData && !('nativeEvent' in specificGraphicData) ? specificGraphicData : graphicData;
-    const allPages = {...pagesByTemplate, [id]:Array.isArray(specificGeneratedPages) ? specificGeneratedPages : storedGeneratedPages};
-    const savedTemplates = JSON.stringify(templatesToSave);
-    const savedProject = JSON.stringify({graphicData:data, pagesByTemplate:allPages});
-    const beforeSave = historyRef.current;
-    setCloudStatus('syncing');
+  // Debounced, serialized autosave. If state changes during an upload, one final snapshot is queued.
+  const saveDataToCloud = async () => {
+    if (!isValidConfig || !auth.currentUser?.uid || auth.currentUser.isAnonymous || firestoreQuotaExceeded) return;
+    if (saveInFlightRef.current) { saveQueuedRef.current = true; return; }
+    saveInFlightRef.current = true;
     try {
-      await saveUserGraphicProject(user.uid, id, data, allPages[id], templatesToSave, allPages);
-      lastSavedRef.current = savedTemplates;
-      lastSavedProjectRef.current = savedProject;
-      const unchanged = historyRef.current === beforeSave;
-      storage.setItem('project_dirty', unchanged ? 'false' : 'true');
-      setIsCloudSynced(unchanged);
-      setCloudStatus('synced');
-    } catch (error) {
+      do {
+        saveQueuedRef.current = false;
+        const uid = auth.currentUser?.uid;
+        if (!uid) return;
+        const templatesToSave = templatesRef.current;
+        const id = currentTemplateIdRef.current;
+        const data = graphicDataRef.current;
+        const allPages = pagesByTemplateRef.current;
+        const savedTemplates = JSON.stringify(templatesToSave);
+        const savedProject = projectHash(data, allPages, id);
+        setCloudStatus('syncing');
+        setCloudError(null);
+        await Promise.race([
+          saveUserGraphicProject(uid, id, data, allPages[id] || [], templatesToSave, allPages),
+          new Promise<never>((_, reject) => window.setTimeout(() => reject(Object.assign(new Error('Bulut kaydı zaman aşımına uğradı.'), {code:'sync/timeout'})), 30_000)),
+        ]);
+        lastSavedRef.current = savedTemplates;
+        lastSavedProjectRef.current = savedProject;
+        const unchanged = savedTemplates === JSON.stringify(templatesRef.current) &&
+          savedProject === projectHash(graphicDataRef.current, pagesByTemplateRef.current, currentTemplateIdRef.current);
+        storage.setItem('project_dirty', unchanged ? 'false' : 'true');
+        setIsCloudSynced(unchanged);
+        setCloudStatus(unchanged ? 'synced' : 'syncing');
+        if (!unchanged) saveQueuedRef.current = true;
+      } while (saveQueuedRef.current);
+    } catch (error: any) {
       console.error('Cloud save failed:', error);
+      if (/resource-exhausted|quota/i.test(String(error?.code || error?.message || ''))) setFirestoreQuotaExceeded(true);
+      const detail = String(error?.code || error?.message || '');
+      setCloudError(/storage\//i.test(detail)
+        ? 'Medya yedeklemesi için Firebase Storage henüz etkin değil veya Storage kuralları yayımlanmamış.'
+        : /permission-denied/i.test(detail)
+          ? 'Firestore erişimi reddedildi. Canlı güvenlik kurallarının yayımlandığını kontrol edin.'
+          : 'Bulut kaydı tamamlanamadı. İnternet bağlantısını ve Firebase yapılandırmasını kontrol edin.');
       setCloudStatus('error');
       setIsCloudSynced(false);
-      setConfirmDialog({isOpen:true, title:'Buluta kaydedilemedi', message:'Çalışmanız bu cihazda duruyor. Bağlantınızı ve hesabınızı kontrol edip tekrar deneyin. Büyük medya içeren projeler bulut boyut sınırını aşabilir.', type:'info', onConfirm:() => setConfirmDialog(null)});
+    } finally {
+      saveInFlightRef.current = false;
     }
   };
   useEffect(() => {
-    if (!user?.uid || !isLoadedRef.current) return;
-    setIsCloudSynced(
-      JSON.stringify(templates) === lastSavedRef.current &&
-      JSON.stringify({graphicData, pagesByTemplate}) === lastSavedProjectRef.current
-    );
-  }, [templates, graphicData, pagesByTemplate, user]);
-
-  // Automatic background synchronization has been removed in favor of manual saves.
-  // Data is only persisted to the cloud when the user explicitly clicks "Buluta Kaydet".
+    if (!user?.uid || user.isAnonymous || !cloudInitialized || !isLoadedRef.current || firestoreQuotaExceeded || cloudStatus === 'error') return;
+    const unchanged = JSON.stringify(templates) === lastSavedRef.current &&
+      projectHash(graphicData, pagesByTemplate, currentTemplateId) === lastSavedProjectRef.current;
+    setIsCloudSynced(unchanged);
+    if (unchanged) return;
+    storage.setItem('project_dirty', 'true');
+    const timer = window.setTimeout(() => void saveDataToCloud(), 1800);
+    return () => window.clearTimeout(timer);
+  }, [templates, graphicData, pagesByTemplate, currentTemplateId, user?.uid, user?.isAnonymous, firestoreQuotaExceeded, cloudInitialized]);
 
   const [isGoogleSigningIn, setIsGoogleSigningIn] = useState(false);
   const googleLoginPending = useRef(false);
@@ -2059,6 +2135,45 @@ export default function App() {
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  const updateTemplateBackground = (backgroundImageUrl?: string) => {
+    setTemplates(prev => {
+      const updated = prev.map(template => {
+        if (template.id !== currentTemplateId) return template;
+
+        const templateWithPages = ensureMultiPageSupport(template);
+        // Store the asset once on the template. Page-level values are cleared so
+        // every page consistently inherits the same fixed background without
+        // duplicating a large data URL in local/cloud persistence.
+        const pages = (templateWithPages.pages || []).map(page => ({
+          ...page,
+          backgroundImageUrl: undefined
+        }));
+
+        return {
+          ...templateWithPages,
+          backgroundImageUrl,
+          pages
+        };
+      });
+      saveTemplatesToLocalStorage(updated);
+      return updated;
+    });
+  };
+
+  const handleTemplateBackgroundUpload = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      window.alert('Lütfen geçerli bir görsel dosyası seçin.');
+      return;
+    }
+
+    const backgroundImageUrl = await compressImage(file, 2400, 2400, 0.9);
+    if (!backgroundImageUrl) {
+      window.alert('Arka plan görseli hazırlanamadı.');
+      return;
+    }
+    updateTemplateBackground(backgroundImageUrl);
   };
 
   const fillEmptyImageFramesWithWizard = (imageUrls: string[]) => {
@@ -2873,6 +2988,16 @@ export default function App() {
         const updated = templates.filter(t => t.id !== id);
         setTemplates(updated);
         saveTemplatesToLocalStorage(updated);
+        setGraphicData(prev => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
+        setPagesByTemplate(prev => {
+          const next = { ...prev };
+          delete next[id];
+          return next;
+        });
 
         // Add to deleted_template_ids list to handle offline/other-device synchronizations
         const deletedIds = JSON.parse(storage.getItem('deleted_template_ids') || '[]');
@@ -2899,6 +3024,42 @@ export default function App() {
         setSelectedNodeId(null);
         setConfirmDialog(null);
       }
+    });
+  };
+
+  const deleteArchivedWorks = (ids: string[]) => {
+    const workIds = new Set(ids.filter(id => templates.some(template => template.id === id && template.sourceTemplateId)));
+    if (!workIds.size) return;
+    setConfirmDialog({
+      isOpen: true,
+      title: workIds.size === 1 ? 'Çalışmayı arşivden sil' : `${workIds.size} çalışmayı arşivden sil`,
+      message: 'Seçilen çalışmalar ve oluşturulmuş sayfaları kalıcı olarak silinecek. Kaynak şablonlar korunacak.',
+      onConfirm: () => {
+        const updated = templates.filter(template => !workIds.has(template.id));
+        setTemplates(updated);
+        saveTemplatesToLocalStorage(updated);
+        setGraphicData(previous => {
+          const next = { ...previous };
+          workIds.forEach(id => delete next[id]);
+          return next;
+        });
+        setPagesByTemplate(previous => {
+          const next = { ...previous };
+          workIds.forEach(id => delete next[id]);
+          return next;
+        });
+        const deletedIds: string[] = JSON.parse(storage.getItem('deleted_template_ids') || '[]');
+        storage.setItem('deleted_template_ids', JSON.stringify([...new Set([...deletedIds, ...workIds])]));
+        if (isValidConfig && !firestoreQuotaExceeded) {
+          void Promise.all([...workIds].map(id => deleteCloudTemplate(id).catch(error => console.error('Failed to delete archived work:', error))));
+        }
+        if (workIds.has(currentTemplateId)) {
+          const fallback = updated.find(template => !template.sourceTemplateId) || updated[0];
+          if (fallback) setCurrentTemplateId(fallback.id);
+        }
+        setSelectedNodeId(null);
+        setConfirmDialog(null);
+      },
     });
   };
 
@@ -3512,7 +3673,7 @@ export default function App() {
   };
 
   // Add new fixed branding element
-  const addNewFixedElement = (type: 'logo' | 'social' | 'shape') => {
+  const addNewFixedElement = (type: 'logo' | 'social' | 'shape', shapeType: 'rect' | 'circle' = 'rect') => {
     const id = `fixed-${type}-${Date.now()}`;
     const newEl: FixedElement = type === 'logo' ? {
       id,
@@ -3552,12 +3713,12 @@ export default function App() {
     } : {
       id,
       type: 'shape',
-      name: 'Dekoratif Dikdörtgen',
+      name: shapeType === 'circle' ? 'Dekoratif Daire' : 'Dekoratif Dikdörtgen',
       x: 80,
       y: 130,
       width: 100,
       height: 4,
-      shapeType: 'rect',
+      shapeType,
       backgroundColor: '#FF9F0A'
     };
 
@@ -3579,6 +3740,64 @@ export default function App() {
           };
         }
         return t;
+      });
+      saveTemplatesToLocalStorage(updated);
+      return updated;
+    });
+    setSelectedNodeId(id);
+  };
+
+  const addDesignDecoration = (preset: 'badge' | 'ribbon' | 'divider' | 'icon' | 'logo' | 'watermark') => {
+    const stamp = Date.now();
+    const id = `decoration-${preset}-${stamp}`;
+    const accent = currentTemplate.palette?.accent || '#FF9F0A';
+    const primary = currentTemplate.palette?.primary || '#FF6B1A';
+    const textColor = currentTemplate.palette?.text || '#FFFFFF';
+    let region: Region | undefined;
+    let fixed: FixedElement | undefined;
+
+    if (preset === 'badge' || preset === 'ribbon') {
+      region = {
+        id,
+        name: preset === 'badge' ? 'Rozet' : 'Kurdele',
+        type: 'text',
+        x: Math.round(currentTemplate.width * 0.08),
+        y: Math.round(currentTemplate.height * (preset === 'badge' ? 0.08 : 0.16)),
+        width: Math.round(currentTemplate.width * (preset === 'badge' ? 0.24 : 0.42)),
+        height: Math.round(currentTemplate.height * 0.08),
+        backgroundColor: preset === 'badge' ? accent : primary,
+        opacity: 1,
+        borderColor: 'transparent',
+        borderWidth: 0,
+        borderRadius: preset === 'badge' ? 999 : 8,
+        rotation: preset === 'ribbon' ? -5 : 0,
+        fitBackgroundToText: false,
+        hasBackground: true,
+        isDynamic: true,
+        textRole: 'label',
+        placeholderText: preset === 'badge' ? 'YENİ' : 'ÖNE ÇIKAN',
+        textStyle: {fontFamily: 'Inter', fontSize: 22, color: '#FFFFFF', fontWeight: 'bold', lineHeight: 1, align: 'center', letterSpacing: 1}
+      };
+    } else if (preset === 'divider') {
+      fixed = {id, type: 'shape', shapeType: 'line', name: 'Ayırıcı Çizgi', x: Math.round(currentTemplate.width * 0.1), y: Math.round(currentTemplate.height * 0.5), width: Math.round(currentTemplate.width * 0.8), height: 3, color: accent, opacity: 1};
+    } else if (preset === 'icon') {
+      fixed = {id, type: 'social', name: 'İkon', x: Math.round(currentTemplate.width * 0.08), y: Math.round(currentTemplate.height * 0.86), width: 80, height: 50, iconType: 'globe', content: '', textStyle: {fontFamily: 'Inter', fontSize: 30, color: accent, fontWeight: 'bold', lineHeight: 1, align: 'left'}};
+    } else if (preset === 'logo') {
+      fixed = {id, type: 'logo', name: 'Logo Alanı', x: Math.round(currentTemplate.width * 0.08), y: Math.round(currentTemplate.height * 0.07), width: Math.round(currentTemplate.width * 0.35), height: 50, content: '✦ MARKANIZ', textStyle: {fontFamily: 'Space Grotesk', fontSize: 22, color: primary, fontWeight: 'bold', lineHeight: 1, align: 'left', letterSpacing: 2}};
+    } else {
+      fixed = {id, type: 'text', name: 'Filigran', x: Math.round(currentTemplate.width * 0.15), y: Math.round(currentTemplate.height * 0.44), width: Math.round(currentTemplate.width * 0.7), height: 100, content: 'MARKANIZ', opacity: 0.14, rotation: -24, locked: true, zIndex: 50, textStyle: {fontFamily: 'Space Grotesk', fontSize: 72, color: textColor, fontWeight: '900', lineHeight: 1, align: 'center', letterSpacing: 5}};
+    }
+
+    setTemplates(previous => {
+      const updated = previous.map(template => {
+        if (template.id !== currentTemplateId) return template;
+        const normalized = ensureMultiPageSupport(template);
+        const pages = normalized.pages!.map((page, index) => index === activePageIndex ? {
+          ...page,
+          regions: region ? [...page.regions, region] : page.regions,
+          fixedElements: fixed ? [...page.fixedElements, fixed] : page.fixedElements
+        } : page);
+        return {...template, pages, regions: pages[0].regions, fixedElements: pages[0].fixedElements};
       });
       saveTemplatesToLocalStorage(updated);
       return updated;
@@ -4347,6 +4566,39 @@ export default function App() {
       setExportStatusText(null);
     }
   };
+  const downloadArchivedWorks = async (ids: string[]) => {
+    const works = ids.map(id => templates.find(template => template.id === id)).filter((template): template is DesignTemplate => !!template?.sourceTemplateId);
+    if (!works.length || isExportingZip) return;
+    resetExportResults();
+    setIsExportingZip(true);
+    try {
+      const Zip = (await import('jszip')).default;
+      const zip = new Zip();
+      const total = works.reduce((sum, work) => sum + (pagesByTemplate[work.id]?.length || 0), 0);
+      let completed = 0;
+      for (const work of works) {
+        const pages = pagesByTemplate[work.id] || [];
+        for (const [index, page] of pages.entries()) {
+          setExportStatusText(`${completed + 1} / ${total} tasarım hazırlanıyor…`);
+          const { blob, extension } = await createExportAsset(work, page, {
+            format: exportFormat,
+            scale: exportScale,
+            highlightColor: vurguColor,
+            paletteOverrides: graphicData[work.id]?.paletteOverrides,
+            onProgress: percent => setExportStatusText(`${completed + 1} / ${total} · %${percent}`),
+          });
+          zip.file(`${safeFileName(work.name)}/${String(index + 1).padStart(2, '0')}.${extension}`, blob);
+          completed++;
+        }
+      }
+      publishExport(await zip.generateAsync({ type: 'blob' }), `grafik-motoru-arsiv-${new Date().toISOString().slice(0, 10)}.zip`);
+    } catch (error) {
+      setConfirmDialog({ isOpen: true, title: 'Arşiv indirilemedi', message: error instanceof Error ? error.message : 'Dosyalar hazırlanırken bir hata oluştu.', type: 'info', onConfirm: () => setConfirmDialog(null) });
+    } finally {
+      setIsExportingZip(false);
+      setExportStatusText(null);
+    }
+  };
   const exportSingleHighResPage = (page: any, _index: number) => exportPages([page]);
   const exportHighResGraphic = () => {
     if (activeTab === 'phase1') return exportPages([{
@@ -4514,7 +4766,14 @@ export default function App() {
         onRedo={handleRedo}
         canUndo={undoStack.length > 0}
         canRedo={redoStack.length > 0}
+        editorMode={workspaceScreen === 'editor'}
       />
+      {cloudError && (
+        <div className="workspace-warning flex items-center justify-between gap-3 border-b border-red-500/25 bg-red-500/10 px-4 py-2.5 text-xs text-red-200 sm:px-6" role="alert">
+          <span><strong>Bulut senkronizasyonu:</strong> {cloudError} Çalışmanız bu cihazda korunuyor.</span>
+          <button type="button" onClick={() => setCloudError(null)} className="shrink-0 rounded px-2 py-1 font-bold text-red-200 hover:bg-white/10">Kapat</button>
+        </div>
+      )}
       {storageError && (
         <div 
           className="workspace-warning bg-amber-500/15 border-b border-amber-500/30 px-4 py-2.5 sm:px-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-200 text-xs sm:text-sm z-40 transition-colors"
@@ -4582,36 +4841,38 @@ export default function App() {
         </div>
       )}
 
-      <ProductionNavigation screen={workspaceScreen} disabled={batchBusy} onChange={screen => { if (screen !== 'editor') setTemplateEditing(false); setWorkspaceScreen(screen); }}/>
+      {workspaceScreen !== 'editor' && (
+        <ProductionNavigation
+          screen={workspaceScreen}
+          disabled={batchBusy}
+          onChange={screen => { setTemplateEditing(false); setWorkspaceScreen(screen); }}
+        />
+      )}
       <BatchWorkspace screen={workspaceScreen} templates={templates.map(ensureMultiPageSupport)} current={currentTemplate}
-        projects={pagesByTemplate} mediaLibrary={getUniqueUploadedImages()} busy={batchBusy} progress={batchProgress} error={batchError}
+        projects={pagesByTemplate} mediaLibrary={getUniqueUploadedImages()} busy={batchBusy || isExportingZip} progress={batchProgress} error={batchError}
         onGenerate={runBatch} onRetry={retryBatch} onCancel={() => batchController.current?.abort()}
         onSelectTemplate={id => { setTemplateEditing(false); setCurrentTemplateId(id); setActiveGeneratedPageIndex(0); setSelectedNodeId(null); }}
         onOpen={(id, index = 0) => { setTemplateEditing(false); setCurrentTemplateId(id); setActiveGeneratedPageIndex(index); setSelectedNodeId(null); setWorkspaceScreen('editor'); setActiveTab('phase2'); }}
-        onNewTemplate={() => { setTemplateEditing(true); createNewTemplate(); setWorkspaceScreen('editor'); setLeftDrawerTab('templates'); }}
+        onNewTemplate={() => { setTemplateEditing(true); createNewTemplate(); setWorkspaceScreen('editor'); setLeftDrawerTab('add'); }}
         onEditTemplate={id => { setTemplateEditing(true); setActivePageIndex(0); setCurrentTemplateId(id); setActiveGeneratedPageIndex(0); setWorkspaceScreen('editor'); setSelectedNodeId(null); setLeftDrawerTab('layers'); }}
+        onDeleteTemplate={deleteTemplate}
+        onDeleteWorks={deleteArchivedWorks}
+        onDownloadWorks={downloadArchivedWorks}
         onExport={() => setIsExportModalOpen(true)} onScreen={screen => { setTemplateEditing(false); setWorkspaceScreen(screen); }}/>
       {workspaceScreen === 'editor' && (
         <div className="production-editor-actions bg-[#222225] border-b border-white/10 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 text-xs shrink-0">
-          <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => { setTemplateEditing(false); setWorkspaceScreen(templateEditing ? 'templates' : 'results'); }}
               className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition font-medium cursor-pointer"
             >
-              {templateEditing ? '← Şablonlarım' : '← Tüm Sonuçlar Galerisi'}
+              {templateEditing ? '← Şablonlarım' : '← Tüm sonuçlar'}
             </button>
-            <button
-              onClick={() => { setTemplateEditing(false); setWorkspaceScreen('create'); }}
-              className="px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-[#FF6B1A] to-[#FF8843] hover:from-[#FF782D] hover:to-[#FFA066] text-white font-extrabold flex items-center gap-1.5 shadow-md shadow-[#FF6B1A]/25 transition active:scale-95 cursor-pointer"
-              title="Toplu fotoğraf seç, AI komutu ver ve seçili şablona yeni tasarımlar üret"
-            >
-              <Sparkles size={14} className="animate-pulse text-amber-200" />
-              <span>✨ Yeni Toplu Üretim Başlat</span>
-            </button>
+            <strong className="truncate text-white/80">{currentTemplate.name}</strong>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-white/60 font-mono text-[11px]">
-              {templateEditing ? '🎨 Şablon düzenleniyor' : '📄 Çalışma düzenleniyor · Ana şablon korunur'}
+            <span className="text-white/60 text-[11px]">
+              {templateEditing ? 'Şablon düzenleniyor' : 'Yalnızca bu çalışma düzenleniyor · Ana şablon korunur'}
             </span>
           </div>
         </div>
@@ -4622,7 +4883,7 @@ export default function App() {
       <main className={`${workspaceScreen !== 'editor' ? 'workspace-editor-hidden' : ''} flex-1 flex flex-row overflow-hidden bg-[#18181A] transition-colors duration-300 relative`}>
         
         {/* 1. LEFT TOOL DRAWER (56px rail + 320px collapsible drawer) */}
-        <LeftToolDrawer
+        {templateEditing && <LeftToolDrawer
           activeTab={leftDrawerTab}
           onTabChange={setLeftDrawerTab}
           onSelectTab={setLeftDrawerTab}
@@ -4644,13 +4905,26 @@ export default function App() {
             setTemplates(prev => prev.map(t => t.id === id ? { ...t, name: newName } : t));
           }}
           onDeleteTemplate={(id) => deleteTemplate(id)}
-          onAddNewRegion={(type, textRole) => addNewRegion(type, textRole)}
-          onAddNewFixedElement={(type) => addNewFixedElement(type)}
-          onAddTextRegion={() => addNewRegion('text', 'title')}
+          onResizeTemplate={(width, height) => {
+            if (!templateEditing) return;
+            setTemplates(prev => prev.map(template => template.id === currentTemplateId
+              ? resizeTemplate(template, width, height)
+              : template));
+            setZoomMode('fit');
+            setPanOffset({ x: 0, y: 0 });
+            setSelectedNodeId(null);
+          }}
+          onAddNewRegion={(type) => addNewRegion(type)}
+          onAddNewFixedElement={(type) => type === 'rect' || type === 'circle' ? addNewFixedElement('shape', type) : undefined}
+          onAddTextRegion={() => addNewRegion('text')}
           onAddImageRegion={() => addNewRegion('image')}
-          onAddShape={(type) => addNewFixedElement(type)}
+          onAddShape={(type) => addNewFixedElement('shape', type)}
+          onAddDecoration={addDesignDecoration}
           uploadedImages={getUniqueUploadedImages()}
           onUploadMedia={handleMediaUpload}
+          backgroundImageUrl={editingTemplate.backgroundImageUrl}
+          onSetBackgroundImage={handleTemplateBackgroundUpload}
+          onRemoveBackgroundImage={() => updateTemplateBackground(undefined)}
           onSelectMediaImage={(url) => {
             if (selectedNodeId) {
               const isImageRegion = (editingTemplate.regions || []).some(r => r.id === selectedNodeId && r.type === 'image');
@@ -4686,6 +4960,16 @@ export default function App() {
           onDeleteNode={(id) => deleteElement(id)}
           onReorderRegions={(from, to) => moveRegionInList(from, to)}
           hiddenElementIds={activePageData.hiddenElements || activeGraphicData.hiddenElements || []}
+          aiSystemPrompt={currentTemplate.aiSystemPrompt || ''}
+          isTemplateEditing={templateEditing}
+          onAiSystemPromptChange={(prompt) => {
+            setTemplates(prev => prev.map(template => template.id === currentTemplateId
+              ? { ...template, aiSystemPrompt: prompt }
+              : template));
+          }}
+          onTextRegionAiChange={(regionId, updates) => {
+            handleRegionPropertiesChange(regionId, updates);
+          }}
           onGenerateAiBrief={(brief) => {
             setAiCollageBrief(brief);
             void triggerAiGenerator(undefined, brief);
@@ -4695,7 +4979,7 @@ export default function App() {
             void triggerAiGenerator(undefined, brief);
           }}
           isAiLoading={!!aiRequestRef.current || isAiLoading}
-        />
+        />}
 
         {/* 2. CENTER STAGE: LARGE SINGLE-PAGE CANVAS + BOTTOM FILMSTRIP */}
         <div id="canvas-stage" className="flex-1 flex flex-col items-center justify-between min-w-0 h-full relative overflow-hidden bg-[#18181A]">
@@ -4763,7 +5047,7 @@ export default function App() {
 
             {/* The Single Active Canvas */}
             <div 
-              className="relative max-w-full max-h-full flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] rounded-2xl overflow-hidden border border-[rgba(255,255,255,0.1)] transition-all duration-300"
+              className="relative max-w-full max-h-full flex items-center justify-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden border border-[rgba(255,255,255,0.1)] transition-all duration-300"
               style={{
                 aspectRatio: `${currentTemplate.width} / ${currentTemplate.height}`,
                 width: zoomMode === 'fit' ? 'auto' : `${Math.min(canvasWidth, 720) * zoomScale}px`,
@@ -4788,7 +5072,7 @@ export default function App() {
                   display: 'block',
                   cursor: isDragging ? 'grabbing' : 'grab'
                 }}
-                className="bg-[#252528] rounded-xl select-none touch-none object-contain"
+                className="bg-[#252528] select-none touch-none object-contain"
                 aria-label="Aktif tasarım tuvali"
               />
 
@@ -4890,7 +5174,7 @@ export default function App() {
         </div>
 
         {/* 3. RIGHT CONTEXTUAL INSPECTOR PANEL */}
-        <RightInspectorPanel
+        {templateEditing ? <RightInspectorPanel
           selectedNodeId={selectedNodeId}
           isOpen={true}
           editingTemplate={editingTemplate}
@@ -4916,8 +5200,6 @@ export default function App() {
           handleDynamicImageUpload={(regionId, file) => handleDynamicImageUpload(regionId, file)}
           onOpenCrop={handleCropPanTrigger}
           handleCropPanTrigger={handleCropPanTrigger}
-          handleImageScaleChange={handleImageScaleChange}
-          handleImageRotate90={handleImageRotate90}
           handleDeleteNode={handleDeleteNode}
           onDeleteNode={handleDeleteNode}
           handleDuplicateNode={handleDuplicateNode}
@@ -4930,8 +5212,32 @@ export default function App() {
           isAiLoading={!!aiRequestRef.current || isAiLoading}
           onUpdateHighlightColor={(color) => setVurguColor(color)}
           onVurguColorChange={(color) => setVurguColor(color)}
+          onTemplatePropertiesChange={(updates) => {
+            setTemplates(previous => previous.map(template => template.id === currentTemplateId
+              ? {...template, ...updates}
+              : template));
+          }}
           onExportClick={() => setIsExportModalOpen(true)}
-        />
+        /> : <WorkQuickEditor
+          template={currentTemplate}
+          regions={editingTemplate.regions || []}
+          activePageData={activePageData}
+          selectedNodeId={selectedNodeId}
+          onSelectNode={setSelectedNodeId}
+          onTextChange={updateActiveText}
+          onImageUpload={(regionId, file) => handleDynamicImageUpload(regionId, file)}
+          onRegionChange={handleRegionPropertiesChange}
+          onCenter={(regionId) => handleAlignElement(regionId, 'center-both')}
+          onResizeWork={(width, height) => {
+            const oldWidth = currentTemplate.width;
+            const oldHeight = currentTemplate.height;
+            setTemplates(previous => previous.map(template => template.id === currentTemplateId ? resizeTemplate(template, width, height) : template));
+            setGeneratedPages(previous => previous.map(page => resizePageLayout(page, oldWidth, oldHeight, width, height)), currentTemplateId);
+            setZoomMode('fit');
+            setPanOffset({ x: 0, y: 0 });
+            setSelectedNodeId(null);
+          }}
+        />}
 
         {/* Floating Export Progress Toast */}
         {(isExporting || isExportingZip) && exportStatusText && (
@@ -4977,7 +5283,7 @@ export default function App() {
           }`}
         >
           <Sliders className="w-4 h-4" />
-          <span className="text-[10px]">Şablon / Editör</span>
+          <span className="text-[10px]">Araçlar</span>
         </button>
 
         <button
@@ -4997,16 +5303,9 @@ export default function App() {
           }`}
         >
           <Download className="w-4 h-4" />
-          <span className="text-[10px]">Dışa Aktar</span>
+          <span className="text-[10px]">İndir</span>
         </button>
 
-        <button
-          onClick={() => setIsToolsModalOpen(true)}
-          className="flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg text-amber-400 font-bold hover:text-amber-300"
-        >
-          <Wrench className="w-4 h-4 text-amber-400 animate-pulse" />
-          <span className="text-[10px]">Araçlar</span>
-        </button>
       </div>
 
       {/* CUSTOM CONFIRM DIALOG MODAL */}

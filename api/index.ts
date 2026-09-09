@@ -4,14 +4,15 @@ import { extractVideoId as extractYouTubeVideoId, streamMedia } from '../downloa
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 // Text generation types and helper functions (inlined for self-contained Vercel serverless execution)
-export type TextField = {id: string; name: string; role: string; text: string};
+export type TextField = {id: string; name: string; role: string; prompt?: string; text: string};
 export type TextRequest = {systemPrompt: string; templateName: string; brief: string; fields: TextField[]; context: TextField[]; image?: string};
 
 export function parseTextRequest(body: unknown): TextRequest {
   const value = body as TextRequest;
   const validString = (v: unknown, limit: number) => typeof v === 'string' && v.length <= limit;
   const validFields = (v: unknown) => Array.isArray(v) && v.length <= 50 && v.every(f =>
-    f && validString(f.id, 128) && f.id.trim() && validString(f.name, 256) && validString(f.role, 128) && validString(f.text, 12000));
+    f && validString(f.id, 128) && f.id.trim() && validString(f.name, 256) && validString(f.role, 128) &&
+    (f.prompt === undefined || validString(f.prompt, 12000)) && validString(f.text, 12000));
   if (!value || !validString(value.systemPrompt, 20000) || !validString(value.templateName, 256) ||
       !validString(value.brief, 12000) || !validFields(value.fields) || !value.fields.length ||
       !validFields(value.context) || new Set(value.fields.map(f => f.id)).size !== value.fields.length ||
@@ -31,7 +32,8 @@ MEVCUT SAYFA BAĞLAMI (yeniden yazılacak alanlar dışındaki metinleri sadece 
 ${JSON.stringify(input.context)}
 ÜRETİLECEK ALANLAR:
 ${JSON.stringify(input.fields)}
-Her alanın adını ve rolünü dikkate al. Şablonda başka uzunluk belirtilmediyse başlık kısa, açıklama en fazla iki cümle olsun.
+Her alanın adını ve rolünü dikkate al. Bir alanın prompt değeri doluysa, yalnızca o alanı üretirken bu özel talimatı genel şablon promptundan daha öncelikli uygula.
+Şablonda veya alan promptunda başka uzunluk belirtilmediyse başlık kısa, alt başlık tek satır, açıklama en fazla iki cümle olsun. callToAction kısa ve eylem odaklı; label, date ve price kendi veri türlerine uygun olmalıdır.
 Şablon istemedikçe Markdown ekleme. Görsel varsa konuyu anlamak için kullan; doğrulanmamış fiyat, tarih, iletişim bilgisi veya iddia uydurma.
 Sadece verilen alan kimlikleri için texts dizisi döndür: {"texts":[{"id":"alan kimliği","text":"üretilen metin"}]}.
 Renk, yerleşim, başka alan veya açıklayıcı yorum döndürme.`;
@@ -641,4 +643,3 @@ app.post(['/api/yt-download', '/yt-download'], async (req, res) => {
 });
 
 export default app;
-

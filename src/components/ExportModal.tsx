@@ -49,9 +49,9 @@ export function ExportModal({
   const isBusy = isExporting || isExportingZip;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in select-none">
+    <div className="workspace-export-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in select-none">
       <div 
-        className="w-full max-w-md bg-[#252528] border border-[rgba(255,255,255,0.12)] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+        className="workspace-export-dialog w-full max-w-md bg-[#252528] border border-[rgba(255,255,255,0.12)] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-modal-title"
@@ -60,7 +60,7 @@ export function ExportModal({
         <div className="px-5 py-4 border-b border-[rgba(255,255,255,0.08)] flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <Download size={18} className="text-[#FF6B1A]" />
-            <h2 id="export-modal-title" className="text-sm font-bold text-white uppercase tracking-wider">
+            <h2 id="export-modal-title" className="text-base font-semibold text-white">
               Tasarımı İndir
             </h2>
           </div>
@@ -155,8 +155,8 @@ export function ExportModal({
               {[
                 { val: 1.0, label: '1x', name: 'Standart' },
                 { val: 1.5, label: '1.5x', name: 'HD' },
-                { val: 2.0, label: '2x', name: 'Retina' },
-                { val: 4.0, label: '4x', name: 'Ultra-HD' }
+                { val: 2.0, label: '2x', name: 'Büyük' },
+                { val: 4.0, label: '4x', name: 'Çok büyük' }
               ].map(s => (
                 <button
                   key={s.val}

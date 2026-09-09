@@ -59,7 +59,15 @@ test('field buttons include current text and exclude static, hidden, and image r
     {id:'headline',name:'Başlık',type:'text',textRole:'title',placeholderText:'Örnek'},
     {id:'logo',type:'text',isDynamic:false}, {id:'hidden',type:'text',hidden:true}, {id:'image',type:'image'},
   ];
-  assert.deepEqual(getAiTextFields(regions,{headline:'Güncel başlık'}),[{id:'headline',name:'Başlık',role:'title',text:'Güncel başlık'}]);
+  assert.deepEqual(getAiTextFields(regions,{headline:'Güncel başlık'}),[{id:'headline',name:'Başlık',role:'title',prompt:'',text:'Güncel başlık'}]);
+});
+
+test('field-specific prompt is included with its category', () => {
+  const regions:any[] = [{id:'cta',name:'Buton',type:'text',textRole:'callToAction',aiPrompt:'En fazla iki kelime kullan.',placeholderText:'İncele'}];
+  const [field] = getAiTextFields(regions,{});
+  assert.equal(field.role,'callToAction');
+  assert.equal(field.prompt,'En fazla iki kelime kullan.');
+  assert.match(buildTextPrompt(parseTextRequest({...payload,fields:[field],context:[field]})),/En fazla iki kelime kullan/);
 });
 
 test('client applies only requested field IDs and rejects fallback, HTTP, and incomplete responses', async () => {

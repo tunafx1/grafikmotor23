@@ -53,6 +53,12 @@
       .loader-text {
         font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.72); letter-spacing: -0.01em; animation: ds-pulse 2s infinite ease-in-out;
       }
+      .loader-retry {
+        display: none; margin-top: 16px; padding: 10px 16px; border: 1px solid rgba(255,255,255,.16); border-radius: 10px; background: rgba(255,255,255,.08); color: white; font: 600 13px/1 system-ui; cursor: pointer;
+      }
+      #native-loader.ds-timeout .loader-bar-container { display: none; }
+      #native-loader.ds-timeout .loader-text { animation: none; max-width: 320px; padding: 0 20px; text-align: center; line-height: 1.5; }
+      #native-loader.ds-timeout .loader-retry { display: block; }
       @keyframes ds-load { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
       @keyframes ds-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     </style>
@@ -62,9 +68,18 @@
       </div>
       <div class="loader-bar-container"><div class="loader-bar-progress"></div></div>
       <div class="loader-text">Grafik Motoru hazırlanıyor...</div>
+      <button class="loader-retry" type="button" onclick="window.location.reload()">Yeniden dene</button>
     </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
+    <script>
+      window.setTimeout(function () {
+        var loader = document.getElementById('native-loader');
+        if (!loader || loader.classList.contains('ds-hidden')) return;
+        loader.classList.add('ds-timeout');
+        var message = loader.querySelector('.loader-text');
+        if (message) message.textContent = 'Uygulama yüklenemedi. Sunucuyu kontrol edip yeniden deneyin.';
+      }, 12000);
+    </script>
   </body>
 </html>
-

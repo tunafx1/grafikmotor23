@@ -1,0 +1,17 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /user-media/{userId}/{kind}/{fileName} {
+      allow read, write: if request.auth != null
+        && request.auth.uid == userId
+        && fileName.size() > 0
+        && fileName.size() <= 160
+        && (kind == 'image' || kind == 'video')
+        && (request.resource == null || (
+          request.resource.size < 50 * 1024 * 1024
+          && ((kind == 'image' && request.resource.contentType.matches('image/.*'))
+            || (kind == 'video' && request.resource.contentType.matches('video/.*')))
+        ));
+    }
+  }
+}

@@ -1,7 +1,13 @@
 # Grafik Motoru — Kullanım kolaylığı ve sadeleştirme planı
 
 Tarih: 7 Eylül 2026  
-Durum: İnceleme ve uygulama planı. Bu çalışma kapsamında uygulama kodu değiştirilmedi.
+Durum: Ana akış uygulanıyor. 8 Eylül 2026 toparlama turunda giriş sonrası gezinme ve editör kabuğu yeniden bu belgeyle hizalandı.
+
+## Uygulama notu — 8 Eylül 2026
+
+Bu belge giriş sonrası deneyim için tek ürün kaynağıdır. Üst üste eklenmiş “Ana Amaç”, “AI Motoru”, “Üretim Sonuçları” ve “Tek Sayfa Düzenleyici” menüleri kaldırıldı. Ana gezinme **Toplu Oluştur**, **Çalışmalarım** ve **Şablonlarım** ile sınırlandı; sonuçlar ve editör yalnızca ilgili akış içinden açılan bağlamsal ekranlar oldu. Editörde tekrar eden üretim çağrıları sadeleştirildi, mobil indirme dili tutarlı hale getirildi.
+
+Bu turda ayrıca görsel değiştirme, daire/dikdörtgen ekleme, sabit şekil opaklığı ve sayfa sıralama bağlantıları onarıldı. Tür denetimi, regresyon testleri, üretim derlemesi ve temel HTTP kontrolü teslimat kapısı olarak kullanıldı.
 
 ## 1. Hedef ve kapsam
 

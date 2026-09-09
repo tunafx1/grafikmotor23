@@ -1,7 +1,8 @@
 import { storage } from './storage';
 import { saveAccountPassword } from './accountPassword';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, disableNetwork, enableNetwork } from 'firebase/firestore';
+import { initializeFirestore, getFirestore, persistentLocalCache, persistentMultipleTabManager, disableNetwork, enableNetwork } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 import { 
   getAuth, 
   signInAnonymously, 
@@ -47,12 +48,24 @@ const targetDbId = isValidConfig
 
 console.log('Initializing Firestore with Database ID:', targetDbId || '(default)');
 
-const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({
-    tabManager: persistentMultipleTabManager(),
-  }),
-  ignoreUndefinedProperties: true,
-}, targetDbId);
+let db;
+try {
+  db = initializeFirestore(app, {
+    localCache: persistentLocalCache({
+      tabManager: persistentMultipleTabManager(),
+    }),
+    ignoreUndefinedProperties: true,
+    experimentalAutoDetectLongPolling: true,
+  }, targetDbId);
+} catch (error: any) {
+  // Vite can reevaluate this module during HMR; reuse the configured instance.
+  if (error?.code !== 'failed-precondition') throw error;
+  db = getFirestore(app, targetDbId);
+}
+
+const mediaStorage = getStorage(app);
+mediaStorage.maxOperationRetryTime = 15_000;
+mediaStorage.maxUploadRetryTime = 20_000;
 
 // Check if quota was exceeded in a prior session to immediately go offline and avoid background write retry storms
 if (isValidConfig && typeof window !== 'undefined' && storage.getItem('firestore_quota_exceeded') === 'true') {
@@ -259,4 +272,4 @@ export async function enableFirestoreNetwork(): Promise<void> {
   }
 }
 
-export { app, db, auth, isValidConfig, analytics };
+export { app, db, auth, isValidConfig, analytics, mediaStorage };

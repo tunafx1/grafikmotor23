@@ -1,8 +1,12 @@
 import type { Region } from '../types';
 
-export function getAiTextFields(regions: Pick<Region, 'id' | 'name' | 'type' | 'textRole' | 'placeholderText' | 'isDynamic' | 'hidden'>[], texts: Record<string, string>) {
+export function getAiTextFields(regions: Pick<Region, 'id' | 'name' | 'type' | 'textRole' | 'aiPrompt' | 'placeholderText' | 'isDynamic' | 'hidden'>[], texts: Record<string, string>) {
   return regions.filter(r => r.type === 'text' && r.isDynamic !== false && !r.hidden).map(r => ({
-    id:r.id, name:r.name || r.id, role:r.textRole || 'text', text:texts[r.id] ?? r.placeholderText ?? '',
+    id:r.id,
+    name:r.name || r.id,
+    role:r.textRole || 'normal',
+    prompt:r.aiPrompt?.trim() || '',
+    text:texts[r.id] ?? r.placeholderText ?? '',
   }));
 }
 

@@ -17,12 +17,13 @@ test('unused slots are hidden, static image decorations are not replaced',()=>{
 });
 test('empty photo selection and templates without frames fail explicitly',()=>{assert.throws(()=>buildBatchPages(template,[]));assert.throws(()=>buildBatchPages({...template,pages:[layout('empty',0,'cover')]},photos(2)),/alan yok/);});
 test('AI receives shared brief for every page and retry preserves successful text',async()=>{
- const pages=buildBatchPages(template,photos(3)); let calls=0;
- const request=async(payload:any)=>{calls++;assert.match(payload.brief,/Yıl sonu/); if(calls===2)throw new Error('Quota'); return {title:'Başarılı'};};
+ const promptedTemplate={...template,aiSystemPrompt:'Türkçe yaz. Kısa ve güven veren bir dil kullan.'};
+ const pages=buildBatchPages(promptedTemplate,photos(3)); let calls=0;
+ const request=async(payload:any)=>{calls++;assert.match(payload.brief,/Yıl sonu/);assert.equal(payload.systemPrompt,promptedTemplate.aiSystemPrompt);if(calls===2)throw new Error('Quota'); return {title:'Başarılı'};};
  const options={signal:new AbortController().signal,onProgress:()=>{},request};
- const result=await generateBatchTexts(template,pages,'Yıl sonu',options);
+ const result=await generateBatchTexts(promptedTemplate,pages,'Yıl sonu',options);
  assert.equal(result[0].dynamicTexts.title,'Başarılı');assert.equal(result[1].dynamicTexts.title,'Önceki başlık');assert.equal(result[1].productionError,'Quota');
- let retried=0; const retry=await generateBatchTexts(template,result,'Yıl sonu',{...options,retryOnly:true,request:async()=>{retried++;return {title:'Tekrar'};}});
+ let retried=0; const retry=await generateBatchTexts(promptedTemplate,result,'Yıl sonu',{...options,retryOnly:true,request:async()=>{retried++;return {title:'Tekrar'};}});
  assert.equal(retried,1);assert.equal(retry[0].dynamicTexts.title,'Başarılı');assert.equal(retry[1].dynamicTexts.title,'Tekrar');assert.equal(retry[1].productionError,undefined);
 });
 test('abort stops before creating content',async()=>{const controller=new AbortController();controller.abort();await assert.rejects(generateBatchTexts(template,buildBatchPages(template,photos(1)),'brief',{signal:controller.signal,onProgress:()=>{}}));});

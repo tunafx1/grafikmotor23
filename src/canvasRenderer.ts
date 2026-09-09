@@ -370,8 +370,40 @@ export function drawFormattedText(
         ctx.shadowOffsetY = 0;
       }
 
-      ctx.fillText(token.text, drawX, startY + l * lineHeightPx);
-      drawX += ctx.measureText(token.text).width;
+      const tokenWidth = ctx.measureText(token.text).width;
+      const baselineY = startY + l * lineHeightPx;
+
+      // Bold markdown spans can also work as a marker/highlight, independently
+      // from the existing accent text color.
+      if (token.isBold && style.highlightColor && style.highlightColor !== 'transparent') {
+        ctx.save();
+        ctx.globalAlpha = style.highlightOpacity ?? 0.7;
+        ctx.fillStyle = style.highlightColor;
+        ctx.fillRect(drawX - 2, baselineY - style.fontSize * 0.78, tokenWidth + 4, Math.max(3, style.fontSize * 0.9));
+        ctx.restore();
+        ctx.fillStyle = token.isBold && primaryColorOverride ? primaryColorOverride : textColor;
+      }
+
+      const isDropCap = style.dropCap && l === 0 && drawX === (style.align === 'center' ? x + (width - lineWidth) / 2 : style.align === 'right' ? x + width - lineWidth : x) && token.text.trim();
+      if (isDropCap) {
+        ctx.save();
+        ctx.font = getFontString(style.fontFamily, style.fontSize * 1.65, true, token.isItalic, style.fontWeight, style.fontStyle);
+        ctx.fillText(token.text, drawX, baselineY);
+        ctx.restore();
+      } else {
+        ctx.fillText(token.text, drawX, baselineY);
+      }
+      if (style.underline && token.text.trim()) {
+        ctx.save();
+        ctx.strokeStyle = ctx.fillStyle as string;
+        ctx.lineWidth = Math.max(1, style.fontSize / 18);
+        ctx.beginPath();
+        ctx.moveTo(drawX, baselineY + Math.max(2, style.fontSize * 0.08));
+        ctx.lineTo(drawX + tokenWidth, baselineY + Math.max(2, style.fontSize * 0.08));
+        ctx.stroke();
+        ctx.restore();
+      }
+      drawX += tokenWidth;
     }
     
     // Clear shadows so they don't leak to other elements
@@ -475,6 +507,51 @@ async function renderTemplateFrame(
         console.warn('Background image failed to load', err);
       }
     }
+
+    const pattern = template.backgroundPattern;
+    if (pattern && pattern.type !== 'none' && pattern.opacity > 0) {
+      const gap = Math.max(8, pattern.size || 24);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, pattern.opacity));
+      ctx.strokeStyle = pattern.color || '#FFFFFF';
+      ctx.fillStyle = pattern.color || '#FFFFFF';
+      ctx.lineWidth = 1;
+      if (pattern.type === 'grid') {
+        for (let x = 0; x <= template.width; x += gap) {
+          ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, template.height); ctx.stroke();
+        }
+        for (let y = 0; y <= template.height; y += gap) {
+          ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(template.width, y); ctx.stroke();
+        }
+      } else {
+        const radius = pattern.type === 'circles' ? Math.max(2, gap * 0.18) : Math.max(1, gap * 0.06);
+        for (let y = gap / 2; y < template.height; y += gap) {
+          for (let x = gap / 2; x < template.width; x += gap) {
+            ctx.beginPath(); ctx.arc(x, y, radius, 0, Math.PI * 2);
+            pattern.type === 'circles' ? ctx.stroke() : ctx.fill();
+          }
+        }
+      }
+      ctx.restore();
+    }
+
+    if (template.overlay && template.overlay.opacity > 0) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, template.overlay.opacity));
+      ctx.fillStyle = template.overlay.color || '#000000';
+      ctx.fillRect(0, 0, template.width, template.height);
+      ctx.restore();
+    }
+    if (template.overlay?.vignette && template.overlay.vignette > 0) {
+      const vignette = ctx.createRadialGradient(
+        template.width / 2, template.height / 2, Math.min(template.width, template.height) * 0.18,
+        template.width / 2, template.height / 2, Math.max(template.width, template.height) * 0.72
+      );
+      vignette.addColorStop(0, 'rgba(0,0,0,0)');
+      vignette.addColorStop(1, `rgba(0,0,0,${Math.min(1, template.overlay.vignette)})`);
+      ctx.fillStyle = vignette;
+      ctx.fillRect(0, 0, template.width, template.height);
+    }
     ctx.restore();
   }
 
@@ -517,14 +594,32 @@ async function renderTemplateFrame(
     ctx.save();
     ctx.scale(scale, scale);
 
+    const transformNode = node.item as Region | FixedElement;
+    const isCenteredCircle = !node.isRegion && (transformNode as FixedElement).type === 'shape' && (transformNode as FixedElement).shapeType === 'circle';
+    const transformCenterX = isCenteredCircle ? transformNode.x : transformNode.x + transformNode.width / 2;
+    const transformCenterY = isCenteredCircle ? transformNode.y : transformNode.y + transformNode.height / 2;
+    if (transformNode.rotation || transformNode.skewX || transformNode.skewY) {
+      ctx.translate(transformCenterX, transformCenterY);
+      if (transformNode.rotation) ctx.rotate(transformNode.rotation * Math.PI / 180);
+      ctx.transform(1, Math.tan((transformNode.skewY || 0) * Math.PI / 180), Math.tan((transformNode.skewX || 0) * Math.PI / 180), 1, 0, 0);
+      ctx.translate(-transformCenterX, -transformCenterY);
+    }
+    if (transformNode.blendMode) ctx.globalCompositeOperation = transformNode.blendMode;
+    if (transformNode.shadowColor && (transformNode.shadowBlur || transformNode.shadowOffsetX || transformNode.shadowOffsetY)) {
+      ctx.shadowColor = transformNode.shadowColor;
+      ctx.shadowBlur = transformNode.shadowBlur || 0;
+      ctx.shadowOffsetX = transformNode.shadowOffsetX || 0;
+      ctx.shadowOffsetY = transformNode.shadowOffsetY || 0;
+    }
+
     if (node.isRegion) {
       const reg = node.item as Region;
+      ctx.globalAlpha = reg.opacity ?? 1;
 
       // Draw Region background/borders (only if not fitting to text)
       const shouldDrawOuterBg = reg.hasBackground !== false && reg.backgroundColor && reg.backgroundColor !== 'transparent' && !(reg.type === 'text' && reg.fitBackgroundToText);
       if (shouldDrawOuterBg) {
         ctx.fillStyle = reg.backgroundColor;
-        ctx.globalAlpha = reg.opacity;
         ctx.beginPath();
         if (reg.borderRadius > 0) {
           ctx.roundRect(reg.x, reg.y, reg.width, reg.height, reg.borderRadius);
@@ -532,7 +627,6 @@ async function renderTemplateFrame(
           ctx.rect(reg.x, reg.y, reg.width, reg.height);
         }
         ctx.fill();
-        ctx.globalAlpha = 1;
       }
 
       // Draw Content depending on Region type
@@ -545,17 +639,28 @@ async function renderTemplateFrame(
             const img = await loadImage(imageUrl);
             
             // Calculate standard cover fit dimensions
+            const padding = Math.max(0, reg.padding || 0);
+            const contentX = reg.x + padding;
+            const contentY = reg.y + padding;
+            const contentWidth = Math.max(1, reg.width - padding * 2);
+            const contentHeight = Math.max(1, reg.height - padding * 2);
             const imgRatio = img.width / img.height;
-            const regRatio = reg.width / reg.height;
-            let drawWidth = reg.width;
-            let drawHeight = reg.height;
+            const regRatio = contentWidth / contentHeight;
+            let drawWidth = contentWidth;
+            let drawHeight = contentHeight;
 
-            if (imgRatio > regRatio) {
+            if (reg.objectFit === 'fill') {
+              drawWidth = contentWidth;
+              drawHeight = contentHeight;
+            } else if (reg.objectFit === 'contain') {
+              if (imgRatio > regRatio) drawHeight = contentWidth / imgRatio;
+              else drawWidth = contentHeight * imgRatio;
+            } else if (imgRatio > regRatio) {
               // Image is wider than region
-              drawWidth = reg.height * imgRatio;
+              drawWidth = contentHeight * imgRatio;
             } else {
               // Image is taller than region
-              drawHeight = reg.width / imgRatio;
+              drawHeight = contentWidth / imgRatio;
             }
 
             const scaleFactor = customImgData?.scale ?? 1.0;
@@ -564,8 +669,8 @@ async function renderTemplateFrame(
             const rotation = customImgData?.rotation ?? 0; // In degrees
 
             // Center of the image container
-            const centerX = reg.x + reg.width / 2;
-            const centerY = reg.y + reg.height / 2;
+            const centerX = contentX + contentWidth / 2;
+            const centerY = contentY + contentHeight / 2;
 
             const finalDrawWidth = drawWidth * scaleFactor;
             const finalDrawHeight = drawHeight * scaleFactor;
@@ -658,10 +763,10 @@ async function renderTemplateFrame(
         drawFormattedText(
           ctx,
           textValue,
-          reg.x,
-          reg.y,
-          reg.width,
-          reg.height,
+          reg.x + Math.max(0, reg.padding || 0),
+          reg.y + Math.max(0, reg.padding || 0),
+          Math.max(1, reg.width - Math.max(0, reg.padding || 0) * 2),
+          Math.max(1, reg.height - Math.max(0, reg.padding || 0) * 2),
           textStyleCopy,
           options?.boldHighlightColor || options?.paletteOverrides?.boldHighlight || template.palette.boldHighlight || primaryColor, // allows using custom or primary color highlight for bold texts
           reg.fitBackgroundToText ? {
@@ -693,11 +798,12 @@ async function renderTemplateFrame(
     } else {
       // Draw Fixed Elements (Branding, Logos, Shapes, Static text)
       const el = node.item as FixedElement;
+      ctx.globalAlpha = el.opacity ?? 1;
 
       if (el.type === 'shape') {
         const color = el.backgroundColor || el.color || accentColor;
         ctx.fillStyle = (color === '#FF9F0A' || color === '#FF9F0A' || color === '#FF9F0A') ? accentColor : ((color === '#6C5CE7' || color === '#6C5CE7') ? primaryColor : color);
-        ctx.globalAlpha = 1.0;
+        ctx.globalAlpha = el.opacity ?? 1;
 
         if (el.shapeType === 'rect') {
           ctx.beginPath();
@@ -716,6 +822,11 @@ async function renderTemplateFrame(
           ctx.beginPath();
           ctx.arc(el.x, el.y, el.width / 2, 0, Math.PI * 2);
           ctx.fill();
+          if (el.borderWidth && el.borderColor) {
+            ctx.strokeStyle = el.borderColor;
+            ctx.lineWidth = el.borderWidth;
+            ctx.stroke();
+          }
         } else if (el.shapeType === 'line') {
           ctx.strokeStyle = color;
           ctx.lineWidth = el.height || 2;
@@ -724,6 +835,7 @@ async function renderTemplateFrame(
           ctx.lineTo(el.x + el.width, el.y);
           ctx.stroke();
         }
+        ctx.globalAlpha = 1;
       } else if (el.type === 'logo' || el.type === 'social') {
         ctx.save();
         if (el.textStyle?.letterSpacing !== undefined) {
@@ -731,6 +843,23 @@ async function renderTemplateFrame(
         }
         const color = el.textStyle?.color || textColor;
         const resolvedColor = color === '#6C5CE7' ? primaryColor : (color === 'rgba(255,255,255,0.72)' || color === 'rgba(255,255,255,0.72)' ? textColor : color);
+
+        const logoIsImage = el.type === 'logo' && !!el.content && (/^data:image\//.test(el.content) || /^https?:\/\//.test(el.content));
+        if (logoIsImage) {
+          try {
+            const logo = await loadImage(el.content!);
+            const imageRatio = logo.width / logo.height;
+            const boxRatio = el.width / el.height;
+            const drawWidth = imageRatio > boxRatio ? el.width : el.height * imageRatio;
+            const drawHeight = imageRatio > boxRatio ? el.width / imageRatio : el.height;
+            ctx.drawImage(logo, el.x + (el.width - drawWidth) / 2, el.y + (el.height - drawHeight) / 2, drawWidth, drawHeight);
+          } catch (error) {
+            console.warn('Logo image failed to load', error);
+          }
+          ctx.restore();
+          ctx.restore();
+          continue;
+        }
 
         let iconWidth = 0;
         if (el.iconType && el.iconType !== 'none') {
@@ -802,6 +931,16 @@ async function renderTemplateFrame(
         }
 
         ctx.fillText(el.content, textX, textY);
+        if (el.textStyle.underline) {
+          const textWidth = ctx.measureText(el.content).width;
+          const startX = el.textStyle.align === 'center' ? textX - textWidth / 2 : el.textStyle.align === 'right' ? textX - textWidth : textX;
+          ctx.beginPath();
+          ctx.moveTo(startX, textY + Math.max(2, el.textStyle.fontSize * 0.08));
+          ctx.lineTo(startX + textWidth, textY + Math.max(2, el.textStyle.fontSize * 0.08));
+          ctx.strokeStyle = resolvedColor;
+          ctx.lineWidth = Math.max(1, el.textStyle.fontSize / 18);
+          ctx.stroke();
+        }
         ctx.textAlign = 'left';
         ctx.restore();
       }

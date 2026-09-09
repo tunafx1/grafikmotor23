@@ -8,6 +8,7 @@ interface PageFilmstripProps {
   onAddPage: () => void;
   onDuplicatePage?: (index: number) => void;
   onDeletePage?: (index: number) => void;
+  onReorderPages?: (startIndex: number, endIndex: number) => void;
   aspectRatio?: string;
 }
 
@@ -18,6 +19,7 @@ export function PageFilmstrip({
   onAddPage,
   onDuplicatePage,
   onDeletePage,
+  onReorderPages,
   aspectRatio = '1 / 1'
 }: PageFilmstripProps) {
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
@@ -35,7 +37,7 @@ export function PageFilmstrip({
   };
 
   return (
-    <div className="h-[76px] bg-[#1D1D1F] border-t border-[rgba(255,255,255,0.08)] flex items-center px-4 shrink-0 z-30 select-none relative">
+    <div className="workspace-filmstrip h-[76px] bg-[#1D1D1F] border-t border-[rgba(255,255,255,0.08)] flex items-center px-4 shrink-0 z-30 select-none relative overflow-hidden">
       {/* Scroll Left Button */}
       {pages.length > 5 && (
         <button
@@ -51,7 +53,7 @@ export function PageFilmstrip({
       {/* Pages Carousel */}
       <div
         ref={scrollContainerRef}
-        className="flex items-center space-x-3 overflow-x-auto py-2 scrollbar-none flex-1"
+        className="workspace-filmstrip-track flex items-center space-x-3 overflow-x-auto overflow-y-hidden py-2 scrollbar-none flex-1 min-w-0 h-full"
         style={{ scrollbarWidth: 'none' }}
       >
         {pages.map((page, idx) => {
@@ -61,8 +63,17 @@ export function PageFilmstrip({
           return (
             <div
               key={page.id || idx}
+              draggable={!!onReorderPages}
+              onDragStart={(event) => event.dataTransfer.setData('text/page-index', String(idx))}
+              onDragOver={(event) => { if (onReorderPages) event.preventDefault(); }}
+              onDrop={(event) => {
+                if (!onReorderPages) return;
+                event.preventDefault();
+                const from = Number(event.dataTransfer.getData('text/page-index'));
+                if (Number.isInteger(from) && from !== idx) onReorderPages(from, idx);
+              }}
               onClick={() => onSelectPage(idx)}
-              className={`group relative flex items-center space-x-2.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 border ${
+              className={`workspace-page-chip group relative flex items-center space-x-2.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 border ${
                 isActive
                   ? 'bg-[#2A2A2E] border-[#FF6B1A] ring-2 ring-[#FF6B1A]/40 shadow-lg shadow-[#FF6B1A]/10'
                   : 'bg-[#252528]/80 border-[rgba(255,255,255,0.08)] hover:bg-[#2A2A2E] hover:border-[rgba(255,255,255,0.2)]'
@@ -93,7 +104,7 @@ export function PageFilmstrip({
               </div>
 
               {/* Hover Quick Actions */}
-              <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity pl-1">
+              <div className="workspace-page-actions flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                 {onDuplicatePage && (
                   <button
                     type="button"

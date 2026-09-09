@@ -31,6 +31,13 @@ export function getVideoUrl(id: string): Promise<string | null> {
   })).catch(() => null));
   return liveUrls.get(id)!;
 }
+export function getVideoBlob(id: string): Promise<Blob | null> {
+  return openMediaStore().then(db => new Promise<Blob | null>((resolve, reject) => {
+    const request = db.transaction('videos').objectStore('videos').get(id);
+    request.onsuccess = () => resolve(request.result instanceof Blob ? request.result : null);
+    request.onerror = () => reject(request.error);
+  })).catch(() => null);
+}
 /** Preserve references for untouched branches, so hydration does not create undo steps or loops. */
 export function replaceVideoUrls<T>(value: T, urls: Map<string, string>): T {
   if (!value || typeof value !== 'object') return value;
