@@ -317,10 +317,14 @@ async function uploadDataUrl(userId: string, value: string): Promise<string> {
   const hash = await contentHash(value);
   const key = `${userId}/image/${hash}.${extension}`;
   if (!uploadedMedia.has(key)) {
-    uploadedMedia.set(key, (async () => {
+    const upload = (async () => {
       const blob = await dataUrlToBlob(value);
       return uploadCloudMedia(blob, {kind:'image', contentHash:hash, fileName:`${hash}.${extension}`});
-    })());
+    })().catch(error => {
+      uploadedMedia.delete(key);
+      throw error;
+    });
+    uploadedMedia.set(key, upload);
   }
   return uploadedMedia.get(key)!;
 }
@@ -331,10 +335,14 @@ async function uploadStoredVideo(userId: string, mediaId: string): Promise<strin
   const extension = videoFileExtension(blob);
   const key = `${userId}/video/${mediaId}.${extension}`;
   if (!uploadedMedia.has(key)) {
-    uploadedMedia.set(key, (async () => {
+    const upload = (async () => {
       const hash = await contentHash(`${mediaId}:${blob.size}:${blob.type}`);
       return uploadCloudMedia(blob, {kind:'video', contentHash:hash, fileName:`${mediaId}.${extension}`});
-    })());
+    })().catch(error => {
+      uploadedMedia.delete(key);
+      throw error;
+    });
+    uploadedMedia.set(key, upload);
   }
   return uploadedMedia.get(key)!;
 }
