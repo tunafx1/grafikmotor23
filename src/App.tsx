@@ -4771,7 +4771,17 @@ export default function App() {
       {cloudError && (
         <div className="workspace-warning flex items-center justify-between gap-3 border-b border-red-500/25 bg-red-500/10 px-4 py-2.5 text-xs text-red-200 sm:px-6" role="alert">
           <span><strong>Bulut senkronizasyonu:</strong> {cloudError} Çalışmanız bu cihazda korunuyor.</span>
-          <button type="button" onClick={() => setCloudError(null)} className="shrink-0 rounded px-2 py-1 font-bold text-red-200 hover:bg-white/10">Kapat</button>
+          <button
+            type="button"
+            onClick={() => {
+              setCloudError(null);
+              setCloudStatus('idle');
+              window.setTimeout(() => void saveDataToCloud(), 0);
+            }}
+            className="shrink-0 rounded px-2 py-1 font-bold text-red-200 hover:bg-white/10"
+          >
+            Yeniden dene
+          </button>
         </div>
       )}
       {storageError && (
