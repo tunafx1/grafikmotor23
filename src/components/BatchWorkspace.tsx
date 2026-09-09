@@ -75,6 +75,7 @@ export function BatchWorkspace(p: {
   const source = sourceTemplates.find(t => t.id === p.current.sourceTemplateId) || sourceTemplates.find(t => t.id === p.current.id) || sourceTemplates[0];
   const disabled = p.busy || loading;
   const archivedWorks = p.templates.filter(template => !!p.projects[template.id]?.length);
+  const failedPages = (p.projects[p.current.id] || []).filter(page => page.productionError);
   useEffect(() => { if (p.screen !== 'works') setSelectedWorks(new Set()); }, [p.screen]);
   const toggleWork = (id: string) => setSelectedWorks(previous => {
     const next = new Set(previous);
@@ -151,7 +152,12 @@ export function BatchWorkspace(p: {
       </div>
     </div>}
     {p.screen === 'results' && <div className="production-container"><div className="production-heading production-heading-row"><div><h1>{pages.length ? `${pages.length} sayfan hazır` : 'Henüz bir sonuç yok'}</h1><p>{pages.length ? 'Toplu indir veya bir sayfaya tıklayıp son dokunuşları yap.' : 'Fotoğraflarını ekleyerek ilk tasarımlarını oluştur.'}</p></div>{pages.length > 0 && <button className="production-primary" disabled={p.busy} onClick={p.onExport}><Download size={18}/>Tümünü indir</button>}</div>
-      {pages.some(page => page.productionError) && <div className="production-error" role="alert">Bazı metinler üretilemedi. Bu sayfalarda şablon metinleri korunuyor. <button disabled={p.busy} onClick={p.onRetry}>{p.busy ? p.progress : 'Başarısız metinleri yeniden dene'}</button></div>}
+      {failedPages.length > 0 && <div className="production-error production-ai-error" role="alert">
+        <strong>{failedPages.length} sayfada metin üretimi tamamlanamadı.</strong>
+        <p>Başarılı metinler ve şablondaki mevcut içerikler korundu.</p>
+        <ul>{failedPages.map(page => <li key={page.id}><span>{page.name}</span><small>{page.productionError}</small></li>)}</ul>
+        <button disabled={p.busy} onClick={p.onRetry}>{p.busy ? p.progress : 'Yalnızca başarısız metinleri yeniden dene'}</button>
+      </div>}
       {p.error && <p role="alert" className="production-error">{p.error}</p>}
       <div className="production-gallery">{pages.map((page, i) => <button key={page.id} className="production-result" disabled={p.busy} onClick={() => p.onOpen(p.current.id, i)}><TemplateThumbnail template={resolveExportTemplate(p.current, page)} data={page}/><div><strong>{page.name}</strong><span>{page.productionError ? 'Metin üretilemedi' : `Sayfa ${i + 1}`}</span><span className="production-card-action">Düzenle <ArrowRight size={13}/></span></div></button>)}</div>
       <button className="production-link" disabled={p.busy} onClick={() => p.onScreen('create')}>{pages.length ? 'Üretim ayarlarına dön' : 'Toplu oluşturmaya başla'}</button>

@@ -142,6 +142,13 @@
   padding: 8px 10px;
 }
 
+.production-ai-error > strong { display:block; color:#ffd2cc; }
+.production-ai-error > p { margin:3px 0 9px; color:#e7aaa3; font-size:12px; }
+.production-ai-error ul { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
+.production-ai-error li { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:7px 9px; border-radius:8px; background:#00000018; }
+.production-ai-error li span { color:#ffe1dd; font-weight:650; }
+.production-ai-error li small { max-width:68%; color:#f0b8b1; text-align:right; }
+
 @media (max-width: 820px) {
   .batch-workspace[data-screen="create"] { overflow-y: auto; }
   .batch-workspace .production-create-container { height: auto; min-height: 100%; overflow: visible; }

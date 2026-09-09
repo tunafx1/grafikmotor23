@@ -31,6 +31,22 @@ test('AI endpoint returns generated text with requested ID and no palette', asyn
   assert.equal(res.body.primaryColor,undefined);
 });
 
+test('AI endpoint preserves valid fields and retries only fields omitted by the model', async () => {
+  const requests: string[][] = [];
+  const twoFieldPayload = {...payload, fields, context: fields};
+  const handler = createTextGenerationHandler({hasKey:()=>true,generate:async input => {
+    requests.push(input.fields.map(field => field.id));
+    return requests.length === 1
+      ? {texts:[{id:'headline',text:'Yeni Başlık'}]}
+      : {texts:[{id:'body',text:'Yeni açıklama'}]};
+  }});
+  const res = responseRecorder();
+  await handler({body:twoFieldPayload} as any,res as any);
+  assert.equal(res.code,200);
+  assert.deepEqual(requests,[['headline','body'],['body']]);
+  assert.deepEqual({...res.body.texts},{headline:'Yeni Başlık',body:'Yeni açıklama'});
+});
+
 test('missing credentials, quota, and malformed model output return errors rather than sample content', async () => {
   for (const scenario of [
     {hasKey:()=>false,generate:async()=>assert.fail('No provider call without key'),code:503},

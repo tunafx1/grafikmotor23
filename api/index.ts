@@ -53,6 +53,19 @@ export function validateTextResult(raw: unknown, fields: TextField[]): Record<st
   return result;
 }
 
+function collectValidTextResult(raw: unknown, fields: TextField[]): Record<string, string> {
+  const texts = (raw as any)?.texts;
+  const result: Record<string, string> = Object.create(null);
+  if (!Array.isArray(texts)) return result;
+  for (const field of fields) {
+    const matches = texts.filter(item => item?.id === field.id);
+    if (matches.length === 1 && typeof matches[0].text === 'string' && matches[0].text.trim() && matches[0].text.length <= 12000) {
+      result[field.id] = matches[0].text.trim();
+    }
+  }
+  return result;
+}
+
 export function createTextGenerationHandler(options: {hasKey: () => boolean; generate: (input: TextRequest) => Promise<unknown>}) {
   return async (req: express.Request, res: express.Response) => {
     let input: TextRequest;
@@ -61,16 +74,25 @@ export function createTextGenerationHandler(options: {hasKey: () => boolean; gen
     if (!options.hasKey()) return res.status(503).json({success:false, reason:'missing_api_key',
       error:'AI bağlantısı kurulmamış. Sunucudaki .env.local dosyasına GEMINI_API_KEY ekleyip sunucuyu yeniden başlatın. Metinleriniz değiştirilmedi.'});
     try {
-      const texts = validateTextResult(await options.generate(input), input.fields);
+      const texts: Record<string, string> = Object.create(null);
+      let pendingFields = input.fields;
+      for (let attempt = 0; attempt < 3 && pendingFields.length; attempt++) {
+        const raw = await options.generate({...input, fields: pendingFields});
+        Object.assign(texts, collectValidTextResult(raw, pendingFields));
+        pendingFields = pendingFields.filter(field => !texts[field.id]);
+      }
+      if (pendingFields.length) throw new Error(`AI yanıtında ${pendingFields.length} metin alanı eksik kaldı.`);
       return res.json({success:true, texts});
     } catch (error: any) {
       const message = String(error?.message || error);
       const quota = /429|quota|Resource has been exhausted/i.test(message);
       const auth = /401|403|API.key|API_KEY_INVALID/i.test(message);
+      const incomplete = /metin alanı eksik|metin alanları eksik|geçerli bir metin/i.test(message);
       return res.status(quota ? 429 : 502).json({success:false,
         reason:quota ? 'quota_exceeded' : auth ? 'invalid_api_key' : 'generation_failed',
         error:quota ? 'Gemini kullanım kotası dolu. Daha sonra tekrar deneyin; metinleriniz korundu.' :
           auth ? 'Gemini anahtarı geçersiz veya bu modele erişim izni yok. Sunucu ayarlarını kontrol edin.' :
+          incomplete ? 'AI bazı metin kutularını boş bıraktı. Eksik alanlar otomatik olarak üç kez denendi; mevcut metinler korundu.' :
           'AI metni oluşturamadı. Bağlantıyı ve model ayarını kontrol edip tekrar deneyin; mevcut metin korundu.'});
     }
   };
@@ -171,7 +193,7 @@ app.post(['/api/generate-text', '/generate-text'], createTextGenerationHandler({
       const [header, data] = input.image.split(',');
       contents.unshift({inlineData:{mimeType:header.slice(5, header.indexOf(';')), data}});
     }
-    const response = await getGeminiClient()!.models.generateContent({
+    const response = await generateContentWithRetry(getGeminiClient()!, {
       model:DEFAULT_MODEL, contents,
       config:{httpOptions:{timeout:45000}, responseMimeType:'application/json', responseSchema:{
         type:Type.OBJECT, properties:{texts:{type:Type.ARRAY, items:{type:Type.OBJECT,
