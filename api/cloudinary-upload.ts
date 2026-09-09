@@ -77,6 +77,6 @@ export function createSignedMediaUpload(
     uniqueFilename: signedParams.unique_filename,
     // Keep the browser request on the application origin. Vercel's external
     // rewrite streams the body to Cloudinary and avoids client-side blockers.
-    uploadUrl: `/cloudinary-upload/${input.kind}`,
+    uploadUrl: `/media-transfer/${input.kind}`,
   };
 }

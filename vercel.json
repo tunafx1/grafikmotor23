@@ -2,11 +2,11 @@
   "version": 2,
   "rewrites": [
     {
-      "source": "/cloudinary-upload/image",
+      "source": "/media-transfer/image",
       "destination": "https://api.cloudinary.com/v1_1/b4ckxswb/image/upload"
     },
     {
-      "source": "/cloudinary-upload/video",
+      "source": "/media-transfer/video",
       "destination": "https://api.cloudinary.com/v1_1/b4ckxswb/video/upload"
     },
     {

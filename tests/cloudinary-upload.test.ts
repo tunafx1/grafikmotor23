@@ -8,7 +8,7 @@ test('reads Cloudinary credentials without exposing the secret in signed respons
   const signed = createSignedMediaUpload(config!, {
     userId:'firebase-user_1', kind:'image', contentHash:'a'.repeat(64), timestamp:123456,
   });
-  assert.equal(signed.uploadUrl, '/cloudinary-upload/image');
+  assert.equal(signed.uploadUrl, '/media-transfer/image');
   assert.equal('apiSecret' in signed, false);
   assert.equal(signed.folder, 'grafik-motoru/firebase-user_1');
   assert.equal(signed.publicId, `image-${'a'.repeat(64)}`);
