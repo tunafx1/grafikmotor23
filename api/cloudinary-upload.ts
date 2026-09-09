@@ -75,7 +75,8 @@ export function createSignedMediaUpload(
     signature: signCloudinaryParams(signedParams, config.apiSecret),
     timestamp,
     uniqueFilename: signedParams.unique_filename,
-    uploadUrl: `https://api.cloudinary.com/v1_1/${encodeURIComponent(config.cloudName)}/${input.kind}/upload`,
+    // Keep the browser request on the application origin. Vercel's external
+    // rewrite streams the body to Cloudinary and avoids client-side blockers.
+    uploadUrl: `/cloudinary-upload/${input.kind}`,
   };
 }
-

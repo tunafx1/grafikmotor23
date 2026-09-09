@@ -2,6 +2,14 @@
   "version": 2,
   "rewrites": [
     {
+      "source": "/cloudinary-upload/image",
+      "destination": "https://api.cloudinary.com/v1_1/b4ckxswb/image/upload"
+    },
+    {
+      "source": "/cloudinary-upload/video",
+      "destination": "https://api.cloudinary.com/v1_1/b4ckxswb/video/upload"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api"
     }

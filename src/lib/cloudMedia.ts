@@ -50,12 +50,12 @@ export async function uploadCloudMedia(
   form.append('overwrite', signed.overwrite);
   form.append('unique_filename', signed.uniqueFilename);
 
-  const response = await fetch(signed.uploadUrl, {method:'POST', body:form});
+  const response = await fetch(signed.uploadUrl, {method:'POST', body:form, credentials:'same-origin'});
   const result = await response.json().catch(() => null);
   if (!response.ok || typeof result?.secure_url !== 'string') {
     throw Object.assign(new Error(result?.error?.message || 'Medya Cloudinary’ye yüklenemedi.'), {code:'media/upload-failed'});
   }
-  const expectedPrefix = `https://res.cloudinary.com/${signed.cloudName}/`;
+  const expectedPrefix = `https://res.cloudinary.com/${encodeURIComponent(signed.cloudName)}/`;
   if (!result.secure_url.startsWith(expectedPrefix)) {
     throw Object.assign(new Error('Medya hizmeti beklenmeyen bir bağlantı döndürdü.'), {code:'media/invalid-url'});
   }
@@ -67,4 +67,3 @@ export async function dataUrlToBlob(value: string): Promise<Blob> {
   if (!response.ok) throw new Error('Görsel verisi hazırlanamadı.');
   return response.blob();
 }
-
