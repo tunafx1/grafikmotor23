@@ -115,7 +115,7 @@
   .workspace-brand { font-size: 16px; gap: 7px; } .workspace-mark { width: 31px; height: 31px; border-radius: 8px; }
   .workspace-brand small { font-size: 6px; letter-spacing: 1.5px; }
   .workspace-header-actions { gap: 2px; }
-  .workspace-account, .workspace-header-actions > .workspace-icon-button:first-of-type { display: none; }
+  .workspace-account, .workspace-header-actions > .workspace-icon-button[aria-label="Geri Al"] { display: none; }
   .workspace-primary span { display: none; } .workspace-primary { padding: 8px 10px; }
   #canvas-stage > div:first-child { font-size: 10px; gap: 8px; flex-wrap: wrap; }
   #canvas-viewport { padding: 20px 12px; }
