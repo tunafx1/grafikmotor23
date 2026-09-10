@@ -134,6 +134,7 @@ function ElementStyleControls({
   const minZ = Math.min(0, ...allNodes.map(item => item.zIndex ?? 0));
   const colorValue = (value?: string) => value && /^#[0-9a-f]{6}$/i.test(value) ? value : '#000000';
   const shadowEnabled = node.hasShadow ?? !!(node.shadowColor && (node.shadowBlur || node.shadowOffsetX || node.shadowOffsetY));
+  const isImageRegion = 'isDynamic' in node && node.type === 'image';
 
   return (
     <div className="space-y-2 border-t border-[rgba(255,255,255,0.08)] pt-3">
@@ -161,7 +162,10 @@ function ElementStyleControls({
               <input type="number" min="0" max="80" value={node.borderWidth || 0} onChange={e => onUpdate({borderWidth: Math.max(0, Number(e.target.value)), hasBorder: Number(e.target.value) > 0})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" />
             </label>
             <label className="text-[10px] text-white/55">Köşe
-              <input type="number" min="0" max="500" value={node.borderRadius || 0} onChange={e => onUpdate({borderRadius: Math.max(0, Number(e.target.value))})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" />
+              <input type="number" min="0" max="500" value={node.borderRadius || 0} onChange={e => {
+                const borderRadius = Math.max(0, Number(e.target.value));
+                onUpdate({borderRadius, ...(isImageRegion && borderRadius > 0 ? {clipImage: true} : {})});
+              }} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" />
             </label>
             {showPadding && <label className="text-[10px] text-white/55">İç boşluk
               <input type="number" min="0" max="200" value={(node as Region).padding || 0} onChange={e => onUpdate({padding: Math.max(0, Number(e.target.value))})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" />
