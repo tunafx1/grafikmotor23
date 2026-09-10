@@ -349,10 +349,11 @@ export function drawFormattedText(
     // Draw tokens sequentially
     for (const token of line) {
       ctx.font = getFontString(style.fontFamily, style.fontSize, token.isBold, token.isItalic, style.fontWeight, style.fontStyle);
+      const isEmphasized = token.isBold || style.fontWeight === 'bold' || style.fontWeight === '700' || style.fontWeight === '900';
       
       // Styling and colors
       ctx.fillStyle = textColor;
-      if (token.isBold && primaryColorOverride) {
+      if (isEmphasized && primaryColorOverride) {
         // Bold segments can use an accent highlight if we want
         ctx.fillStyle = primaryColorOverride;
       }
@@ -375,13 +376,13 @@ export function drawFormattedText(
 
       // Bold markdown spans can also work as a marker/highlight, independently
       // from the existing accent text color.
-      if (token.isBold && style.highlightColor && style.highlightColor !== 'transparent') {
+      if (isEmphasized && style.highlightColor && style.highlightColor !== 'transparent') {
         ctx.save();
         ctx.globalAlpha = style.highlightOpacity ?? 0.7;
         ctx.fillStyle = style.highlightColor;
         ctx.fillRect(drawX - 2, baselineY - style.fontSize * 0.78, tokenWidth + 4, Math.max(3, style.fontSize * 0.9));
         ctx.restore();
-        ctx.fillStyle = token.isBold && primaryColorOverride ? primaryColorOverride : textColor;
+        ctx.fillStyle = isEmphasized && primaryColorOverride ? primaryColorOverride : textColor;
       }
 
       const isDropCap = style.dropCap && l === 0 && drawX === (style.align === 'center' ? x + (width - lineWidth) / 2 : style.align === 'right' ? x + width - lineWidth : x) && token.text.trim();
