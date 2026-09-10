@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isMediaVideo, extractVideoSnapshot } from '../src/utils/mediaUtils';
 import { storage } from '../src/lib/storage';
-import { renderTemplateToCanvas } from '../src/canvasRenderer';
+import { drawFormattedText, renderTemplateToCanvas } from '../src/canvasRenderer';
 import type { DesignTemplate } from '../src/types';
 
 test('blob URLs are not assumed to be videos; MIME type identifies files', () => {
@@ -71,6 +71,34 @@ test('storage dispatches workspace-storage-restored when saving succeeds after f
     assert.equal(storage.setItem('k', 'v2'), true);
     assert.deepEqual(events, ['workspace-storage-error', 'workspace-storage-restored']);
   } finally { Object.assign(globalThis, {window: oldWindow}); }
+});
+
+test('fitted text backgrounds follow each rendered line instead of the longest line', () => {
+  const backgrounds: Array<{ x: number; y: number; width: number; height: number; radius: number }> = [];
+  const context = {
+    save() {}, restore() {}, beginPath() {}, fill() {}, stroke() {}, fillText() {},
+    rect(x: number, y: number, width: number, height: number) {
+      backgrounds.push({x, y, width, height, radius: 0});
+    },
+    roundRect(x: number, y: number, width: number, height: number, radius: number) {
+      backgrounds.push({x, y, width, height, radius});
+    },
+    measureText(value: string) {
+      return {width: value.length * 10, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 2};
+    },
+    font: '', fillStyle: '', strokeStyle: '', lineWidth: 0, globalAlpha: 1,
+    shadowColor: '', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
+  } as unknown as CanvasRenderingContext2D;
+
+  drawFormattedText(context, 'Uzun başlık   \nKısa', 0, 0, 400, 100, {
+    fontFamily: 'Inter', fontSize: 20, color: '#000', fontWeight: 'bold',
+    lineHeight: 1.2, align: 'center',
+  }, undefined, {backgroundColor: '#ffc000', borderRadius: 8});
+
+  assert.equal(backgrounds.length, 2);
+  assert.ok(backgrounds[0].width > backgrounds[1].width);
+  assert.equal(backgrounds[0].x + backgrounds[0].width / 2, 200);
+  assert.equal(backgrounds[1].x + backgrounds[1].width / 2, 200);
 });
 
 
@@ -285,5 +313,4 @@ test('canvas ready-made alignment presets calculate correctly and protect locked
   assert.deepEqual(calculateAlignment(lockedRect, 'center-both'), lockedRect);
   assert.deepEqual(calculateAlignment(lockedRect, 'left'), lockedRect);
 });
-
 

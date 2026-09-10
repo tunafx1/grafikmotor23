@@ -258,6 +258,14 @@ export function drawFormattedText(
     lines.push(currentLine);
   }
 
+  // Spaces used to separate words can be left at a wrapped line edge. They are
+  // invisible, but including them in alignment/background measurements makes a
+  // fitted background look wider than the text it is meant to hug.
+  for (const line of lines) {
+    while (line[0]?.isSpace) line.shift();
+    while (line[line.length - 1]?.isSpace) line.pop();
+  }
+
   // Draw lines
   const lineHeightPx = style.fontSize * style.lineHeight;
   const totalTextHeight = lines.length * lineHeightPx;
@@ -274,9 +282,7 @@ export function drawFormattedText(
     const paddingX = Math.max(12, style.fontSize * 0.4);
     const paddingY = Math.max(6, style.fontSize * 0.2);
 
-    let maxLineWidth = 0;
-    let topAscent = 0;
-    let bottomDescent = 0;
+    const lineMetrics: Array<{ width: number; ascent: number; descent: number }> = [];
     for (let l = 0; l < lines.length; l++) {
       const line = lines[l];
       let lineWidth = 0;
@@ -289,53 +295,49 @@ export function drawFormattedText(
         if (measured.actualBoundingBoxAscent > lineAscent) lineAscent = measured.actualBoundingBoxAscent;
         if (measured.actualBoundingBoxDescent > lineDescent) lineDescent = measured.actualBoundingBoxDescent;
       }
-      if (lineWidth > maxLineWidth) {
-        maxLineWidth = lineWidth;
-      }
-      if (l === 0) topAscent = lineAscent || style.fontSize * 0.72;
-      if (l === lines.length - 1) bottomDescent = lineDescent || style.fontSize * 0.2;
+      lineMetrics.push({
+        width: lineWidth,
+        ascent: lineAscent || style.fontSize * 0.72,
+        descent: lineDescent || style.fontSize * 0.2,
+      });
     }
 
-    if (maxLineWidth > 0) {
-      const bgWidth = maxLineWidth + paddingX * 2;
-
-      // Exact vertical bounds from real glyph metrics so the background hugs
-      // and stays perfectly centered on the rendered text, regardless of font.
-      const lastBaselineY = startY + (lines.length - 1) * lineHeightPx;
-      const textTop = startY - topAscent;
-      const textBottom = lastBaselineY + bottomDescent;
-      const bgTop = textTop - paddingY;
-      const bgHeight = (textBottom - textTop) + paddingY * 2;
-
-      let bgLeft = x;
-      if (style.align === 'center') {
-        bgLeft = x + (width - maxLineWidth) / 2 - paddingX;
-      } else if (style.align === 'right') {
-        bgLeft = x + width - maxLineWidth - paddingX;
-      } else {
-        bgLeft = x - paddingX;
-      }
-
+    if (lineMetrics.some(metric => metric.width > 0)) {
       ctx.save();
       ctx.globalAlpha = bgOptions.opacity !== undefined ? bgOptions.opacity : 1;
 
-      // Draw rounded/rectangular background
-      ctx.beginPath();
-      const radius = bgOptions.borderRadius ?? 0;
-      if (radius > 0) {
-        ctx.roundRect(bgLeft, bgTop, bgWidth, bgHeight, radius);
-      } else {
-        ctx.rect(bgLeft, bgTop, bgWidth, bgHeight);
-      }
-      
-      ctx.fillStyle = bgOptions.backgroundColor;
-      ctx.fill();
+      // A fitted background follows every visual line independently. This is
+      // the marker/highlight treatment used by design tools: a short second
+      // line no longer inherits the width of the longest line above it.
+      for (let l = 0; l < lineMetrics.length; l++) {
+        const metric = lineMetrics[l];
+        if (metric.width <= 0) continue;
 
-      // Draw border if configured
-      if (bgOptions.hasBorder !== false && bgOptions.borderWidth && bgOptions.borderWidth > 0 && bgOptions.borderColor && bgOptions.borderColor !== 'transparent') {
-        ctx.strokeStyle = bgOptions.borderColor;
-        ctx.lineWidth = bgOptions.borderWidth;
-        ctx.stroke();
+        const baselineY = startY + l * lineHeightPx;
+        const bgWidth = metric.width + paddingX * 2;
+        const bgHeight = metric.ascent + metric.descent + paddingY * 2;
+        const bgTop = baselineY - metric.ascent - paddingY;
+        let bgLeft = x - paddingX;
+        if (style.align === 'center') {
+          bgLeft = x + (width - metric.width) / 2 - paddingX;
+        } else if (style.align === 'right') {
+          bgLeft = x + width - metric.width - paddingX;
+        }
+
+        ctx.beginPath();
+        const requestedRadius = Math.max(0, bgOptions.borderRadius ?? 0);
+        const radius = Math.min(requestedRadius, bgWidth / 2, bgHeight / 2);
+        if (radius > 0) ctx.roundRect(bgLeft, bgTop, bgWidth, bgHeight, radius);
+        else ctx.rect(bgLeft, bgTop, bgWidth, bgHeight);
+
+        ctx.fillStyle = bgOptions.backgroundColor;
+        ctx.fill();
+
+        if (bgOptions.hasBorder !== false && bgOptions.borderWidth && bgOptions.borderWidth > 0 && bgOptions.borderColor && bgOptions.borderColor !== 'transparent') {
+          ctx.strokeStyle = bgOptions.borderColor;
+          ctx.lineWidth = bgOptions.borderWidth;
+          ctx.stroke();
+        }
       }
       ctx.restore();
     }

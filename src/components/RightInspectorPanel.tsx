@@ -1049,7 +1049,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 <label className="flex items-center justify-between gap-2 text-[10px] text-white/65">Metin arka planı
                   <input type="checkbox" checked={r.hasBackground !== false && r.backgroundColor !== 'transparent'} onChange={e => onUpdateRegionProps(r.id, {hasBackground: e.target.checked, backgroundColor: e.target.checked && r.backgroundColor === 'transparent' ? '#FF6B1A' : r.backgroundColor, fitBackgroundToText: e.target.checked ? true : r.fitBackgroundToText})} className="accent-[#FF6B1A]" />
                 </label>
-                <label className="flex items-center justify-between gap-2 text-[10px] text-white/65">Metne sığdır
+                <label className="flex items-center justify-between gap-2 text-[10px] text-white/65">Satır satır sığdır
                   <input type="checkbox" checked={!!r.fitBackgroundToText} onChange={e => onUpdateRegionProps(r.id, {fitBackgroundToText: e.target.checked})} className="accent-[#FF6B1A]" />
                 </label>
               </div>
