@@ -353,8 +353,8 @@ export function drawFormattedText(
       
       // Styling and colors
       ctx.fillStyle = textColor;
-      if (isEmphasized && primaryColorOverride) {
-        // Bold segments can use an accent highlight if we want
+      if (isEmphasized && primaryColorOverride && !style.isCustomColor) {
+        // Bold segments can use an accent highlight, unless the user picked a custom text color
         ctx.fillStyle = primaryColorOverride;
       }
 
@@ -382,7 +382,7 @@ export function drawFormattedText(
         ctx.fillStyle = style.highlightColor;
         ctx.fillRect(drawX - 2, baselineY - style.fontSize * 0.78, tokenWidth + 4, Math.max(3, style.fontSize * 0.9));
         ctx.restore();
-        ctx.fillStyle = isEmphasized && primaryColorOverride ? primaryColorOverride : textColor;
+        ctx.fillStyle = isEmphasized && primaryColorOverride && !style.isCustomColor ? primaryColorOverride : textColor;
       }
 
       const isDropCap = style.dropCap && l === 0 && drawX === (style.align === 'center' ? x + (width - lineWidth) / 2 : style.align === 'right' ? x + width - lineWidth : x) && token.text.trim();
