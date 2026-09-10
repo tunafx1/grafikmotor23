@@ -214,6 +214,8 @@ export function drawFormattedText(
     opacity?: number;
     hasBackground?: boolean;
     hasBorder?: boolean;
+    paddingX?: number;
+    paddingY?: number;
   }
 ) {
   ctx.save();
@@ -287,8 +289,8 @@ export function drawFormattedText(
   // Draw background if configured
   if (bgOptions && bgOptions.hasBackground !== false && bgOptions.backgroundColor && bgOptions.backgroundColor !== 'transparent') {
     // Determine dynamic horizontal and vertical padding based on font size for perfect proportions
-    const paddingX = Math.max(12, style.fontSize * 0.4);
-    const paddingY = Math.max(6, style.fontSize * 0.2);
+    const paddingX = Math.max(0, bgOptions.paddingX ?? Math.max(12, style.fontSize * 0.4));
+    const paddingY = Math.max(0, bgOptions.paddingY ?? Math.max(6, style.fontSize * 0.2));
 
     const lineMetrics: Array<{ width: number; ascent: number; descent: number }> = [];
     for (let l = 0; l < lines.length; l++) {
@@ -834,7 +836,9 @@ async function renderTemplateFrame(
             borderRadius: reg.borderRadius,
             opacity: reg.opacity,
             hasBackground: reg.hasBackground,
-            hasBorder: reg.hasBorder
+            hasBorder: reg.hasBorder,
+            paddingX: reg.backgroundPaddingX,
+            paddingY: reg.backgroundPaddingY
           } : undefined
         );
       }

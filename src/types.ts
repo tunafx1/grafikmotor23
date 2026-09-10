@@ -46,6 +46,10 @@ export interface Region {
   hasShadow?: boolean;
   blendMode?: GlobalCompositeOperation;
   padding?: number;
+  /** Horizontal inset around each line when the text background is fitted. */
+  backgroundPaddingX?: number;
+  /** Vertical inset around each line when the text background is fitted. */
+  backgroundPaddingY?: number;
   lockAspectRatio?: boolean;
   fitBackgroundToText?: boolean;
   hasBackground?: boolean;

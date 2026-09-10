@@ -1055,6 +1055,33 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 </label>
               </div>
 
+              {r.hasBackground !== false && r.backgroundColor !== 'transparent' && r.fitBackgroundToText !== false && (
+                <div className="grid grid-cols-2 gap-2 rounded-xl border border-white/10 bg-[#1D1D1F]/70 p-3">
+                  <label className="text-[10px] text-white/55">Yatay boşluk
+                    <input
+                      type="number"
+                      min="0"
+                      max="300"
+                      value={Math.round(r.backgroundPaddingX ?? Math.max(12, style.fontSize * 0.4))}
+                      onChange={e => onUpdateRegionProps(r.id, {backgroundPaddingX: Math.max(0, Number(e.target.value))})}
+                      className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white"
+                      title="Yazıyı değiştirmeden sarı kutunun sağ ve sol boşluğunu ayarlar"
+                    />
+                  </label>
+                  <label className="text-[10px] text-white/55">Dikey boşluk
+                    <input
+                      type="number"
+                      min="0"
+                      max="300"
+                      value={Math.round(r.backgroundPaddingY ?? Math.max(6, style.fontSize * 0.2))}
+                      onChange={e => onUpdateRegionProps(r.id, {backgroundPaddingY: Math.max(0, Number(e.target.value))})}
+                      className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white"
+                      title="Yazıyı değiştirmeden sarı kutunun üst ve alt boşluğunu ayarlar"
+                    />
+                  </label>
+                </div>
+              )}
+
               <ElementStyleControls
                 node={r}
                 allNodes={[...regionList, ...fixedList]}

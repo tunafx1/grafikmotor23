@@ -101,6 +101,24 @@ test('fitted text backgrounds follow each rendered line instead of the longest l
   assert.equal(backgrounds[1].x + backgrounds[1].width / 2, 200);
 });
 
+test('fitted background padding changes the box without changing the text style', () => {
+  const boxes: Array<{width: number; height: number}> = [];
+  const context = {
+    save() {}, restore() {}, beginPath() {}, fill() {}, stroke() {}, fillText() {},
+    rect(_x: number, _y: number, width: number, height: number) { boxes.push({width, height}); },
+    roundRect(_x: number, _y: number, width: number, height: number) { boxes.push({width, height}); },
+    measureText(value: string) { return {width: value.length * 10, actualBoundingBoxAscent: 8, actualBoundingBoxDescent: 2}; },
+    font: '', fillStyle: '', strokeStyle: '', lineWidth: 0, globalAlpha: 1,
+    shadowColor: '', shadowBlur: 0, shadowOffsetX: 0, shadowOffsetY: 0,
+  } as unknown as CanvasRenderingContext2D;
+  const style = {fontFamily: 'Inter', fontSize: 20, color: '#000', fontWeight: 'bold', lineHeight: 1.2, align: 'center'} as const;
+
+  drawFormattedText(context, 'Başlık', 0, 0, 300, 60, style, undefined, {backgroundColor: '#ffc000', paddingX: 40, paddingY: 3});
+
+  assert.deepEqual(boxes, [{width: 140, height: 16}]);
+  assert.equal(style.fontSize, 20);
+});
+
 test('legacy text regions fit their background unless full-box mode is explicitly selected', () => {
   const base = {type: 'text'} as any;
   assert.equal(usesFittedTextBackground(base), true);

@@ -77,6 +77,8 @@ function mapRegion(r: any): any {
     hasShadow: r.hasShadow !== undefined ? Boolean(r.hasShadow) : null,
     blendMode: r.blendMode || null,
     padding: Number(r.padding ?? 0),
+    backgroundPaddingX: r.backgroundPaddingX !== undefined && r.backgroundPaddingX !== null ? Number(r.backgroundPaddingX) : null,
+    backgroundPaddingY: r.backgroundPaddingY !== undefined && r.backgroundPaddingY !== null ? Number(r.backgroundPaddingY) : null,
     lockAspectRatio: r.lockAspectRatio !== undefined ? Boolean(r.lockAspectRatio) : null,
     hidden: r.hidden !== undefined ? Boolean(r.hidden) : false,
     locked: r.locked !== undefined ? Boolean(r.locked) : false,

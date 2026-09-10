@@ -23,6 +23,8 @@ function scaleRegion(region: Region, scaleX: number, scaleY: number, uniformScal
     height: rounded(region.height * scaleY),
     borderWidth: rounded(region.borderWidth * uniformScale),
     borderRadius: rounded(region.borderRadius * uniformScale),
+    ...(region.backgroundPaddingX === undefined ? {} : { backgroundPaddingX: rounded(region.backgroundPaddingX * uniformScale) }),
+    ...(region.backgroundPaddingY === undefined ? {} : { backgroundPaddingY: rounded(region.backgroundPaddingY * uniformScale) }),
     textStyle: scaleTextStyle(region.textStyle, uniformScale),
   };
 }
