@@ -5177,6 +5177,7 @@ export default function App() {
           handleFixedElementPropertyChange={handleFixedElementPropertyChange}
           handleFixedElementPropertiesChange={handleFixedElementPropertiesChange}
           handleFixedElementChange={handleFixedElementChange}
+          handleFixedElementTextStyleChange={handleFixedElementTextStyleChange}
           handleAlignElement={handleAlignElement}
           onAlignElement={handleAlignElement}
           handleDynamicImageUpload={(regionId, file) => handleDynamicImageUpload(regionId, file)}

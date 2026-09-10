@@ -90,6 +90,7 @@ export interface RightInspectorPanelProps {
   handleRegionPropertiesChange?: (regionId: string, updates: Partial<Region>) => void;
   handleFixedElementPropertyChange?: (elementId: string, prop: keyof FixedElement, value: any) => void;
   handleFixedElementPropertiesChange?: (elementId: string, updates: Partial<FixedElement>) => void;
+  handleFixedElementTextStyleChange?: (elementId: string, prop: keyof TextStyle, value: any) => void;
   handleFixedElementChange?: (elementId: string, prop: string, value: any) => void;
   handleAlignElement?: (id: string, alignment: AlignmentPreset) => void;
   onAlignElement?: (id: string, alignment: AlignmentPreset) => void;
@@ -521,6 +522,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
     handleDynamicTextChange,
     updateActiveImageProp,
     handleRegionTextStyleChange,
+    handleFixedElementTextStyleChange,
     handleRegionPropertyChange,
     handleFixedElementPropertyChange,
     handleFixedElementChange,
@@ -1308,6 +1310,20 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                       <option value="none">Yok</option><option value="instagram">Instagram</option><option value="globe">Web</option><option value="mail">E-posta</option><option value="phone">Telefon</option>
                     </select>
                   </label>}
+                  {el.type === 'text' && handleFixedElementTextStyleChange && (
+                    <div className="flex items-center justify-between gap-2 pt-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-white/55">Metin Rengi</label>
+                      <div className="flex items-center gap-1 bg-[#1D1D1F] border border-white/10 rounded-xl px-2 py-1">
+                        <input
+                          type="color"
+                          value={el.textStyle?.color || el.color || '#FFFFFF'}
+                          onChange={e => handleFixedElementTextStyleChange(el.id, 'color', e.target.value)}
+                          className="w-5 h-5 rounded cursor-pointer border-0 bg-transparent p-0"
+                          title="Metin Rengi"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
