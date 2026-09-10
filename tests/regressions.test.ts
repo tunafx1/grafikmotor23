@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { isMediaVideo, extractVideoSnapshot } from '../src/utils/mediaUtils';
 import { storage } from '../src/lib/storage';
-import { drawFormattedText, renderTemplateToCanvas } from '../src/canvasRenderer';
+import { drawFormattedText, renderTemplateToCanvas, usesFittedTextBackground } from '../src/canvasRenderer';
 import type { DesignTemplate } from '../src/types';
 
 test('blob URLs are not assumed to be videos; MIME type identifies files', () => {
@@ -99,6 +99,14 @@ test('fitted text backgrounds follow each rendered line instead of the longest l
   assert.ok(backgrounds[0].width > backgrounds[1].width);
   assert.equal(backgrounds[0].x + backgrounds[0].width / 2, 200);
   assert.equal(backgrounds[1].x + backgrounds[1].width / 2, 200);
+});
+
+test('legacy text regions fit their background unless full-box mode is explicitly selected', () => {
+  const base = {type: 'text'} as any;
+  assert.equal(usesFittedTextBackground(base), true);
+  assert.equal(usesFittedTextBackground({...base, fitBackgroundToText: null}), true);
+  assert.equal(usesFittedTextBackground({...base, fitBackgroundToText: false}), false);
+  assert.equal(usesFittedTextBackground({type: 'image'} as any), false);
 });
 
 
@@ -313,4 +321,3 @@ test('canvas ready-made alignment presets calculate correctly and protect locked
   assert.deepEqual(calculateAlignment(lockedRect, 'center-both'), lockedRect);
   assert.deepEqual(calculateAlignment(lockedRect, 'left'), lockedRect);
 });
-

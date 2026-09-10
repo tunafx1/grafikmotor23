@@ -136,6 +136,7 @@ function ElementStyleControls({
   const colorValue = (value?: string) => value && /^#[0-9a-f]{6}$/i.test(value) ? value : '#000000';
   const shadowEnabled = node.hasShadow ?? !!(node.shadowColor && (node.shadowBlur || node.shadowOffsetX || node.shadowOffsetY));
   const isImageRegion = 'isDynamic' in node && node.type === 'image';
+  const isTextRegion = 'isDynamic' in node && node.type === 'text';
 
   return (
     <div className="space-y-2 border-t border-[rgba(255,255,255,0.08)] pt-3">
@@ -147,7 +148,7 @@ function ElementStyleControls({
           <div className="grid grid-cols-2 gap-2">
             <label className="space-y-1 text-[10px] text-white/55">Dolgu rengi
               <div className="flex items-center gap-2 rounded-lg border border-white/10 bg-black/15 p-1.5">
-                <input type="color" value={colorValue(fill)} onChange={e => onUpdate({backgroundColor: e.target.value, hasBackground: true})} className="h-5 w-6 cursor-pointer bg-transparent" />
+                <input type="color" value={colorValue(fill)} onChange={e => onUpdate({backgroundColor: e.target.value, hasBackground: true, ...(isTextRegion ? {fitBackgroundToText: true} : {})})} className="h-5 w-6 cursor-pointer bg-transparent" />
                 <span className="truncate font-mono text-white/80">{fill === 'transparent' ? 'Yok' : fill}</span>
               </div>
             </label>
@@ -1050,7 +1051,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                   <input type="checkbox" checked={r.hasBackground !== false && r.backgroundColor !== 'transparent'} onChange={e => onUpdateRegionProps(r.id, {hasBackground: e.target.checked, backgroundColor: e.target.checked && r.backgroundColor === 'transparent' ? '#FF6B1A' : r.backgroundColor, fitBackgroundToText: e.target.checked ? true : r.fitBackgroundToText})} className="accent-[#FF6B1A]" />
                 </label>
                 <label className="flex items-center justify-between gap-2 text-[10px] text-white/65">Satır satır sığdır
-                  <input type="checkbox" checked={!!r.fitBackgroundToText} onChange={e => onUpdateRegionProps(r.id, {fitBackgroundToText: e.target.checked})} className="accent-[#FF6B1A]" />
+                  <input type="checkbox" checked={r.fitBackgroundToText !== false} onChange={e => onUpdateRegionProps(r.id, {fitBackgroundToText: e.target.checked})} className="accent-[#FF6B1A]" />
                 </label>
               </div>
 

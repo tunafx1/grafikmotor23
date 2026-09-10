@@ -14,6 +14,14 @@ interface Token {
   isSpace: boolean;
 }
 
+/**
+ * Older saved templates do not contain fitBackgroundToText. Text fills are
+ * highlights by default, so only an explicit false opts into a full region box.
+ */
+export function usesFittedTextBackground(region: Region): boolean {
+  return region.type === 'text' && region.fitBackgroundToText !== false;
+}
+
 // Parse markdown tags **bold** and *italic*
 export function parseMarkdownText(text: string): TextSpan[] {
   const spans: TextSpan[] = [];
@@ -633,9 +641,10 @@ async function renderTemplateFrame(
     if (node.isRegion) {
       const reg = node.item as Region;
       ctx.globalAlpha = reg.opacity ?? 1;
+      const fitTextBackground = usesFittedTextBackground(reg);
 
       // Draw Region background/borders (only if not fitting to text)
-      const shouldDrawOuterBg = reg.hasBackground !== false && reg.backgroundColor && reg.backgroundColor !== 'transparent' && !(reg.type === 'text' && reg.fitBackgroundToText);
+      const shouldDrawOuterBg = reg.hasBackground !== false && reg.backgroundColor && reg.backgroundColor !== 'transparent' && !fitTextBackground;
       if (shouldDrawOuterBg) {
         ctx.fillStyle = reg.backgroundColor;
         ctx.beginPath();
@@ -818,7 +827,7 @@ async function renderTemplateFrame(
           Math.max(1, reg.height - Math.max(0, reg.padding || 0) * 2),
           textStyleCopy,
           options?.boldHighlightColor || options?.paletteOverrides?.boldHighlight || template.palette.boldHighlight || primaryColor, // allows using custom or primary color highlight for bold texts
-          reg.fitBackgroundToText ? {
+          fitTextBackground ? {
             backgroundColor: reg.backgroundColor,
             borderColor: resolvedBorderColor,
             borderWidth: reg.borderWidth,
@@ -831,7 +840,7 @@ async function renderTemplateFrame(
       }
 
       // Draw Region Border (only if not fitting to text)
-      const shouldDrawOuterBorder = reg.hasBorder !== false && reg.borderWidth > 0 && reg.borderColor && reg.borderColor !== 'transparent' && !(reg.type === 'text' && reg.fitBackgroundToText);
+      const shouldDrawOuterBorder = reg.hasBorder !== false && reg.borderWidth > 0 && reg.borderColor && reg.borderColor !== 'transparent' && !fitTextBackground;
       if (shouldDrawOuterBorder) {
         ctx.strokeStyle = (reg.borderColor === '#6C5CE7' || reg.borderColor === '#6C5CE7') ? primaryColor : ((reg.borderColor === '#FF9F0A' || reg.borderColor === '#FF9F0A') ? accentColor : reg.borderColor);
         ctx.lineWidth = reg.borderWidth;
