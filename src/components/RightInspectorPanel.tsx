@@ -882,7 +882,24 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                   {TEXT_ROLE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
                 <p className="text-[10px] leading-relaxed text-[rgba(255,255,255,0.4)]">
-                  AI bu alanı üretirken seçilen içerik türünün kurallarını uygular.
+                  AI bu alanı üretirken seçilen içerik türünün genel kurallarını uygular.
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <label htmlFor={`text-ai-prompt-${r.id}`} className="block text-[11px] font-bold uppercase tracking-wider text-[rgba(255,255,255,0.7)]">
+                  Bu alana özel AI komutu
+                </label>
+                <textarea
+                  id={`text-ai-prompt-${r.id}`}
+                  rows={3}
+                  value={r.aiPrompt || ''}
+                  onChange={event => onUpdateRegionProps(r.id, {aiPrompt: event.target.value})}
+                  placeholder="Örn: Bu alan için kısa, dikkat çekici ve emoji içermeyen bir başlık üret."
+                  className="w-full bg-[#1D1D1F] border border-[rgba(255,255,255,0.1)] rounded-xl px-3 py-2 text-[12px] text-white focus:outline-none focus:border-[#FF6B1A] focus:ring-2 focus:ring-[#FF6B1A]/20 transition resize-y leading-relaxed"
+                />
+                <p className="text-[10px] leading-relaxed text-[rgba(255,255,255,0.4)]">
+                  Buraya yazılan komut, genel kuralların önüne geçer ve sadece bu alan için AI üretiminde kullanılır.
                 </p>
               </div>
 

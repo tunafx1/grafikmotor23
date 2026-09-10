@@ -338,6 +338,14 @@ export function isRealUserUploadedImage(url: string, template: DesignTemplate | 
 export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
   const pages = t.pages ? [...t.pages] : [];
   if (pages.length === 0) {
+    // Synthesized collage pages below all reuse a single caption region with
+    // textRole 'description' — inherit that role's custom AI instruction (or,
+    // failing that, any text region's) so per-role AI commands set on the
+    // cover page still apply to batch-generated collage pages.
+    const sourceTextRegions = (t.regions || []).filter(r => r.type === 'text');
+    const collageAiPrompt = sourceTextRegions.find(r => r.textRole === 'description')?.aiPrompt
+      || sourceTextRegions.find(r => r.aiPrompt)?.aiPrompt;
+
     // 1. Initialize with Cover Page
     pages.push({
       id: '1',
@@ -400,6 +408,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           borderRadius: 0,
           isDynamic: true,
           textRole: 'description',
+          aiPrompt: collageAiPrompt,
           placeholderText: "Detaylar ve **Harika Kolaj** İçeriği",
           textStyle: {
             fontFamily: 'Space Grotesk',
@@ -483,6 +492,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           borderRadius: 0,
           isDynamic: true,
           textRole: 'description',
+          aiPrompt: collageAiPrompt,
           placeholderText: "Detaylar ve **Harika Kolaj** İçeriği",
           textStyle: {
             fontFamily: 'Space Grotesk',
@@ -534,6 +544,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           borderRadius: 0,
           isDynamic: true,
           textRole: 'description',
+          aiPrompt: collageAiPrompt,
           placeholderText: "Detaylar ve **Harika Kolaj** İçeriği",
           textStyle: {
             fontFamily: 'Space Grotesk',
