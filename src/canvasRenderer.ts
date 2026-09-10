@@ -275,24 +275,37 @@ export function drawFormattedText(
     const paddingY = Math.max(6, style.fontSize * 0.2);
 
     let maxLineWidth = 0;
+    let topAscent = 0;
+    let bottomDescent = 0;
     for (let l = 0; l < lines.length; l++) {
       const line = lines[l];
       let lineWidth = 0;
+      let lineAscent = 0;
+      let lineDescent = 0;
       for (const token of line) {
         ctx.font = getFontString(style.fontFamily, style.fontSize, token.isBold, token.isItalic, style.fontWeight, style.fontStyle);
-        lineWidth += ctx.measureText(token.text).width;
+        const measured = ctx.measureText(token.text);
+        lineWidth += measured.width;
+        if (measured.actualBoundingBoxAscent > lineAscent) lineAscent = measured.actualBoundingBoxAscent;
+        if (measured.actualBoundingBoxDescent > lineDescent) lineDescent = measured.actualBoundingBoxDescent;
       }
       if (lineWidth > maxLineWidth) {
         maxLineWidth = lineWidth;
       }
+      if (l === 0) topAscent = lineAscent || style.fontSize * 0.72;
+      if (l === lines.length - 1) bottomDescent = lineDescent || style.fontSize * 0.2;
     }
 
     if (maxLineWidth > 0) {
       const bgWidth = maxLineWidth + paddingX * 2;
-      const bgHeight = totalTextHeight + paddingY * 2;
 
-      // Vertical start matches text visual block
-      const bgTop = startY - style.fontSize * 0.85 - paddingY;
+      // Exact vertical bounds from real glyph metrics so the background hugs
+      // and stays perfectly centered on the rendered text, regardless of font.
+      const lastBaselineY = startY + (lines.length - 1) * lineHeightPx;
+      const textTop = startY - topAscent;
+      const textBottom = lastBaselineY + bottomDescent;
+      const bgTop = textTop - paddingY;
+      const bgHeight = (textBottom - textTop) + paddingY * 2;
 
       let bgLeft = x;
       if (style.align === 'center') {

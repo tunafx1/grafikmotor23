@@ -3783,7 +3783,7 @@ export default function App() {
         borderWidth: 0,
         borderRadius: preset === 'badge' ? 999 : 8,
         rotation: preset === 'ribbon' ? -5 : 0,
-        fitBackgroundToText: false,
+        fitBackgroundToText: true,
         hasBackground: true,
         isDynamic: true,
         textRole: 'label',
