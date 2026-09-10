@@ -21,6 +21,15 @@ export interface TextStyle {
 
 export type TextRole = 'title' | 'subtitle' | 'description' | 'callToAction' | 'label' | 'date' | 'price' | 'normal';
 
+export interface TodoItem {
+  id: string;
+  text: string;
+  done: boolean;
+  createdAt: number;
+  dueDate?: string; // 'YYYY-MM-DD', optional
+  order: number;
+}
+
 export interface Region {
   id: string;
   name: string;

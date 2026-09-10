@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, Loader2, HardDrive, Pencil, Undo2, Redo2, Sparkles } from 'lucide-react';
+import { ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, Loader2, HardDrive, Pencil, Undo2, Redo2, Sparkles, ListChecks } from 'lucide-react';
 import { ProfileModal } from './ProfileModal';
+import { TodoPanel } from './TodoPanel';
+import { useTodos } from '../hooks/useTodos';
 
 type Props = {
   templateName: string; isDark: boolean; onTheme: () => void;
@@ -24,6 +26,8 @@ export function WorkspaceHeader(p: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(p.templateName);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isTodoOpen, setIsTodoOpen] = useState(false);
+  const todos = useTodos();
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -178,6 +182,21 @@ export function WorkspaceHeader(p: Props) {
             </button>
           )}
 
+          <button
+            type="button"
+            className="workspace-icon-button relative"
+            onClick={() => setIsTodoOpen(v => !v)}
+            title="Yapılacaklar"
+            aria-label="Yapılacaklar"
+          >
+            <ListChecks size={16}/>
+            {todos.pendingCount > 0 && (
+              <span className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#FF6B1A] px-1 text-[9px] font-bold leading-none text-white">
+                {todos.pendingCount > 9 ? '9+' : todos.pendingCount}
+              </span>
+            )}
+          </button>
+
           <button className="workspace-icon-button" onClick={p.onTheme} title={p.isDark ? 'Açık temaya geç' : 'Koyu temaya geç'} aria-label={p.isDark ? 'Açık temaya geç' : 'Koyu temaya geç'}>
             {p.isDark ? <Sun size={16}/> : <Moon size={16}/>}
           </button>
@@ -228,6 +247,18 @@ export function WorkspaceHeader(p: Props) {
           </button>}
         </div>
       </header>
+
+      <TodoPanel
+        isOpen={isTodoOpen}
+        onClose={() => setIsTodoOpen(false)}
+        todos={todos.todos}
+        addTodo={todos.addTodo}
+        toggleTodo={todos.toggleTodo}
+        updateTodo={todos.updateTodo}
+        deleteTodo={todos.deleteTodo}
+        clearCompleted={todos.clearCompleted}
+        moveTodo={todos.moveTodo}
+      />
 
       {/* Account Settings & Password Management Modal */}
       {activeUser && (
