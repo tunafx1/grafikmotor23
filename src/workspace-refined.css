@@ -135,6 +135,22 @@
   #graphics-engine-app .work-quick-editor { position: absolute; right: 0; bottom: 0; z-index: 40; width: min(100%, 340px); max-height: 58vh; border-top: 1px solid var(--studio-border); box-shadow: 0 -18px 50px #0007; }
 }
 
+/* Touch devices have no hover state — reveal the to-do row actions permanently
+   and give the tap targets a bit more room, without changing the desktop hover reveal. */
+@media (hover: none) {
+  .todo-touch-reveal { opacity: 1 !important; }
+  .todo-checkbox { width: 20px; height: 20px; }
+  .todo-icon-btn { width: 30px; height: 30px; }
+}
+
+@media (max-width: 480px) {
+  /* Guarantee every header action (including the primary İndir button) stays reachable
+     instead of being silently clipped when the icons no longer fit in one row. */
+  #graphics-engine-app .workspace-header-actions { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
+  #graphics-engine-app .workspace-header-actions::-webkit-scrollbar { display: none; }
+  #graphics-engine-app .workspace-header-actions > * { flex-shrink: 0; }
+}
+
 @media (max-width: 640px) {
   #graphics-engine-app .workspace-header { height: 58px; padding: 0 12px; }
   #graphics-engine-app .workspace-brand small { display: none; }

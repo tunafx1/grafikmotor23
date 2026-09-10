@@ -149,7 +149,7 @@ export function TodoPanel({ isOpen, onClose, todos, addTodo, toggleTodo, updateT
                   <button
                     type="button"
                     onClick={() => toggleTodo(item.id)}
-                    className={`mt-0.5 flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-md border transition ${
+                    className={`todo-checkbox mt-0.5 flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-md border transition ${
                       item.done ? 'border-[#FF6B1A] bg-[#FF6B1A]' : 'border-[rgba(255,255,255,0.25)] hover:border-[#FF6B1A]'
                     }`}
                     aria-label={item.done ? 'Tamamlanmadı olarak işaretle' : 'Tamamlandı olarak işaretle'}
@@ -205,7 +205,7 @@ export function TodoPanel({ isOpen, onClose, todos, addTodo, toggleTodo, updateT
                         <button
                           type="button"
                           onClick={() => setEditingDateId(item.id)}
-                          className="cursor-pointer text-[9px] font-semibold text-[rgba(255,255,255,0.25)] opacity-0 transition group-hover:opacity-100 hover:text-white"
+                          className="todo-touch-reveal cursor-pointer text-[9px] font-semibold text-[rgba(255,255,255,0.25)] opacity-0 transition group-hover:opacity-100 hover:text-white"
                         >
                           + tarih
                         </button>
@@ -213,14 +213,14 @@ export function TodoPanel({ isOpen, onClose, todos, addTodo, toggleTodo, updateT
                     </div>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
-                    <button type="button" onClick={() => moveTodo(item.id, 'up')} className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[rgba(255,255,255,0.35)] hover:bg-white/10 hover:text-white" aria-label="Yukarı taşı">
+                  <div className="todo-touch-reveal flex shrink-0 items-center gap-0.5 opacity-0 transition group-hover:opacity-100">
+                    <button type="button" onClick={() => moveTodo(item.id, 'up')} className="todo-icon-btn flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[rgba(255,255,255,0.35)] hover:bg-white/10 hover:text-white" aria-label="Yukarı taşı">
                       <ChevronUp size={13} />
                     </button>
-                    <button type="button" onClick={() => moveTodo(item.id, 'down')} className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[rgba(255,255,255,0.35)] hover:bg-white/10 hover:text-white" aria-label="Aşağı taşı">
+                    <button type="button" onClick={() => moveTodo(item.id, 'down')} className="todo-icon-btn flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[rgba(255,255,255,0.35)] hover:bg-white/10 hover:text-white" aria-label="Aşağı taşı">
                       <ChevronDown size={13} />
                     </button>
-                    <button type="button" onClick={() => deleteTodo(item.id)} className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[rgba(255,255,255,0.35)] hover:bg-red-500/15 hover:text-red-300" aria-label="Sil">
+                    <button type="button" onClick={() => deleteTodo(item.id)} className="todo-icon-btn flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-[rgba(255,255,255,0.35)] hover:bg-red-500/15 hover:text-red-300" aria-label="Sil">
                       <Trash2 size={12} />
                     </button>
                   </div>

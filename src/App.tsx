@@ -5272,7 +5272,7 @@ export default function App() {
       {/* MOBILE BOTTOM NAVIGATION BAR */}
       <div id="mobile-nav-bar" style={{display: workspaceScreen === 'editor' ? undefined : 'none'}} className="lg:hidden bg-[#1D1D1F] border-t border-[rgba(255,255,255,0.08)] flex items-center justify-around pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] px-2 z-30 shrink-0 select-none">
         <button
-          onClick={() => setMobileView('editor')}
+          onClick={() => { setMobileView('editor'); if (!leftDrawerTab) setLeftDrawerTab('add'); }}
           className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
             mobileView === 'editor' ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
           }`}
@@ -5282,7 +5282,7 @@ export default function App() {
         </button>
 
         <button
-          onClick={() => setMobileView('canvas')}
+          onClick={() => { setMobileView('canvas'); setLeftDrawerTab(null); }}
           className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
             mobileView === 'canvas' ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
           }`}
