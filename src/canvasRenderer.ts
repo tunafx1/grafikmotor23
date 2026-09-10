@@ -605,7 +605,9 @@ async function renderTemplateFrame(
       ctx.translate(-transformCenterX, -transformCenterY);
     }
     if (transformNode.blendMode) ctx.globalCompositeOperation = transformNode.blendMode;
-    if (transformNode.shadowColor && (transformNode.shadowBlur || transformNode.shadowOffsetX || transformNode.shadowOffsetY)) {
+    const nodeShadowEnabled = transformNode.hasShadow !== false && !!transformNode.shadowColor &&
+      !!(transformNode.shadowBlur || transformNode.shadowOffsetX || transformNode.shadowOffsetY);
+    if (nodeShadowEnabled) {
       ctx.shadowColor = transformNode.shadowColor;
       ctx.shadowBlur = transformNode.shadowBlur || 0;
       ctx.shadowOffsetX = transformNode.shadowOffsetX || 0;
@@ -674,6 +676,30 @@ async function renderTemplateFrame(
 
             const finalDrawWidth = drawWidth * scaleFactor;
             const finalDrawHeight = drawHeight * scaleFactor;
+
+            // Canvas clipping normally cuts off an image's shadow. Render a clipped
+            // copy to a transparent buffer first, then shadow that buffer as one layer.
+            if (nodeShadowEnabled && reg.clipImage !== false) {
+              const shadowCanvas = document.createElement('canvas');
+              shadowCanvas.width = Math.max(1, Math.ceil(reg.width));
+              shadowCanvas.height = Math.max(1, Math.ceil(reg.height));
+              const shadowCtx = shadowCanvas.getContext('2d');
+              if (shadowCtx) {
+                shadowCtx.scale(shadowCanvas.width / reg.width, shadowCanvas.height / reg.height);
+                shadowCtx.beginPath();
+                if (reg.borderRadius > 0) shadowCtx.roundRect(0, 0, reg.width, reg.height, reg.borderRadius);
+                else shadowCtx.rect(0, 0, reg.width, reg.height);
+                shadowCtx.clip();
+                shadowCtx.translate(contentX - reg.x + contentWidth / 2 + offsetX, contentY - reg.y + contentHeight / 2 + offsetY);
+                if (rotation !== 0) shadowCtx.rotate((rotation * Math.PI) / 180);
+                shadowCtx.drawImage(img, -finalDrawWidth / 2, -finalDrawHeight / 2, finalDrawWidth, finalDrawHeight);
+                ctx.drawImage(shadowCanvas, reg.x, reg.y, reg.width, reg.height);
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetX = 0;
+                ctx.shadowOffsetY = 0;
+              }
+            }
 
             // Draw unclipped, semi-transparent preview if this image region is currently being edited with mouse
             if (options?.editingImageRegionId === reg.id) {
@@ -748,6 +774,13 @@ async function renderTemplateFrame(
       } else if (reg.type === 'text' && reg.textStyle) {
         const textValue = dynamicTexts[reg.id] !== undefined ? dynamicTexts[reg.id] : (reg.placeholderText || '');
         const textStyleCopy = { ...reg.textStyle };
+        if (nodeShadowEnabled) {
+          textStyleCopy.hasShadow = true;
+          textStyleCopy.shadowColor = reg.shadowColor;
+          textStyleCopy.shadowBlur = reg.shadowBlur ?? 16;
+          textStyleCopy.shadowOffsetX = reg.shadowOffsetX ?? 0;
+          textStyleCopy.shadowOffsetY = reg.shadowOffsetY ?? 8;
+        }
 
         // Override text colors if needed
         if (!textStyleCopy.isCustomColor) {

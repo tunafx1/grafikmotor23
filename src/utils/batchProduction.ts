@@ -40,6 +40,7 @@ export function buildBatchPages(template: DesignTemplate, media: SequenceMediaIt
 export async function generateBatchTexts(template: DesignTemplate, pages: any[], brief: string, options: {
   signal: AbortSignal; onProgress: (completed: number, total: number) => void; retryOnly?: boolean;
   request?: typeof requestAiText;
+  prepareImage?: (source: string) => Promise<string | undefined>;
 }) {
   const output: any[] = [];
   for (const [index, page] of pages.entries()) {
@@ -47,9 +48,16 @@ export async function generateBatchTexts(template: DesignTemplate, pages: any[],
     if (options.retryOnly && !page.productionError) { output.push(page); continue; }
     const context = getAiTextFields(page.regions, page.dynamicTexts);
     try {
+      let image: string | undefined;
+      const visualSource = Object.values(page.dynamicImages || {}).flatMap((item: any) => [item?.thumbnailUrl, item?.url])
+        .find((source): source is string => typeof source === 'string' && /^(data:image\/|blob:|https?:\/\/)/i.test(source));
+      if (visualSource && options.prepareImage) {
+        try { image = await options.prepareImage(visualSource); } catch { /* Text generation can continue if one image fails. */ }
+      }
       const texts = context.length ? await (options.request || requestAiText)({
         systemPrompt: template.aiSystemPrompt || '', templateName: template.name,
         brief: `${brief}\nBu fotoğraf grubunun ${index + 1}/${pages.length} sayfası için yaz.`, fields: context, context,
+        ...(image ? {image} : {}),
       }, AbortSignal.any([options.signal, AbortSignal.timeout(60000)])) : {};
       output.push({ ...page, dynamicTexts: { ...page.dynamicTexts, ...texts }, productionError: undefined });
     } catch (error) {

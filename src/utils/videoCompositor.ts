@@ -6,6 +6,7 @@ export interface VideoCompositorOptions {
   paletteOverrides?: any;
   hiddenElements?: string[];
   highlightColor?: string;
+  boldHighlightColor?: string;
   fps?: number;
 }
 

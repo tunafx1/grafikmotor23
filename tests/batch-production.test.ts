@@ -27,3 +27,9 @@ test('AI receives shared brief for every page and retry preserves successful tex
  assert.equal(retried,1);assert.equal(retry[0].dynamicTexts.title,'Başarılı');assert.equal(retry[1].dynamicTexts.title,'Tekrar');assert.equal(retry[1].productionError,undefined);
 });
 test('abort stops before creating content',async()=>{const controller=new AbortController();controller.abort();await assert.rejects(generateBatchTexts(template,buildBatchPages(template,photos(1)),'brief',{signal:controller.signal,onProgress:()=>{}}));});
+test('AI request receives the prepared page image for visual analysis',async()=>{
+ const pages=buildBatchPages(template,[{id:'1',type:'image',url:'https://example.com/photo.jpg',thumbnailUrl:'https://example.com/photo.jpg'}]);
+ let receivedImage='';
+ await generateBatchTexts(template,pages,'Görseli incele',{signal:new AbortController().signal,onProgress:()=>{},prepareImage:async source=>{assert.equal(source,'https://example.com/photo.jpg');return 'data:image/jpeg;base64,prepared';},request:async payload=>{receivedImage=typeof payload.image === 'string' ? payload.image : '';return {title:'Analiz'};}});
+ assert.equal(receivedImage,'data:image/jpeg;base64,prepared');
+});

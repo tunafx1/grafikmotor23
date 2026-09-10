@@ -19,7 +19,7 @@ export function safeFileName(name: string) {
   return name.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim().replace(/\s+/g, '_').slice(0, 100) || 'tasarim';
 }
 export async function createExportAsset(template: DesignTemplate, page: ExportPage, options: {
-  format: 'png' | 'jpeg' | 'webp'; scale: number; highlightColor: string;
+  format: 'png' | 'jpeg' | 'webp'; scale: number; highlightColor: string; boldHighlightColor?: string;
   paletteOverrides?: GraphicData['paletteOverrides']; onProgress?: (percent: number) => void;
 }) {
   const layout = resolveExportTemplate(template, page);

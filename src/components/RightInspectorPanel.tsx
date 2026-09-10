@@ -111,6 +111,7 @@ export interface RightInspectorPanelProps {
   onToggleLock?: (id: string) => void;
   onExportClick?: () => void;
   onTemplatePropertiesChange?: (updates: Partial<DesignTemplate>) => void;
+  onMoveLayerOrder?: (id: string, direction: 'front' | 'back') => void;
 }
 
 type StyleableNode = Region | FixedElement;
@@ -119,17 +120,20 @@ function ElementStyleControls({
   node,
   allNodes,
   onUpdate,
+  onMoveLayerOrder,
   showPadding = false
 }: {
   node: StyleableNode;
   allNodes: StyleableNode[];
   onUpdate: (updates: any) => void;
+  onMoveLayerOrder?: (id: string, direction: 'front' | 'back') => void;
   showPadding?: boolean;
 }) {
   const fill = ('backgroundColor' in node && node.backgroundColor) || ('color' in node && node.color) || 'transparent';
   const maxZ = Math.max(0, ...allNodes.map(item => item.zIndex ?? 0));
   const minZ = Math.min(0, ...allNodes.map(item => item.zIndex ?? 0));
   const colorValue = (value?: string) => value && /^#[0-9a-f]{6}$/i.test(value) ? value : '#000000';
+  const shadowEnabled = node.hasShadow ?? !!(node.shadowColor && (node.shadowBlur || node.shadowOffsetX || node.shadowOffsetY));
 
   return (
     <div className="space-y-2 border-t border-[rgba(255,255,255,0.08)] pt-3">
@@ -179,6 +183,12 @@ function ElementStyleControls({
           Efekt & Dönüşüm <ChevronDown size={13} className="transition group-open:rotate-180" />
         </summary>
         <div className="space-y-3 border-t border-[rgba(255,255,255,0.07)] p-3">
+          <label className="flex items-center justify-between text-[11px] text-white/70">
+            Gölgeyi etkinleştir
+            <input type="checkbox" checked={shadowEnabled} onChange={e => onUpdate(e.target.checked
+              ? {hasShadow: true, shadowColor: node.shadowColor || '#000000', shadowBlur: node.shadowBlur || 16, shadowOffsetX: node.shadowOffsetX || 0, shadowOffsetY: node.shadowOffsetY || 8}
+              : {hasShadow: false})} className="accent-[#FF6B1A]" />
+          </label>
           <div className="grid grid-cols-3 gap-2">
             {([['rotation', 'Döndür'], ['skewX', 'Eğ X'], ['skewY', 'Eğ Y']] as const).map(([prop, label]) => (
               <label key={prop} className="text-[10px] text-white/55">{label}
@@ -188,15 +198,15 @@ function ElementStyleControls({
           </div>
           <div className="grid grid-cols-[auto_1fr] items-end gap-2">
             <label className="text-[10px] text-white/55">Gölge rengi
-              <input type="color" value={colorValue(node.shadowColor)} onChange={e => onUpdate({shadowColor: e.target.value})} className="mt-1 block h-8 w-10 cursor-pointer rounded bg-transparent" />
+              <input type="color" value={colorValue(node.shadowColor)} onChange={e => onUpdate({hasShadow: true, shadowColor: e.target.value})} className="mt-1 block h-8 w-10 cursor-pointer rounded bg-transparent" />
             </label>
             <label className="text-[10px] text-white/55">Gölge bulanıklığı
-              <input type="range" min="0" max="80" value={node.shadowBlur || 0} onChange={e => onUpdate({shadowBlur: Number(e.target.value)})} className="mt-2 w-full accent-[#FF6B1A]" />
+              <input type="range" min="0" max="80" value={node.shadowBlur || 0} onChange={e => onUpdate({hasShadow: true, shadowBlur: Number(e.target.value)})} className="mt-2 w-full accent-[#FF6B1A]" />
             </label>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <label className="text-[10px] text-white/55">Gölge X<input type="number" value={node.shadowOffsetX || 0} onChange={e => onUpdate({shadowOffsetX: Number(e.target.value)})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" /></label>
-            <label className="text-[10px] text-white/55">Gölge Y<input type="number" value={node.shadowOffsetY || 0} onChange={e => onUpdate({shadowOffsetY: Number(e.target.value)})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" /></label>
+            <label className="text-[10px] text-white/55">Gölge X<input type="number" value={node.shadowOffsetX || 0} onChange={e => onUpdate({hasShadow: true, shadowOffsetX: Number(e.target.value)})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" /></label>
+            <label className="text-[10px] text-white/55">Gölge Y<input type="number" value={node.shadowOffsetY || 0} onChange={e => onUpdate({hasShadow: true, shadowOffsetY: Number(e.target.value)})} className="mt-1 w-full rounded-lg border border-white/10 bg-black/15 px-2 py-1.5 text-xs text-white" /></label>
           </div>
           <label className="block text-[10px] text-white/55">Karışım modu
             <select value={node.blendMode || 'source-over'} onChange={e => onUpdate({blendMode: e.target.value as GlobalCompositeOperation})} className="mt-1 w-full rounded-lg border border-white/10 bg-[#171719] px-2 py-2 text-xs text-white">
@@ -207,8 +217,8 @@ function ElementStyleControls({
       </details>
 
       <div className="grid grid-cols-2 gap-2">
-        <button type="button" onClick={() => onUpdate({zIndex: minZ - 1})} className="rounded-lg border border-white/10 bg-[#1D1D1F] px-2 py-2 text-[11px] font-semibold text-white/75 hover:text-white">En arkaya gönder</button>
-        <button type="button" onClick={() => onUpdate({zIndex: maxZ + 1})} className="rounded-lg border border-white/10 bg-[#1D1D1F] px-2 py-2 text-[11px] font-semibold text-white/75 hover:text-white">En öne getir</button>
+        <button type="button" onClick={() => onMoveLayerOrder ? onMoveLayerOrder(node.id, 'back') : onUpdate({zIndex: minZ - 1})} className="rounded-lg border border-white/10 bg-[#1D1D1F] px-2 py-2 text-[11px] font-semibold text-white/75 hover:text-white">En arkaya gönder</button>
+        <button type="button" onClick={() => onMoveLayerOrder ? onMoveLayerOrder(node.id, 'front') : onUpdate({zIndex: maxZ + 1})} className="rounded-lg border border-white/10 bg-[#1D1D1F] px-2 py-2 text-[11px] font-semibold text-white/75 hover:text-white">En öne getir</button>
       </div>
     </div>
   );
@@ -531,7 +541,8 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
     handleAlignElement,
     onAlignElement,
     onExportClick,
-    onTemplatePropertiesChange
+    onTemplatePropertiesChange,
+    onMoveLayerOrder
   } = props;
 
   const panelBody = useRef<HTMLDivElement>(null);
@@ -1024,6 +1035,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 node={r}
                 allNodes={[...regionList, ...fixedList]}
                 showPadding
+                onMoveLayerOrder={onMoveLayerOrder}
                 onUpdate={(updates) => onUpdateRegionProps(r.id, updates)}
               />
 
@@ -1241,6 +1253,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 node={r}
                 allNodes={[...regionList, ...fixedList]}
                 showPadding
+                onMoveLayerOrder={onMoveLayerOrder}
                 onUpdate={(updates) => onUpdateRegionProps(r.id, updates)}
               />
 
@@ -1297,6 +1310,7 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
               <ElementStyleControls
                 node={el}
                 allNodes={[...regionList, ...fixedList]}
+                onMoveLayerOrder={onMoveLayerOrder}
                 onUpdate={(updates) => onUpdateFixedProps(el.id, updates)}
               />
 

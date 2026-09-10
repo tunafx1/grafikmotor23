@@ -25,7 +25,9 @@ import {
   Check,
   X,
   Sparkles,
-  Maximize2
+  Maximize2,
+  ArrowDownToLine,
+  ArrowUpToLine
 } from 'lucide-react';
 import { DesignTemplate, Region, FixedElement, TextRole } from '../types';
 
@@ -88,6 +90,7 @@ export interface LeftToolDrawerProps {
   onToggleNodeVisibility?: (id: string) => void;
   onDeleteNode?: (id: string) => void;
   onReorderRegions?: (from: number, to: number) => void;
+  onMoveLayerOrder?: (id: string, direction: 'front' | 'back') => void;
   hiddenElementIds?: string[];
   // AI
   aiSystemPrompt?: string;
@@ -143,6 +146,7 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
     onToggleNodeVisibility,
     onDeleteNode,
     onReorderRegions,
+    onMoveLayerOrder,
     hiddenElementIds = [],
     aiSystemPrompt,
     onAiSystemPromptChange,
@@ -161,6 +165,7 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
   const [customWidth, setCustomWidth] = useState(String(selectedTemplate?.width || 1080));
   const [customHeight, setCustomHeight] = useState(String(selectedTemplate?.height || 1080));
   const [sizeError, setSizeError] = useState('');
+  const [templateNameDraft, setTemplateNameDraft] = useState(selectedTemplate?.name || '');
 
   React.useEffect(() => {
     setAiPromptDraft(aiSystemPrompt || '');
@@ -172,7 +177,18 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
     setSizeError('');
   }, [currentTemplateId, selectedTemplate?.width, selectedTemplate?.height]);
 
+  React.useEffect(() => {
+    setTemplateNameDraft(selectedTemplate?.name || '');
+  }, [currentTemplateId, selectedTemplate?.name]);
+
   const isAiPromptDirty = aiPromptDraft.trim() !== (aiSystemPrompt || '').trim();
+  const isTemplateNameDirty = templateNameDraft.trim() !== (selectedTemplate?.name || '').trim();
+
+  const commitTemplateName = () => {
+    const nextName = templateNameDraft.trim();
+    if (!nextName || !selectedTemplate || !onRenameTemplate) return;
+    onRenameTemplate(selectedTemplate.id, nextName);
+  };
 
   const applyTemplateSize = (width: number, height: number) => {
     if (!onResizeTemplate || !isTemplateEditing) return;
@@ -368,7 +384,7 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
           <div className="h-14 px-4 border-b border-[rgba(255,255,255,0.08)] flex items-center justify-between shrink-0">
             <h3 className="text-sm font-semibold text-white">
               {activeTab === 'templates' && 'Şablonlar'}
-              {activeTab === 'size' && 'Şablon boyutu'}
+              {activeTab === 'size' && 'Şablon ayarları'}
               {activeTab === 'add' && 'Öğe ekle'}
               {activeTab === 'media' && 'Medya Kütüphanesi'}
               {activeTab === 'layers' && 'Katmanlar'}
@@ -389,6 +405,21 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
 
             {activeTab === 'size' && (
               <div className="space-y-5">
+                <div className="space-y-2 rounded-xl border border-white/10 bg-[#1D1D1F]/70 p-3">
+                  <label htmlFor="template-name" className="text-xs font-bold text-white">Şablon adı</label>
+                  <div className="flex gap-2">
+                    <input id="template-name" type="text" value={templateNameDraft} maxLength={80}
+                      onChange={event => setTemplateNameDraft(event.target.value)}
+                      onKeyDown={event => { if (event.key === 'Enter') commitTemplateName(); }}
+                      className="min-w-0 flex-1 rounded-lg border border-white/10 bg-[#171719] px-2.5 py-2 text-xs text-white outline-none focus:border-[#FF6B1A]"
+                      placeholder="Şablon adı" />
+                    <button type="button" onClick={commitTemplateName} disabled={!isTemplateNameDirty || !templateNameDraft.trim()}
+                      className="rounded-lg bg-[#FF6B1A] px-3 text-[11px] font-bold text-white transition hover:bg-[#FF7D35] disabled:bg-white/10 disabled:text-white/35">
+                      Kaydet
+                    </button>
+                  </div>
+                  <p className="text-[10px] leading-relaxed text-white/45">Ad değişikliği otomatik olarak bulut hesabınızla eşitlenir.</p>
+                </div>
                 <div>
                   <h4 className="text-xs font-bold text-white">Instagram hazır ölçüleri</h4>
                   <p className="mt-1 text-[11px] leading-relaxed text-[rgba(255,255,255,0.55)]">
@@ -824,6 +855,10 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
                         </div>
 
                         <div className="flex items-center space-x-1 shrink-0">
+                          {onMoveLayerOrder && <>
+                            <button type="button" onClick={e => { e.stopPropagation(); onMoveLayerOrder(reg.id, 'back'); }} className="p-1 rounded text-white/40 hover:text-white" title="En arkaya gönder"><ArrowDownToLine size={12} /></button>
+                            <button type="button" onClick={e => { e.stopPropagation(); onMoveLayerOrder(reg.id, 'front'); }} className="p-1 rounded text-white/40 hover:text-white" title="En öne getir"><ArrowUpToLine size={12} /></button>
+                          </>}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -884,6 +919,10 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
                         </div>
 
                         <div className="flex items-center space-x-1 shrink-0">
+                          {onMoveLayerOrder && <>
+                            <button type="button" onClick={e => { e.stopPropagation(); onMoveLayerOrder(el.id, 'back'); }} className="p-1 rounded text-white/40 hover:text-white" title="En arkaya gönder"><ArrowDownToLine size={12} /></button>
+                            <button type="button" onClick={e => { e.stopPropagation(); onMoveLayerOrder(el.id, 'front'); }} className="p-1 rounded text-white/40 hover:text-white" title="En öne getir"><ArrowUpToLine size={12} /></button>
+                          </>}
                           <button
                             type="button"
                             onClick={(e) => {

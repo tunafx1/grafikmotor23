@@ -1294,7 +1294,17 @@ export default function App() {
   const handleVurguColorChange = (color: string) => {
     setVurguColor(color);
     storage.setItem('vurgu_color', color);
+    setTemplates(previous => previous.map(template => template.id === currentTemplateId
+      ? {...template, palette: {...template.palette, boldHighlight: color}}
+      : template));
   };
+  useEffect(() => {
+    const templateHighlight = currentTemplate.palette.boldHighlight || currentTemplate.palette.primary;
+    if (templateHighlight && templateHighlight !== vurguColor) {
+      setVurguColor(templateHighlight);
+      storage.setItem('vurgu_color', templateHighlight);
+    }
+  }, [currentTemplateId, currentTemplate.palette.boldHighlight, currentTemplate.palette.primary]);
 
   // --- UI-UX REDESIGN STATES & HELPERS ---
   const [isExportModalOpen, setIsExportModalOpen] = useState<boolean>(false);
@@ -1574,6 +1584,7 @@ export default function App() {
         scale: 1.0,
         selectedNodeId,
         highlightColor: vurguColor,
+        boldHighlightColor: vurguColor,
         editingImageRegionId
       }
     );
@@ -2073,6 +2084,7 @@ export default function App() {
   const compressDataUrl = (dataUrl: string, maxWidth = 300, maxHeight = 300, quality = 0.5): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
+      if (/^https?:\/\//i.test(dataUrl)) img.crossOrigin = 'anonymous';
       const cleanup = () => { clearTimeout(timer); img.onload = null; img.onerror = null; };
       const timer = setTimeout(() => { cleanup(); img.src = ''; reject(new Error('Görsel hazırlanamadı.')); }, 5000);
       img.onload = () => {
@@ -3885,69 +3897,18 @@ export default function App() {
 
   // Change layer order (zIndex modifier)
   const moveLayerOrder = (id: string, direction: 'up' | 'down' | 'front' | 'back') => {
-    setTemplates(prev => {
-      const updated = prev.map(t => {
-        if (t.id === currentTemplateId) {
-          const regIdx = t.regions.findIndex(r => r.id === id);
-          const fixedIdx = t.fixedElements.findIndex(el => el.id === id);
-          
-          if (regIdx > -1) {
-            const newRegions = [...t.regions];
-            const currentZ = newRegions[regIdx].zIndex ?? 0;
-            let newZ = currentZ;
-            
-            if (direction === 'up') newZ = currentZ + 1;
-            else if (direction === 'down') newZ = currentZ - 1;
-            else if (direction === 'front') {
-              const maxZ = Math.max(
-                0,
-                ...t.regions.map(r => r.zIndex ?? 0),
-                ...t.fixedElements.map(e => e.zIndex ?? 0)
-              );
-              newZ = maxZ + 1;
-            } else if (direction === 'back') {
-              const minZ = Math.min(
-                0,
-                ...t.regions.map(r => r.zIndex ?? 0),
-                ...t.fixedElements.map(e => e.zIndex ?? 0)
-              );
-              newZ = minZ - 1;
-            }
-            
-            newRegions[regIdx] = { ...newRegions[regIdx], zIndex: newZ };
-            return { ...t, regions: newRegions };
-          } else if (fixedIdx > -1) {
-            const newFixed = [...t.fixedElements];
-            const currentZ = newFixed[fixedIdx].zIndex ?? 0;
-            let newZ = currentZ;
-            
-            if (direction === 'up') newZ = currentZ + 1;
-            else if (direction === 'down') newZ = currentZ - 1;
-            else if (direction === 'front') {
-              const maxZ = Math.max(
-                0,
-                ...t.regions.map(r => r.zIndex ?? 0),
-                ...t.fixedElements.map(e => e.zIndex ?? 0)
-              );
-              newZ = maxZ + 1;
-            } else if (direction === 'back') {
-              const minZ = Math.min(
-                0,
-                ...t.regions.map(r => r.zIndex ?? 0),
-                ...t.fixedElements.map(e => e.zIndex ?? 0)
-              );
-              newZ = minZ - 1;
-            }
-            
-            newFixed[fixedIdx] = { ...newFixed[fixedIdx], zIndex: newZ };
-            return { ...t, fixedElements: newFixed };
-          }
-        }
-        return t;
-      });
-      saveTemplatesToLocalStorage(updated);
-      return updated;
-    });
+    const nodes = [...(editingTemplate.regions || []), ...(editingTemplate.fixedElements || [])];
+    const current = nodes.find(node => node.id === id);
+    if (!current) return;
+    const zIndexes = nodes.map(node => node.zIndex ?? 0);
+    const nextZ = direction === 'front' ? Math.max(0, ...zIndexes) + 1
+      : direction === 'back' ? Math.min(0, ...zIndexes) - 1
+        : (current.zIndex ?? 0) + (direction === 'up' ? 1 : -1);
+    if ((editingTemplate.regions || []).some(region => region.id === id)) {
+      handleRegionPropertiesChange(id, {zIndex: nextZ});
+    } else {
+      handleFixedElementPropertiesChange(id, {zIndex: nextZ});
+    }
   };
 
   // Pointer/Touch interactions on Canvas for repositioning layers and resizing them
@@ -4486,9 +4447,16 @@ export default function App() {
     const timeout = setTimeout(() => controller.abort(new Error('timeout')), 60000);
     try {
       let image: string | undefined;
-      const uploaded = Object.values(activePageData.dynamicImages || {}).find((item: any) => item?.url?.startsWith('data:image')) as any;
-      if (uploaded) {
-        try { image = await compressDataUrl(uploaded.url, 360, 360, 0.6); } catch { /* Text context remains sufficient. */ }
+      const visualSources = [
+        ...Object.values(activePageData.dynamicImages || {}).flatMap((item: any) => [item?.thumbnailUrl, item?.url]),
+        ...(editingTemplate.regions || []).filter(region => region.type === 'image').map(region => region.placeholderImage),
+        editingTemplate.backgroundImageUrl,
+      ].filter((source): source is string => typeof source === 'string' && /^(data:image\/|blob:|https?:\/\/)/i.test(source));
+      for (const source of visualSources) {
+        try {
+          image = await compressDataUrl(source, 360, 360, 0.6);
+          if (image) break;
+        } catch { /* Try the next visual on the page. */ }
       }
       if (controller.signal.aborted) throw controller.signal.reason;
       const texts = await requestAiText({
@@ -4547,7 +4515,7 @@ export default function App() {
       for (const [index, page] of pages.entries()) {
         setExportStatusText(`${index + 1} / ${pages.length} sayfa hazırlanıyor…`);
         const {blob, extension} = await createExportAsset(currentTemplate, page, {
-          format, scale, highlightColor:vurguColor,
+          format, scale, highlightColor:vurguColor, boldHighlightColor:vurguColor,
           paletteOverrides:activeGraphicData.paletteOverrides,
           onProgress: percent => setExportStatusText(`${index + 1}. sayfa · %${percent}`),
         });
@@ -4584,6 +4552,7 @@ export default function App() {
             format: exportFormat,
             scale: exportScale,
             highlightColor: vurguColor,
+            boldHighlightColor: vurguColor,
             paletteOverrides: graphicData[work.id]?.paletteOverrides,
             onProgress: percent => setExportStatusText(`${completed + 1} / ${total} · %${percent}`),
           });
@@ -4620,6 +4589,7 @@ export default function App() {
       const draft = buildBatchPages(snapshot, media);
       const pages = await generateBatchTexts(snapshot, draft, brief, {
         signal: controller.signal, onProgress: (n, total) => setBatchProgress(`Metinler oluşturuluyor · ${n}/${total}`),
+        prepareImage: source => compressDataUrl(source, 360, 360, 0.6),
       });
       if (controller.signal.aborted) return;
       const id = `work-${crypto.randomUUID()}`;
@@ -4642,6 +4612,7 @@ export default function App() {
     try {
       const pages = await generateBatchTexts(currentTemplate, generatedPages, currentTemplate.productionBrief || '', {
         signal: controller.signal, retryOnly: true, onProgress: (n, total) => setBatchProgress(`Yeniden deneniyor · ${n}/${total}`),
+        prepareImage: source => compressDataUrl(source, 360, 360, 0.6),
       });
       setGeneratedPages(pages, id);
     } catch (error) { setBatchError(error instanceof Error ? error.message : 'Yeniden deneme tamamlanamadı.'); }
@@ -4969,6 +4940,7 @@ export default function App() {
           onToggleLock={(id, isLocked) => handleToggleLock(id)}
           onDeleteNode={(id) => deleteElement(id)}
           onReorderRegions={(from, to) => moveRegionInList(from, to)}
+          onMoveLayerOrder={(id, direction) => moveLayerOrder(id, direction)}
           hiddenElementIds={activePageData.hiddenElements || activeGraphicData.hiddenElements || []}
           aiSystemPrompt={currentTemplate.aiSystemPrompt || ''}
           isTemplateEditing={templateEditing}
@@ -5220,8 +5192,9 @@ export default function App() {
           onAiGenerateForField={(regionId) => triggerAiGenerator(regionId)}
           aiTextTarget={aiTextTarget}
           isAiLoading={!!aiRequestRef.current || isAiLoading}
-          onUpdateHighlightColor={(color) => setVurguColor(color)}
-          onVurguColorChange={(color) => setVurguColor(color)}
+          onUpdateHighlightColor={handleVurguColorChange}
+          onVurguColorChange={handleVurguColorChange}
+          onMoveLayerOrder={(id, direction) => moveLayerOrder(id, direction)}
           onTemplatePropertiesChange={(updates) => {
             setTemplates(previous => previous.map(template => template.id === currentTemplateId
               ? {...template, ...updates}

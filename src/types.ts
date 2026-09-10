@@ -43,6 +43,7 @@ export interface Region {
   shadowBlur?: number;
   shadowOffsetX?: number;
   shadowOffsetY?: number;
+  hasShadow?: boolean;
   blendMode?: GlobalCompositeOperation;
   padding?: number;
   lockAspectRatio?: boolean;
@@ -82,6 +83,7 @@ export interface FixedElement {
   shadowBlur?: number;
   shadowOffsetX?: number;
   shadowOffsetY?: number;
+  hasShadow?: boolean;
   blendMode?: GlobalCompositeOperation;
   lockAspectRatio?: boolean;
   // Shape specific
