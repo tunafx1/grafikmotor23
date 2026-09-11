@@ -2643,6 +2643,15 @@ export default function App() {
     });
   };
 
+  // Used by the "Mevcut tasarımı düzenle" quick editor (a single generated work), which
+  // must never touch the shared template — unlike handleRegionPropertiesChange above.
+  const handleWorkRegionChange = (regionId: string, updates: Partial<Region>) => {
+    setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
+      ...page,
+      regions: (page.regions ?? editingTemplate.regions).map(node => node.id === regionId ? {...node, ...updates} : node)
+    } : page));
+  };
+
   const handleFixedElementPropertiesChange = (elementId: string, updates: Partial<FixedElement>) => {
     if (generatedPages.length > 0) {
       setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
@@ -5221,7 +5230,7 @@ export default function App() {
           onSelectNode={setSelectedNodeId}
           onTextChange={updateActiveText}
           onImageUpload={(regionId, file) => handleDynamicImageUpload(regionId, file)}
-          onRegionChange={handleRegionPropertiesChange}
+          onRegionChange={handleWorkRegionChange}
           onCenter={(regionId) => handleAlignElement(regionId, 'center-both')}
           onResizeWork={(width, height) => {
             const oldWidth = currentTemplate.width;
