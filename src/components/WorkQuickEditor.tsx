@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import {
   AlignCenter, AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart,
   AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart,
-  Bold, Image as ImageIcon, Minus, Move, Plus, Ratio, RotateCw, Type, Upload
+  Bold, Image as ImageIcon, Minus, Move, Plus, Ratio, Type, Upload
 } from 'lucide-react';
 import type { DesignTemplate, Region } from '../types';
 
@@ -106,27 +106,17 @@ export function WorkQuickEditor(props: {
               <input type="range" min={0.5} max={3} step={0.05} value={imgData.scale ?? 1} onChange={event => props.onUpdateImageProp(selected.id, 'scale', parseFloat(event.target.value))}/>
               <span>{Math.round((imgData.scale ?? 1) * 100)}%</span>
             </div>
-            <div className="work-image-rotate">
+            <div className="work-image-scale">
               <span>Döndürme</span>
               <input
                 type="range"
                 min={0}
-                max={359}
-                step={1}
+                max={360}
+                step={0.1}
                 value={imgData.rotation ?? 0}
                 onChange={event => props.onUpdateImageProp(selected.id, 'rotation', Number(event.target.value))}
               />
-              <input
-                type="number"
-                min={0}
-                max={359}
-                value={Math.round(imgData.rotation ?? 0)}
-                onChange={event => props.onUpdateImageProp(selected.id, 'rotation', ((Number(event.target.value) % 360) + 360) % 360)}
-              />
-              <span>°</span>
-              <button type="button" className="work-rotate-btn" title="90° çevir" onClick={() => props.onUpdateImageProp(selected.id, 'rotation', ((imgData.rotation ?? 0) + 90) % 360)}>
-                <RotateCw size={13}/>
-              </button>
+              <span>{(imgData.rotation ?? 0).toFixed(1)}°</span>
             </div>
           </div>
         </>}

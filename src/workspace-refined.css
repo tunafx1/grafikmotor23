@@ -113,11 +113,6 @@
 #graphics-engine-app .work-image-scale { display: flex; align-items: center; gap: 8px; font-size: 9px; color: #9a9da8; }
 #graphics-engine-app .work-image-scale input[type="range"] { flex: 1; accent-color: #ff6b1a; }
 #graphics-engine-app .work-image-scale span:last-child { min-width: 32px; text-align: right; color: #d6d7dc; font-weight: 700; }
-#graphics-engine-app .work-image-rotate { display: flex; align-items: center; gap: 7px; font-size: 9px; color: #9a9da8; }
-#graphics-engine-app .work-image-rotate input[type="range"] { flex: 1; accent-color: #ff6b1a; }
-#graphics-engine-app .work-image-rotate input[type="number"] { width: 38px; padding: 4px; text-align: center; border: 1px solid var(--studio-border); border-radius: 6px; background: var(--studio-panel-raised); color: #fff; font-size: 10px; }
-#graphics-engine-app .work-rotate-btn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex-shrink: 0; border: 1px solid var(--studio-border); border-radius: 8px; background: var(--studio-panel-raised); color: #d6d7dc; }
-#graphics-engine-app .work-rotate-btn:hover { border-color: #ff6b1a; color: #ff9a61; background: #ff6b1a17; }
 #graphics-engine-app .work-position-heading { display: flex; align-items: center; justify-content: space-between; margin: 14px 0 8px; color: #bbbcc4; font-size: 10px; font-weight: 700; }
 #graphics-engine-app .work-position-heading span,#graphics-engine-app .work-position-heading button { display: flex; align-items: center; gap: 5px; }
 #graphics-engine-app .work-position-heading button { color: #ff9a61; }
