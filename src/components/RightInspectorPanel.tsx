@@ -1300,6 +1300,21 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
                 </div>
               </div>
 
+              <label className="flex items-start justify-between gap-3 rounded-xl border border-white/10 bg-[#1D1D1F]/70 p-3 text-[11px] text-white/70">
+                <span>
+                  Sabit dekor (toplu üretimde bu görsele fotoğraf yerleştirilmesin)
+                  <span className="mt-1 block text-[10px] leading-relaxed text-white/40">
+                    Şeffaf çerçeve/desen gibi sabit görseller için işaretleyin — aksi halde toplu üretim bu alanı boş bir fotoğraf çerçevesi sanıp üzerine fotoğraf koyar.
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={r.isDynamic === false}
+                  onChange={e => onUpdateRegionProps(r.id, {isDynamic: !e.target.checked})}
+                  className="mt-0.5 shrink-0 accent-[#FF6B1A]"
+                />
+              </label>
+
               <ElementStyleControls
                 node={r}
                 allNodes={[...regionList, ...fixedList]}
