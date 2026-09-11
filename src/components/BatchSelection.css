@@ -1,0 +1,20 @@
+/* Drag-to-reorder + marquee (mouse box) multi-select, shared by the batch photo
+   grid and the "Çalışmalarım" works gallery. */
+.production-photos,.production-gallery{position:relative;user-select:none}
+.marquee-box{position:absolute;z-index:50;border:1.5px solid #ff6b1a;background:#ff6b1a22;border-radius:4px;pointer-events:none}
+
+.production-photos article{cursor:grab;transition:box-shadow .15s,transform .15s,opacity .15s;box-shadow:0 0 0 0 transparent}
+.production-photos article.is-selected{box-shadow:0 0 0 2px #ff6b1a;}
+.production-photos article.is-dragging{opacity:.4;cursor:grabbing}
+.production-photos article.is-drop-target{box-shadow:0 0 0 2px #ff9861,0 8px 20px #0007;transform:scale(1.02)}
+.photo-select{position:absolute;z-index:4;top:6px;left:6px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:1px solid #ffffff2a;border-radius:7px;background:#111216e8;opacity:0;transition:opacity .15s}
+.production-photos article:hover .photo-select,.production-photos article.is-selected .photo-select{opacity:1}
+.photo-select input{appearance:none;-webkit-appearance:none;display:block;width:14px;height:14px;margin:0;padding:0;border:1.5px solid #777b87;border-radius:4px;background:#101115;cursor:pointer}
+.photo-select input:checked{border-color:#ff6b1a;background-color:#ff6b1a;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");background-position:center;background-repeat:no-repeat;background-size:10px 10px}
+
+.production-result{cursor:grab;transition:box-shadow .15s,transform .15s,opacity .15s}
+.production-result.is-selected{box-shadow:0 0 0 2px #ff6b1a}
+.production-result.is-dragging{opacity:.4;cursor:grabbing}
+.production-result.is-drop-target{box-shadow:0 0 0 2px #ff9861,0 10px 24px #0007;transform:scale(1.015)}
+
+.selection-drag-hint{font-size:10px;color:#77798a;margin:-14px 0 18px}
