@@ -2674,6 +2674,33 @@ export default function App() {
     } : page));
   };
 
+  // Work-scoped counterpart to handleAlignElement — same alignment math, but only ever
+  // touches the active generated page via handleWorkRegionChange.
+  const handleWorkAlignElement = (
+    id: string,
+    alignment: 'left' | 'center-x' | 'right' | 'top' | 'center-y' | 'bottom' | 'center-both'
+  ) => {
+    const canvasW = currentTemplate.width || 1080;
+    const canvasH = currentTemplate.height || 1080;
+    const reg = editingTemplate.regions.find(r => r.id === id);
+    if (!reg || reg.locked) return;
+    let newX = reg.x;
+    let newY = reg.y;
+    switch (alignment) {
+      case 'left': newX = 0; break;
+      case 'center-x': newX = Math.round((canvasW - reg.width) / 2); break;
+      case 'right': newX = Math.round(canvasW - reg.width); break;
+      case 'top': newY = 0; break;
+      case 'center-y': newY = Math.round((canvasH - reg.height) / 2); break;
+      case 'bottom': newY = Math.round(canvasH - reg.height); break;
+      case 'center-both':
+        newX = Math.round((canvasW - reg.width) / 2);
+        newY = Math.round((canvasH - reg.height) / 2);
+        break;
+    }
+    handleWorkRegionChange(id, { x: newX, y: newY });
+  };
+
   const handleFixedElementPropertiesChange = (elementId: string, updates: Partial<FixedElement>) => {
     if (generatedPages.length > 0) {
       setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
@@ -5253,7 +5280,10 @@ export default function App() {
           onTextChange={updateActiveText}
           onImageUpload={(regionId, file) => handleDynamicImageUpload(regionId, file)}
           onRegionChange={handleWorkRegionChange}
-          onCenter={(regionId) => handleAlignElement(regionId, 'center-both')}
+          onCenter={(regionId) => handleWorkAlignElement(regionId, 'center-both')}
+          onAlign={handleWorkAlignElement}
+          imageData={activePageData.dynamicImages || {}}
+          onUpdateImageProp={updateActiveImageProp}
           onResizeWork={(width, height) => {
             const oldWidth = currentTemplate.width;
             const oldHeight = currentTemplate.height;
