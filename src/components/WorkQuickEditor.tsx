@@ -100,7 +100,7 @@ export function WorkQuickEditor(props: {
         </> : <>
           <input ref={fileInput} type="file" accept="image/*" hidden onChange={event => { const file = event.target.files?.[0]; if (file) props.onImageUpload(selected.id, file); event.target.value = ''; }}/>
           <button className="work-upload-button" onClick={() => fileInput.current?.click()}><Upload size={14}/> Yeni görsel seç</button>
-          {imgData.url && <div className="work-image-transform">
+          <div className="work-image-transform">
             <div className="work-image-scale">
               <span>Yakınlaştırma</span>
               <input type="range" min={0.5} max={3} step={0.05} value={imgData.scale ?? 1} onChange={event => props.onUpdateImageProp(selected.id, 'scale', parseFloat(event.target.value))}/>
@@ -109,7 +109,7 @@ export function WorkQuickEditor(props: {
             <button type="button" className="work-rotate-btn" onClick={() => props.onUpdateImageProp(selected.id, 'rotation', ((imgData.rotation ?? 0) + 90) % 360)}>
               <RotateCw size={13}/> Döndür ({imgData.rotation ?? 0}°)
             </button>
-          </div>}
+          </div>
         </>}
         <div className="work-position-heading"><span><Move size={13}/> Konum ve boyut</span></div>
         <div className="work-align-grid">
