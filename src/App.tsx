@@ -375,6 +375,10 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
+          // Behind the cover page's own decorative fixed elements (reused below), which
+          // default to zIndex 0 — otherwise a frame/decoration meant to sit on top of the
+          // photo silently loses the z-order tie and ends up hidden behind it.
+          zIndex: -1,
           placeholderImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800'
         },
         {
@@ -391,6 +395,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
+          zIndex: -1,
           placeholderImage: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800'
         },
         {
@@ -443,6 +448,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
+          zIndex: -1,
           placeholderImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800'
         },
         {
@@ -459,6 +465,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
+          zIndex: -1,
           placeholderImage: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800'
         },
         {
@@ -475,6 +482,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
+          zIndex: -1,
           placeholderImage: 'https://images.unsplash.com/photo-1513836279014-a89f7a76ae86?w=800'
         },
         {
@@ -527,6 +535,7 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
           borderWidth: 2,
           borderRadius: 16,
           isDynamic: true,
+          zIndex: -1,
           placeholderImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800'
         },
         {
@@ -569,6 +578,19 @@ export function ensureMultiPageSupport(t: DesignTemplate): DesignTemplate {
       }
     }
   }
+
+  // Self-heal previously-persisted synthesized collage pages saved before this photo
+  // frame was given an explicit zIndex: without it, a same-zIndex decorative fixed
+  // element (reused from the cover page) wins the render-order tie-break and the photo
+  // silently paints over it. Scoped to the exact `collage-…-img-…` ids this function
+  // mints, so hand-authored regions elsewhere are never touched.
+  pages.forEach(p => {
+    p.regions = p.regions.map(r =>
+      r.type === 'image' && r.id.startsWith('collage-') && (r.zIndex === undefined || r.zIndex === 0)
+        ? { ...r, zIndex: -1 }
+        : r
+    );
+  });
 
   // Ensure all pages have a pageRole set (fallback to 'custom' if missing)
   pages.forEach((p, idx) => {
