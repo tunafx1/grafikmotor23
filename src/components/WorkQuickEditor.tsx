@@ -110,13 +110,13 @@ export function WorkQuickEditor(props: {
               <span>Döndürme</span>
               <input
                 type="range"
-                min={0}
-                max={360}
+                min={-180}
+                max={180}
                 step={0.1}
-                value={imgData.rotation ?? 0}
+                value={(((imgData.rotation ?? 0) + 180) % 360 + 360) % 360 - 180}
                 onChange={event => props.onUpdateImageProp(selected.id, 'rotation', Number(event.target.value))}
               />
-              <span>{(imgData.rotation ?? 0).toFixed(1)}°</span>
+              <span>{((((imgData.rotation ?? 0) + 180) % 360 + 360) % 360 - 180).toFixed(1)}°</span>
             </div>
           </div>
         </>}
