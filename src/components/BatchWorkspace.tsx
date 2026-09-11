@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import { Upload, Sparkles, ArrowRight, X, ArrowLeft, Plus, Images, Download, FolderOpen, LayoutTemplate, Check, Trash2, Pencil } from 'lucide-react';
 import type { DesignTemplate, SequenceMediaItem } from '../types';
 import { TemplateThumbnail } from './TemplateThumbnail';
@@ -25,12 +26,16 @@ function marqueeHitIds(container: HTMLElement, rect: { x: number; y: number; w: 
 }
 
 /** Moves the dragged item (or, if it's part of a multi-selection, the whole group,
- * keeping their relative order) to sit at dropIndex. */
-function reorderWithGroup<T>(list: T[], selectedIndices: Set<number>, dragIndex: number, dropIndex: number): T[] {
-  const indices = selectedIndices.has(dragIndex) && selectedIndices.size > 1 ? [...selectedIndices].sort((a, b) => a - b) : [dragIndex];
-  const moving = indices.map(i => list[i]);
-  const rest = list.filter((_, i) => !indices.includes(i));
-  const movedBefore = indices.filter(i => i < dropIndex).length;
+ * keeping their relative order) to sit right where dropId currently is. Identity is by
+ * id rather than index so this stays correct as the list live-reorders mid-drag. */
+function reorderById<T>(list: T[], getId: (item: T) => string, selectedIds: Set<string>, dragId: string, dropId: string): T[] {
+  const dropIndex = list.findIndex(item => getId(item) === dropId);
+  if (dropIndex === -1 || dragId === dropId) return list;
+  const movingIds = selectedIds.has(dragId) && selectedIds.size > 1 ? selectedIds : new Set([dragId]);
+  const moving = list.filter(item => movingIds.has(getId(item)));
+  if (!moving.length) return list;
+  const rest = list.filter(item => !movingIds.has(getId(item)));
+  const movedBefore = list.slice(0, dropIndex).filter(item => movingIds.has(getId(item))).length;
   const insertAt = Math.max(0, Math.min(rest.length, dropIndex - movedBefore));
   return [...rest.slice(0, insertAt), ...moving, ...rest.slice(insertAt)];
 }
@@ -109,10 +114,10 @@ export function BatchWorkspace(p: {
     return next;
   });
 
-  // --- Photo grid: drag-to-reorder + mouse marquee multi-select ---
-  const [selectedPhotos, setSelectedPhotos] = useState<Set<number>>(new Set());
-  const [dragPhotoIndex, setDragPhotoIndex] = useState<number | null>(null);
-  const [dropPhotoIndex, setDropPhotoIndex] = useState<number | null>(null);
+  // --- Photo grid: drag-to-reorder (siblings live-shift out of the way) + mouse marquee multi-select ---
+  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
+  const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
+  const lastPhotoOverId = useRef<string | null>(null);
   const [photoMarquee, setPhotoMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const photoMarqueeStart = useRef<{ x: number; y: number } | null>(null);
   const photosGridRef = useRef<HTMLDivElement>(null);
@@ -134,27 +139,26 @@ export function BatchWorkspace(p: {
       const curX = e.clientX - rect.left, curY = e.clientY - rect.top;
       const box = { x: Math.min(start.x, curX), y: Math.min(start.y, curY), w: Math.abs(curX - start.x), h: Math.abs(curY - start.y) };
       setPhotoMarquee(box);
-      const hits = new Set(marqueeHitIds(container, box, 'data-photo-index').map(Number));
-      setSelectedPhotos(hits);
+      setSelectedPhotos(new Set(marqueeHitIds(container, box, 'data-photo-id')));
     };
     const onUp = () => { setPhotoMarquee(null); photoMarqueeStart.current = null; };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, [photoMarquee]);
-  const togglePhotoSelected = (index: number) => setSelectedPhotos(previous => {
+  const togglePhotoSelected = (id: string) => setSelectedPhotos(previous => {
     const next = new Set(previous);
-    if (next.has(index)) next.delete(index); else next.add(index);
+    if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
-  const handlePhotoDrop = (dropIndex: number) => {
-    if (dragPhotoIndex === null || dragPhotoIndex === dropIndex) { setDragPhotoIndex(null); setDropPhotoIndex(null); return; }
-    setPhotos(old => reorderWithGroup(old, selectedPhotos, dragPhotoIndex, dropIndex));
-    setSelectedPhotos(new Set());
-    setDragPhotoIndex(null); setDropPhotoIndex(null);
+  const handlePhotoDragOver = (overId: string) => {
+    if (!draggedPhotoId || draggedPhotoId === overId || lastPhotoOverId.current === overId) return;
+    lastPhotoOverId.current = overId;
+    setPhotos(old => reorderById(old, photo => photo.id, selectedPhotos, draggedPhotoId, overId));
   };
+  const endPhotoDrag = () => { setDraggedPhotoId(null); lastPhotoOverId.current = null; };
 
-  // --- Works gallery: local display order + drag-to-reorder + marquee multi-select ---
+  // --- Works gallery: local display order + drag-to-reorder (live-shift) + marquee multi-select ---
   const [worksOrder, setWorksOrder] = useState<string[]>([]);
   useEffect(() => {
     setWorksOrder(previous => {
@@ -166,8 +170,8 @@ export function BatchWorkspace(p: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [archivedWorksUnordered.map(w => w.id).join(',')]);
   const archivedWorks = worksOrder.map(id => archivedWorksUnordered.find(w => w.id === id)).filter((w): w is DesignTemplate => !!w);
-  const [dragWorkId, setDragWorkId] = useState<string | null>(null);
-  const [dropWorkId, setDropWorkId] = useState<string | null>(null);
+  const [draggedWorkId, setDraggedWorkId] = useState<string | null>(null);
+  const lastWorkOverId = useRef<string | null>(null);
   const [worksMarquee, setWorksMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const worksMarqueeStart = useRef<{ x: number; y: number } | null>(null);
   const worksGridRef = useRef<HTMLDivElement>(null);
@@ -196,18 +200,12 @@ export function BatchWorkspace(p: {
     window.addEventListener('mouseup', onUp);
     return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
   }, [worksMarquee]);
-  const handleWorkDrop = (dropId: string) => {
-    if (!dragWorkId || dragWorkId === dropId) { setDragWorkId(null); setDropWorkId(null); return; }
-    setWorksOrder(old => {
-      const dragIdx = old.indexOf(dragWorkId);
-      const dropIdx = old.indexOf(dropId);
-      if (dragIdx === -1 || dropIdx === -1) return old;
-      const indices = selectedWorks.has(dragWorkId) && selectedWorks.size > 1
-        ? old.map((id, i) => selectedWorks.has(id) ? i : -1).filter(i => i !== -1)
-        : [dragIdx];
-      return reorderWithGroup(old, new Set(indices), dragIdx, dropIdx);
-    });
-    setDragWorkId(null); setDropWorkId(null);
+  const handleWorkDragOver = (overId: string) => {
+    if (!draggedWorkId || draggedWorkId === overId || lastWorkOverId.current === overId) return;
+    lastWorkOverId.current = overId;
+    setWorksOrder(old => reorderById(old, id => id, selectedWorks, draggedWorkId, overId));
+  };
+  const endWorkDrag = () => { setDraggedWorkId(null); lastWorkOverId.current = null;
   };
   let planned = 0; let layoutError = '';
   if (source && photos.length) { try { planned = buildBatchPages(source, photos).length; } catch (e) { layoutError = (e as Error).message; } }
@@ -253,27 +251,29 @@ export function BatchWorkspace(p: {
           {fileError && <p className="production-error" role="alert">{fileError}</p>}
           {selectedPhotos.size > 0 && <div className="archive-selection-bar">
             <label><span>{selectedPhotos.size} fotoğraf seçildi</span></label>
-            <div><button onClick={() => setSelectedPhotos(new Set())}>Seçimi kaldır</button><button className="danger" onClick={() => { setPhotos(old => old.filter((_, i) => !selectedPhotos.has(i))); setSelectedPhotos(new Set()); }}><Trash2 size={14}/> Sil</button></div>
+            <div><button onClick={() => setSelectedPhotos(new Set())}>Seçimi kaldır</button><button className="danger" onClick={() => { setPhotos(old => old.filter(photo => !selectedPhotos.has(photo.id))); setSelectedPhotos(new Set()); }}><Trash2 size={14}/> Sil</button></div>
           </div>}
           <div className="production-photos" ref={photosGridRef} onMouseDown={startPhotoMarquee}>
             {photoMarquee && <div className="marquee-box" style={{ left: photoMarquee.x, top: photoMarquee.y, width: photoMarquee.w, height: photoMarquee.h }} />}
-            {photos.map((photo, index) => <article
-              key={photo.id + index}
-              data-photo-index={index}
+            {photos.map((photo, index) => <motion.article
+              key={photo.id}
+              layout
+              transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+              data-photo-id={photo.id}
               draggable={!disabled}
-              className={[selectedPhotos.has(index) && 'is-selected', dragPhotoIndex === index && 'is-dragging', dropPhotoIndex === index && dragPhotoIndex !== index && 'is-drop-target'].filter(Boolean).join(' ')}
-              onDragStart={() => setDragPhotoIndex(index)}
-              onDragOver={e => { e.preventDefault(); if (dragPhotoIndex !== null && dragPhotoIndex !== index) setDropPhotoIndex(index); }}
-              onDragEnd={() => { setDragPhotoIndex(null); setDropPhotoIndex(null); }}
-              onDrop={e => { e.preventDefault(); handlePhotoDrop(index); }}
+              className={[selectedPhotos.has(photo.id) && 'is-selected', draggedPhotoId === photo.id && 'is-dragging'].filter(Boolean).join(' ')}
+              onDragStart={() => setDraggedPhotoId(photo.id)}
+              onDragOver={e => { e.preventDefault(); handlePhotoDragOver(photo.id); }}
+              onDragEnd={endPhotoDrag}
+              onDrop={(e: React.DragEvent) => e.preventDefault()}
             >
               <label className="photo-select" onClick={e => e.stopPropagation()}>
-                <input type="checkbox" checked={selectedPhotos.has(index)} onChange={() => togglePhotoSelected(index)} aria-label={`${index + 1}. fotoğrafı seç`}/>
+                <input type="checkbox" checked={selectedPhotos.has(photo.id)} onChange={() => togglePhotoSelected(photo.id)} aria-label={`${index + 1}. fotoğrafı seç`}/>
               </label>
               <img src={photo.thumbnailUrl} alt={photo.originalName || `Fotoğraf ${index + 1}`} draggable={false}/><span className="photo-number">{index + 1}</span>
               <button className="photo-remove" disabled={disabled} aria-label={`${index + 1}. fotoğrafı seçimden çıkar`} onClick={() => setPhotos(old => old.filter((_, i) => i !== index))}><X size={14}/></button>
               <div><button disabled={disabled || index === 0} aria-label={`${index + 1}. fotoğrafı önceye taşı`} onClick={() => move(index, -1)}><ArrowLeft size={14}/></button><span>{photo.originalName}</span><button disabled={disabled || index === photos.length - 1} aria-label={`${index + 1}. fotoğrafı sonraya taşı`} onClick={() => move(index, 1)}><ArrowRight size={14}/></button></div>
-            </article>)}
+            </motion.article>)}
           </div>
           {!!photos.length && <p className="production-hint">Fotoğrafları sürükleyerek sırasını değiştirebilir, boş alana tıklayıp sürükleyerek birden fazla fotoğraf seçebilirsin. İlk fotoğraflar kapakta kullanılır.</p>}
         </section>
@@ -316,20 +316,21 @@ export function BatchWorkspace(p: {
       {p.screen === 'works' ? (
         <div className="production-gallery" ref={worksGridRef} onMouseDown={startWorksMarquee}>
           {worksMarquee && <div className="marquee-box" style={{ left: worksMarquee.x, top: worksMarquee.y, width: worksMarquee.w, height: worksMarquee.h }} />}
-          {archivedWorks.map(t => <article
+          {archivedWorks.map(t => <motion.article
+            layout
+            transition={{ type: 'spring', stiffness: 500, damping: 38 }}
             className={[
               'production-result',
               selectedWorks.has(t.id) && 'is-selected',
-              dragWorkId === t.id && 'is-dragging',
-              dropWorkId === t.id && dragWorkId !== t.id && 'is-drop-target',
+              draggedWorkId === t.id && 'is-dragging',
             ].filter(Boolean).join(' ')}
             key={t.id}
             data-work-id={t.id}
             draggable={!p.busy}
-            onDragStart={() => setDragWorkId(t.id)}
-            onDragOver={e => { e.preventDefault(); if (dragWorkId && dragWorkId !== t.id) setDropWorkId(t.id); }}
-            onDragEnd={() => { setDragWorkId(null); setDropWorkId(null); }}
-            onDrop={e => { e.preventDefault(); handleWorkDrop(t.id); }}
+            onDragStart={() => setDraggedWorkId(t.id)}
+            onDragOver={e => { e.preventDefault(); handleWorkDragOver(t.id); }}
+            onDragEnd={endWorkDrag}
+            onDrop={(e: React.DragEvent) => e.preventDefault()}
           >
             <div className="production-result-preview-wrap">
               <TemplateThumbnail template={resolveExportTemplate(t, p.projects[t.id][0])} data={p.projects[t.id][0]}/>
@@ -338,7 +339,7 @@ export function BatchWorkspace(p: {
             </div>
             <div><strong>{t.name}</strong><span>{p.projects[t.id].length} sayfa · Ana şablondan bağımsız</span></div>
             <div className="production-result-actions"><button className="production-card-primary" onClick={() => { p.onSelectTemplate(t.id); p.onScreen('results'); }}>Çalışmayı aç <ArrowRight size={13}/></button><button className="production-card-secondary production-work-edit-secondary" onClick={() => p.onOpen(t.id, 0)}><Pencil size={13}/> Tasarımı düzenle</button></div>
-          </article>)}
+          </motion.article>)}
         </div>
       ) : (
         <div className="production-gallery">{p.templates.filter(t => !t.sourceTemplateId).map(t => <article className="production-result" key={t.id}>
