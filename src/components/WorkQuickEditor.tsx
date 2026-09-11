@@ -106,9 +106,28 @@ export function WorkQuickEditor(props: {
               <input type="range" min={0.5} max={3} step={0.05} value={imgData.scale ?? 1} onChange={event => props.onUpdateImageProp(selected.id, 'scale', parseFloat(event.target.value))}/>
               <span>{Math.round((imgData.scale ?? 1) * 100)}%</span>
             </div>
-            <button type="button" className="work-rotate-btn" onClick={() => props.onUpdateImageProp(selected.id, 'rotation', ((imgData.rotation ?? 0) + 90) % 360)}>
-              <RotateCw size={13}/> Döndür ({imgData.rotation ?? 0}°)
-            </button>
+            <div className="work-image-rotate">
+              <span>Döndürme</span>
+              <input
+                type="range"
+                min={0}
+                max={359}
+                step={1}
+                value={imgData.rotation ?? 0}
+                onChange={event => props.onUpdateImageProp(selected.id, 'rotation', Number(event.target.value))}
+              />
+              <input
+                type="number"
+                min={0}
+                max={359}
+                value={Math.round(imgData.rotation ?? 0)}
+                onChange={event => props.onUpdateImageProp(selected.id, 'rotation', ((Number(event.target.value) % 360) + 360) % 360)}
+              />
+              <span>°</span>
+              <button type="button" className="work-rotate-btn" title="90° çevir" onClick={() => props.onUpdateImageProp(selected.id, 'rotation', ((imgData.rotation ?? 0) + 90) % 360)}>
+                <RotateCw size={13}/>
+              </button>
+            </div>
           </div>
         </>}
         <div className="work-position-heading"><span><Move size={13}/> Konum ve boyut</span></div>
