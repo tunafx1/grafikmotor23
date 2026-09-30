@@ -1,7 +1,11 @@
-import type { DesignTemplate, SequenceMediaItem, TemplatePage } from '../types';
+import type { DesignTemplate, Region, SequenceMediaItem, TemplatePage } from '../types';
 import { getAiTextFields, requestAiText } from './aiText';
 
-const frames = (page: TemplatePage) => page.regions.filter(r => r.type === 'image' && r.isDynamic !== false && !r.hidden && !r.placeholderImage?.startsWith('data:'));
+/** Uploaded PNG layers stay part of the design; cloud sync turns their data URL into a Cloudinary URL. */
+export const isStaticImageLayer = (r: Region) => r.type === 'image' && !!r.placeholderImage &&
+  (r.placeholderImage.startsWith('data:') || r.placeholderImage.startsWith('https://res.cloudinary.com/'));
+
+const frames = (page: TemplatePage) => page.regions.filter(r => r.type === 'image' && r.isDynamic !== false && !r.hidden && !isStaticImageLayer(r));
 
 /** Consume every selected photo exactly once, respecting actual frame capacity. */
 export function buildBatchPages(template: DesignTemplate, media: SequenceMediaItem[]) {

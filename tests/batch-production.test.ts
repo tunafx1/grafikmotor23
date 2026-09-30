@@ -33,3 +33,10 @@ test('AI request receives the prepared page image for visual analysis',async()=>
  await generateBatchTexts(template,pages,'Görseli incele',{signal:new AbortController().signal,onProgress:()=>{},prepareImage:async source=>{assert.equal(source,'https://example.com/photo.jpg');return 'data:image/jpeg;base64,prepared';},request:async payload=>{receivedImage=typeof payload.image === 'string' ? payload.image : '';return {title:'Analiz'};}});
  assert.equal(receivedImage,'data:image/jpeg;base64,prepared');
 });
+test('each page keeps its own PNG layer, including after cloud sync',()=>{
+ const cover=layout('cover',1,'cover'); cover.regions.push({id:'frame',type:'image',isDynamic:true,placeholderImage:'https://res.cloudinary.com/demo/image/upload/page-1.png'} as any);
+ const two=layout('two',2,'2-image'); two.regions.push({id:'frame',type:'image',isDynamic:true,placeholderImage:'data:image/png;base64,page-2'} as any);
+ const pages=buildBatchPages({...template,pages:[cover,two]},photos(3));
+ assert.equal(pages[0].dynamicImages.frame,undefined); assert.equal(pages[1].dynamicImages.frame,undefined);
+ assert.equal(pages[1].regions.find((r:any)=>r.id==='frame').placeholderImage,'data:image/png;base64,page-2');
+});

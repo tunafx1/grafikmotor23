@@ -1,5 +1,5 @@
 import { BatchWorkspace, ProductionNavigation, type WorkspaceScreen } from './components/BatchWorkspace';
-import { buildBatchPages, generateBatchTexts } from './utils/batchProduction';
+import { buildBatchPages, generateBatchTexts, isStaticImageLayer } from './utils/batchProduction';
 import { describeGoogleLoginError } from './lib/authErrors';
 import { getAiTextFields, requestAiText } from './utils/aiText';
 import { resizePageLayout, resizeTemplate } from './utils/templateResize';
@@ -297,12 +297,7 @@ import {
 } from './lib/firebase';
 
 export function isTemplateImageFrame(r: Region): boolean {
-  if (r.type !== 'image') return false;
-  // If it's a user-uploaded image layer or background, placeholderImage is a base64 data URL
-  if (r.placeholderImage && r.placeholderImage.startsWith('data:')) {
-    return false;
-  }
-  return true;
+  return r.type === 'image' && !isStaticImageLayer(r);
 }
 
 export function isRealUserUploadedImage(url: string, template: DesignTemplate | null | undefined): boolean {
@@ -1623,8 +1618,11 @@ export default function App() {
 
     // Use active page dynamic texts, images, and hidden elements with safe fallbacks
     const texts = activePageData.dynamicTexts || {};
-    const images = activePageData.dynamicImages || {};
+    const images = { ...(activePageData.dynamicImages || {}) };
     const hidden = activePageData.hiddenElements || [];
+    // While editing a template, PNG layers must show the page's own image (what production uses),
+    // not a template-wide override that may belong to another page with the same region id.
+    if (templateEditing) editingTemplate.regions.forEach(r => { if (isStaticImageLayer(r)) delete images[r.id]; });
 
     // Render with 1x scale for the live display preview
     renderTemplateToCanvas(
@@ -1644,7 +1642,7 @@ export default function App() {
         editingImageRegionId
       }
     );
-  }, [editingTemplate, activePageData, activeGraphicData.paletteOverrides, showGrid, showSafeMargins, selectedNodeId, vurguColor, editingImageRegionId, isAppLoaded, mobileView, workspaceScreen]);
+  }, [editingTemplate, activePageData, activeGraphicData.paletteOverrides, showGrid, showSafeMargins, selectedNodeId, vurguColor, editingImageRegionId, isAppLoaded, mobileView, workspaceScreen, templateEditing]);
 
   // --- FIREBASE CLOUD STORAGE INTEGRATION & SYNCING ---
   const [isCloudSynced, setIsCloudSynced] = useState<boolean>(true);
@@ -4554,6 +4552,19 @@ export default function App() {
     const reader = new FileReader();
     reader.onload = (event) => {
       if (event.target?.result) {
+        const region = editingTemplate.regions.find(r => r.id === regionId);
+        if (templateEditing && region && isStaticImageLayer(region)) {
+          // A PNG layer belongs to this template page. graphicData is shared by every page
+          // and ignored by batch production, so store the new image on the region itself.
+          handleRegionPropertyChange(regionId, 'placeholderImage', event.target.result as string);
+          setGraphicData(prev => {
+            const current = prev[currentTemplateId];
+            if (!current?.dynamicImages?.[regionId]) return prev;
+            const { [regionId]: _stale, ...dynamicImages } = current.dynamicImages;
+            return { ...prev, [currentTemplateId]: { ...current, dynamicImages } };
+          });
+          return;
+        }
         updateActiveImageProp(regionId, 'url', event.target.result as string);
         updateActiveImageProp(regionId, 'mediaId', undefined);
         updateActiveImageProp(regionId, 'isVideo', false);
