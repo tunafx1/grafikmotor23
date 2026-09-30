@@ -1,10 +1,14 @@
 import express from 'express';
 import path from 'path';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import { extractVideoId as extractYouTubeVideoId, streamMedia } from '../downloader-service/media-stream.js';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { createSignedMediaUpload, readCloudinaryConfig } from './cloudinary-upload.js';
-import firebaseAppletConfig from '../firebase-applet-config.json';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const firebaseAppletConfig = JSON.parse(readFileSync(path.join(__dirname, '../firebase-applet-config.json'), 'utf-8'));
 // Text generation types and helper functions (inlined for self-contained Vercel serverless execution)
 export type TextField = {id: string; name: string; role: string; prompt?: string; text: string};
 export type TextRequest = {systemPrompt: string; templateName: string; brief: string; fields: TextField[]; context: TextField[]; image?: string};
