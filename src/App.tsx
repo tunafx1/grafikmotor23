@@ -3,13 +3,14 @@ import { buildBatchPages, generateBatchTexts } from './utils/batchProduction';
 import { describeGoogleLoginError } from './lib/authErrors';
 import { getAiTextFields, requestAiText } from './utils/aiText';
 import { resizePageLayout, resizeTemplate } from './utils/templateResize';
-import { MediaDownloaderDialog } from './components/MediaDownloaderDialog';
 import { LandingPage } from './components/LandingPage';
-import { AuthPortal } from './components/AuthPortal';
+
+const MediaDownloaderDialog = lazy(() => import('./components/MediaDownloaderDialog').then(m => ({ default: m.MediaDownloaderDialog })));
+const AuthPortal = lazy(() => import('./components/AuthPortal').then(m => ({ default: m.AuthPortal })));
 import { createExportAsset, safeFileName } from './utils/exportAssets';
 import { findTopmostUnlockedElement } from './utils/canvasHitTest';
 import { storeVideo, getVideoUrl, replaceVideoUrls } from './lib/mediaStore';
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Layout,
@@ -807,6 +808,10 @@ export default function App() {
       } else if ((e.ctrlKey || e.metaKey) && isY) {
         e.preventDefault();
         handleRedo();
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && templateEditing && selectedNodeId) {
+        e.preventDefault();
+        deleteElement(selectedNodeId);
+        setSelectedNodeId(null);
       }
     };
 
@@ -4756,19 +4761,21 @@ export default function App() {
   // --- AUTH PORTAL ---
   if (currentView === 'portal') {
     return (
-      <AuthPortal
-        onBackToLanding={() => {
-          storage.setItem('gm_current_view', 'landing');
-          setCurrentView('landing');
-        }}
-        onCompleteAuth={(authedUser) => {
-          setUser(authedUser);
-          storage.setItem('gm_user_logged_in', 'true');
-          storage.setItem('gm_current_view', 'editor');
-          setWorkspaceScreen('create');
-          setCurrentView('editor');
-        }}
-      />
+      <Suspense fallback={null}>
+        <AuthPortal
+          onBackToLanding={() => {
+            storage.setItem('gm_current_view', 'landing');
+            setCurrentView('landing');
+          }}
+          onCompleteAuth={(authedUser) => {
+            setUser(authedUser);
+            storage.setItem('gm_user_logged_in', 'true');
+            storage.setItem('gm_current_view', 'editor');
+            setWorkspaceScreen('create');
+            setCurrentView('editor');
+          }}
+        />
+      </Suspense>
     );
   }
 
@@ -5506,7 +5513,7 @@ export default function App() {
             </motion.div>
           </div>
         )}
-        {isToolsModalOpen && <MediaDownloaderDialog
+        {isToolsModalOpen && <Suspense fallback={null}><MediaDownloaderDialog
           onClose={() => setIsToolsModalOpen(false)} url={ytUrl}
           onUrlChange={value => { setYtUrl(value); setYtInfo(null); setYtError(null); setYtDownloadResult(null); }}
           info={ytInfo} loading={ytLoading} error={ytError} format={ytFormat}
@@ -5514,7 +5521,7 @@ export default function App() {
           onInspect={() => handleFetchYtInfo()} downloading={ytDownloading}
           onDownload={handleStartYtDownload} result={ytDownloadResult}
           history={recentDownloads} onClearHistory={handleClearYtHistory}
-        />}
+        /></Suspense>}
       </AnimatePresence>
     </div>
   );

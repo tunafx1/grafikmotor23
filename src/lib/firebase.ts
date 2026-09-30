@@ -46,8 +46,6 @@ const targetDbId = isValidConfig
   ? ((firebaseConfig as any).firestoreDatabaseId || 'ai-studio-grafikotomasyonm-5229ff0f-8304-405c-af2a-76613e388830') 
   : undefined;
 
-console.log('Initializing Firestore with Database ID:', targetDbId || '(default)');
-
 let db;
 try {
   db = initializeFirestore(app, {
@@ -69,7 +67,6 @@ mediaStorage.maxUploadRetryTime = 20_000;
 
 // Check if quota was exceeded in a prior session to immediately go offline and avoid background write retry storms
 if (isValidConfig && typeof window !== 'undefined' && storage.getItem('firestore_quota_exceeded') === 'true') {
-  console.log('Detected prior Firestore quota exhaustion. Automatically initializing in offline mode.');
   disableNetwork(db).catch(err => {
     console.error('Failed to disable Firestore network during startup:', err);
   });
@@ -255,7 +252,6 @@ export async function logoutUser(): Promise<void> {
 export async function disableFirestoreNetwork(): Promise<void> {
   if (!isValidConfig) return;
   try {
-    console.log('Disabling Firestore Network to avoid background retry loops and quota errors.');
     await disableNetwork(db);
   } catch (err) {
     console.error('Failed to disable Firestore network:', err);
@@ -265,7 +261,6 @@ export async function disableFirestoreNetwork(): Promise<void> {
 export async function enableFirestoreNetwork(): Promise<void> {
   if (!isValidConfig) return;
   try {
-    console.log('Enabling Firestore Network.');
     await enableNetwork(db);
   } catch (err) {
     console.error('Failed to enable Firestore network:', err);

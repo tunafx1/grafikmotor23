@@ -4,6 +4,7 @@ import { extractVideoId as extractYouTubeVideoId, streamMedia } from '../downloa
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { createSignedMediaUpload, readCloudinaryConfig } from './cloudinary-upload.js';
+import firebaseAppletConfig from '../firebase-applet-config.json';
 // Text generation types and helper functions (inlined for self-contained Vercel serverless execution)
 export type TextField = {id: string; name: string; role: string; prompt?: string; text: string};
 export type TextRequest = {systemPrompt: string; templateName: string; brief: string; fields: TextField[]; context: TextField[]; image?: string};
@@ -205,7 +206,7 @@ app.post(['/api/generate-text', '/generate-text'], createTextGenerationHandler({
   },
 }));
 
-const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY || 'AIzaSyDgq1nvKLYKMODxECDmpDCULvdVIPsJY88';
+const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY || firebaseAppletConfig.apiKey;
 
 async function getFirebaseUserId(authorization: string | undefined): Promise<string | null> {
   const match = authorization?.match(/^Bearer\s+(.+)$/i);
