@@ -63,10 +63,9 @@ export function useTodos() {
       if (index === -1 || swapWith < 0 || swapWith >= sorted.length) return prev;
       const a = sorted[index];
       const b = sorted[swapWith];
-      const aOrder = a.order;
-      a.order = b.order;
-      b.order = aOrder;
-      return prev.map(t => t.id === a.id ? a : t.id === b.id ? b : t);
+      const updatedA = { ...a, order: b.order };
+      const updatedB = { ...b, order: a.order };
+      return prev.map(t => t.id === updatedA.id ? updatedA : t.id === updatedB.id ? updatedB : t);
     });
   };
 

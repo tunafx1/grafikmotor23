@@ -748,6 +748,9 @@ export default function App() {
     startWidth?: number;
     startHeight?: number;
   } | null>(null);
+  // Cache loaded <img> elements by URL so image-pan clamp math doesn't allocate a
+  // fresh Image() on every pointermove while the user drags.
+  const panImageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   type ProjectSnapshot = { templates: DesignTemplate[]; graphicData: Record<string, GraphicData>; pages: any[]; templateId: string };
   const [undoStack, setUndoStack] = useState<ProjectSnapshot[]>([]);
@@ -784,13 +787,28 @@ export default function App() {
     restoreSnapshot(redoStack[redoStack.length - 1]);
   };
 
-  // Keyboard shortcut listener for Undo/Redo
+  // Holds the latest handleUndo/handleRedo/templateEditing/selectedNodeId/deleteElement
+  // (deleteElement is defined further down the component) so the keydown listener below
+  // can be attached exactly once instead of removed/re-added on every render.
+  const latestKeyActionsRef = useRef<{
+    handleUndo: () => void;
+    handleRedo: () => void;
+    templateEditing: boolean;
+    selectedNodeId: string | null;
+    deleteElement: (id: string) => void;
+  } | null>(null);
+
+  // Keyboard shortcut listener for Undo/Redo — mounted once; reads current state via
+  // latestKeyActionsRef (kept in sync by an effect near deleteElement's definition).
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const actions = latestKeyActionsRef.current;
+      if (!actions) return;
+
       const target = e.target as HTMLElement;
       if (
-        target.tagName === 'INPUT' || 
-        target.tagName === 'TEXTAREA' || 
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
         target.isContentEditable
       ) {
         return;
@@ -801,23 +819,23 @@ export default function App() {
 
       if ((e.ctrlKey || e.metaKey) && isZ && !e.shiftKey) {
         e.preventDefault();
-        handleUndo();
+        actions.handleUndo();
       } else if ((e.ctrlKey || e.metaKey) && isZ && e.shiftKey) {
         e.preventDefault();
-        handleRedo();
+        actions.handleRedo();
       } else if ((e.ctrlKey || e.metaKey) && isY) {
         e.preventDefault();
-        handleRedo();
-      } else if ((e.key === 'Delete' || e.key === 'Backspace') && templateEditing && selectedNodeId) {
+        actions.handleRedo();
+      } else if ((e.key === 'Delete' || e.key === 'Backspace') && actions.templateEditing && actions.selectedNodeId) {
         e.preventDefault();
-        deleteElement(selectedNodeId);
+        actions.deleteElement(actions.selectedNodeId);
         setSelectedNodeId(null);
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  });
+  }, []);
 
   const [currentTemplateId, setCurrentTemplateId] = useState<string>(() => {
     const remembered = storage.getItem('active_template_id');
@@ -3929,6 +3947,13 @@ export default function App() {
     setSelectedNodeId(null);
   };
 
+  // Keeps the global keydown listener (registered once, see the undo/redo effect near
+  // the top of this component) reading up-to-date values without re-attaching the
+  // listener on every render.
+  useEffect(() => {
+    latestKeyActionsRef.current = { handleUndo, handleRedo, templateEditing, selectedNodeId, deleteElement };
+  });
+
   // Reset all templates to defaults
   const resetAllToPresets = () => {
     setConfirmDialog({
@@ -4067,7 +4092,10 @@ export default function App() {
 
       // Only allow resizing if the element is NOT locked
       if (selectedEl && !selectedEl.locked) {
-        const hitRadius = 18 * scaleX; // 18px on-screen comfortable hit-target radius
+        // 22px on-screen comfortable hit-target radius (close to the 44px touch-target
+        // guideline); uses the larger of the two axis scales so the hit-circle stays
+        // symmetric even when the canvas is scaled non-uniformly on screen.
+        const hitRadius = 22 * Math.max(scaleX, scaleY);
         const corners = [
           { handle: 'TL', cx: selectedEl.x, cy: selectedEl.y },
           { handle: 'TR', cx: selectedEl.x + selectedEl.width, cy: selectedEl.y },
@@ -4177,8 +4205,12 @@ export default function App() {
       // Görselin pan (kaydırma) sınırlarını hesaplama ve clamp işlemi (bölge dışına çıkmayı önleme)
       const imgData = activePageData.dynamicImages[ref.elementId];
       if (region && imgData && imgData.url) {
-        const img = new Image();
-        img.src = imgData.url; // Tarayıcı önbelleğinden hızlıca gelir
+        let img = panImageCacheRef.current.get(imgData.url);
+        if (!img) {
+          img = new Image();
+          img.src = imgData.url;
+          panImageCacheRef.current.set(imgData.url, img);
+        }
         if (img.complete && img.naturalWidth > 0 && img.naturalHeight > 0) {
           const imgRatio = img.naturalWidth / img.naturalHeight;
           const regRatio = region.width / region.height;
@@ -4286,18 +4318,16 @@ export default function App() {
     }
   };
 
-  const handleCanvasPointerUp = () => {
-    dragStartRef.current = null;
-    setIsDragging(false);
-  };
-
-  const handleCanvasDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  // Shared by mouse double-click and touch double-tap: enters crop/pan mode for an
+  // image region, or focuses the text inspector for a text region, under the given
+  // viewport coordinates.
+  const handleActivateEditAt = (clientX: number, clientY: number) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
     const rect = canvas.getBoundingClientRect();
-    const relativeX = e.clientX - rect.left;
-    const relativeY = e.clientY - rect.top;
+    const relativeX = clientX - rect.left;
+    const relativeY = clientY - rect.top;
 
     const scaleX = currentTemplate.width / rect.width;
     const scaleY = currentTemplate.height / rect.height;
@@ -4305,7 +4335,7 @@ export default function App() {
     const x = relativeX * scaleX;
     const y = relativeY * scaleY;
 
-    // Find topmost UNLOCKED element under double click (locked layers pass-through)
+    // Find topmost UNLOCKED element under double click/tap (locked layers pass-through)
     const hitTarget = findTopmostUnlockedElement(
       editingTemplate,
       x,
@@ -4331,6 +4361,36 @@ export default function App() {
     } else {
       setSelectedNodeId(hitTarget.id);
     }
+  };
+
+  // Touch screens have no double-click event, so double-tap is detected manually:
+  // two touchend events on roughly the same spot within 300ms count as one.
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+
+  const handleCanvasPointerUp = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const wasDragging = !!dragStartRef.current;
+    dragStartRef.current = null;
+    setIsDragging(false);
+
+    if (e && 'changedTouches' in e) {
+      const touch = e.changedTouches[0];
+      if (touch && !wasDragging) {
+        const now = Date.now();
+        const last = lastTapRef.current;
+        const isDoubleTap = !!last && now - last.time < 300 &&
+          Math.hypot(touch.clientX - last.x, touch.clientY - last.y) < 25;
+        if (isDoubleTap) {
+          lastTapRef.current = null;
+          handleActivateEditAt(touch.clientX, touch.clientY);
+        } else {
+          lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+        }
+      }
+    }
+  };
+
+  const handleCanvasDoubleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    handleActivateEditAt(e.clientX, e.clientY);
   };
 
   useEffect(() => {
@@ -5362,7 +5422,7 @@ export default function App() {
         <button
           onClick={() => setIsExportModalOpen(true)}
           className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
-            mobileView === 'export' ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
+            isExportModalOpen ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
           }`}
         >
           <Download className="w-4 h-4" />

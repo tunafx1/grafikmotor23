@@ -51,7 +51,7 @@ export function ExportModal({
   return (
     <div className="workspace-export-backdrop fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in select-none">
       <div 
-        className="workspace-export-dialog w-full max-w-md bg-[#252528] border border-[rgba(255,255,255,0.12)] rounded-2xl shadow-2xl overflow-hidden flex flex-col"
+        className="workspace-export-dialog w-full max-w-md max-h-[90vh] bg-[#252528] border border-[rgba(255,255,255,0.12)] rounded-2xl shadow-2xl overflow-y-auto overflow-x-hidden flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-labelledby="export-modal-title"

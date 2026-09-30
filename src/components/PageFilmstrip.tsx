@@ -24,6 +24,104 @@ export function PageFilmstrip({
 }: PageFilmstripProps) {
   const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
+  // Pointer-Events-based reorder: works for mouse, touch and pen from one code path
+  // (native HTML5 drag&drop, which this replaces, has no touch equivalent).
+  // Mouse starts reordering as soon as the pointer moves a few px (classic drag feel).
+  // Touch requires a short hold with no movement first — the filmstrip already scrolls
+  // horizontally via native touch panning, so a plain swipe must keep working; only a
+  // deliberate long-press hands the gesture over to JS-driven reordering.
+  const dragInfoRef = React.useRef<{
+    idx: number;
+    pointerId: number;
+    pointerType: string;
+    startX: number;
+    startY: number;
+    dragging: boolean;
+    longPressTimer: number | null;
+  } | null>(null);
+  const [draggingIndex, setDraggingIndex] = React.useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = React.useState<number | null>(null);
+
+  const getChipEl = (idx: number) =>
+    scrollContainerRef.current?.querySelector<HTMLElement>(`[data-page-idx="${idx}"]`) || null;
+
+  const beginDragging = (idx: number, pointerId: number) => {
+    setDraggingIndex(idx);
+    setDragOverIndex(idx);
+    getChipEl(idx)?.setPointerCapture(pointerId);
+  };
+
+  const handleChipPointerDown = (idx: number) => (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!onReorderPages) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const info = {
+      idx,
+      pointerId: e.pointerId,
+      pointerType: e.pointerType,
+      startX: e.clientX,
+      startY: e.clientY,
+      dragging: false,
+      longPressTimer: null as number | null
+    };
+    if (e.pointerType === 'touch') {
+      info.longPressTimer = window.setTimeout(() => {
+        const current = dragInfoRef.current;
+        if (current && current === info) {
+          current.dragging = true;
+          beginDragging(idx, info.pointerId);
+        }
+      }, 350);
+    }
+    dragInfoRef.current = info;
+  };
+
+  const handleChipPointerMove = (idx: number) => (e: React.PointerEvent<HTMLDivElement>) => {
+    const info = dragInfoRef.current;
+    if (!info || info.idx !== idx) return;
+
+    if (!info.dragging) {
+      const dx = e.clientX - info.startX;
+      const dy = e.clientY - info.startY;
+      const moved = Math.hypot(dx, dy) > 6;
+      if (!moved) return;
+      if (info.pointerType === 'touch') {
+        // Real movement before the long-press fired: this is a scroll gesture, not a
+        // reorder — bail out and let the browser's native touch panning handle it.
+        if (info.longPressTimer) window.clearTimeout(info.longPressTimer);
+        dragInfoRef.current = null;
+        return;
+      }
+      info.dragging = true;
+      beginDragging(idx, info.pointerId);
+    }
+
+    e.preventDefault();
+    const track = scrollContainerRef.current;
+    if (!track) return;
+    const chips = Array.from(track.querySelectorAll<HTMLElement>('[data-page-idx]'));
+    let hoverIdx = idx;
+    for (const chip of chips) {
+      const r = chip.getBoundingClientRect();
+      if (e.clientX >= r.left && e.clientX <= r.right) {
+        hoverIdx = Number(chip.dataset.pageIdx);
+        break;
+      }
+    }
+    setDragOverIndex(hoverIdx);
+  };
+
+  const endDrag = (idx: number) => (e: React.PointerEvent<HTMLDivElement>) => {
+    const info = dragInfoRef.current;
+    if (!info || info.idx !== idx) return;
+    if (info.longPressTimer) window.clearTimeout(info.longPressTimer);
+    if (info.dragging && dragOverIndex !== null && dragOverIndex !== idx) {
+      onReorderPages?.(idx, dragOverIndex);
+    }
+    dragInfoRef.current = null;
+    setDraggingIndex(null);
+    setDragOverIndex(null);
+  };
+
   const scrollLeft = () => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollBy({ left: -220, behavior: 'smooth' });
@@ -63,17 +161,18 @@ export function PageFilmstrip({
           return (
             <div
               key={page.id || idx}
-              draggable={!!onReorderPages}
-              onDragStart={(event) => event.dataTransfer.setData('text/page-index', String(idx))}
-              onDragOver={(event) => { if (onReorderPages) event.preventDefault(); }}
-              onDrop={(event) => {
-                if (!onReorderPages) return;
-                event.preventDefault();
-                const from = Number(event.dataTransfer.getData('text/page-index'));
-                if (Number.isInteger(from) && from !== idx) onReorderPages(from, idx);
-              }}
-              onClick={() => onSelectPage(idx)}
+              data-page-idx={idx}
+              onPointerDown={handleChipPointerDown(idx)}
+              onPointerMove={handleChipPointerMove(idx)}
+              onPointerUp={endDrag(idx)}
+              onPointerCancel={endDrag(idx)}
+              onClick={() => { if (draggingIndex === null) onSelectPage(idx); }}
+              style={{ touchAction: onReorderPages ? 'pan-x' : undefined }}
               className={`workspace-page-chip group relative flex items-center space-x-2.5 px-3 py-1.5 rounded-xl transition-all cursor-pointer shrink-0 border ${
+                draggingIndex === idx ? 'opacity-50' : ''
+              } ${
+                dragOverIndex === idx && draggingIndex !== null && draggingIndex !== idx ? 'ring-2 ring-[#FF6B1A]/70' : ''
+              } ${
                 isActive
                   ? 'bg-[#2A2A2E] border-[#FF6B1A] ring-2 ring-[#FF6B1A]/40 shadow-lg shadow-[#FF6B1A]/10'
                   : 'bg-[#252528]/80 border-[rgba(255,255,255,0.08)] hover:bg-[#2A2A2E] hover:border-[rgba(255,255,255,0.2)]'

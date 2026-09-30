@@ -38,6 +38,11 @@
   box-shadow: none;
 }
 #graphics-engine-app .workspace-icon-button { width: 36px; padding: 0; border-color: transparent; }
+@media (hover: none) {
+  #graphics-engine-app .workspace-button,
+  #graphics-engine-app .workspace-icon-button { min-height: 44px; }
+  #graphics-engine-app .workspace-icon-button { width: 44px; }
+}
 #graphics-engine-app .workspace-button:hover,
 #graphics-engine-app .workspace-icon-button:hover { transform: none; background: #ffffff0b; border-color: #ffffff17; }
 #graphics-engine-app .workspace-button.workspace-primary { background: var(--studio-accent); box-shadow: none; }
@@ -127,7 +132,7 @@
 #graphics-engine-app .work-selected-control>p { margin-top: 9px; color: #747782; font-size: 9px; line-height: 1.45; }
 
 .workspace-export-backdrop { background: #07080bcc; }
-.workspace-export-dialog { max-width: 500px; background: #1b1c21; border-color: #ffffff18; border-radius: 18px; box-shadow: 0 30px 100px #000a; }
+.workspace-export-dialog { max-width: 500px; max-height: 90vh; overflow-y: auto; background: #1b1c21; border-color: #ffffff18; border-radius: 18px; box-shadow: 0 30px 100px #000a; }
 .workspace-export-dialog > div:first-child { padding: 18px 20px; }
 .workspace-export-dialog > div:nth-child(2) { padding: 20px; }
 .workspace-export-dialog > div:last-child { padding: 16px 20px 20px; background: #15161a; }
@@ -148,7 +153,37 @@
   #graphics-engine-app #canvas-stage { padding: 10px 10px 0; }
   #graphics-engine-app .workspace-tool-rail { width: 58px; }
   #graphics-engine-app .workspace-tool-rail button { width: 44px; height: 44px; }
-  #graphics-engine-app .workspace-inspector { width: 100%; border-left: 0; border-top: 1px solid var(--studio-border); border-radius: 18px 18px 0 0; box-shadow: 0 -18px 50px #0007; }
+
+  /* Mobile: the right inspector and the left tool drawer used to sit as normal flex
+     siblings next to the canvas, so a full-width panel simply squeezed or hid the
+     canvas instead of covering it. Pull both out of flow as fixed overlays (same
+     pattern .work-quick-editor already uses below) so the canvas stays full-size
+     underneath and the panel floats above it instead. */
+  #graphics-engine-app .workspace-inspector {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    top: auto;
+    width: 100%;
+    max-height: 70vh;
+    overflow-y: auto;
+    z-index: 45;
+    border-left: 0;
+    border-top: 1px solid var(--studio-border);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -18px 50px #0007;
+  }
+  #graphics-engine-app .workspace-tool-drawer {
+    position: fixed;
+    top: 64px;
+    left: 0;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    width: 100%;
+    max-width: none;
+    z-index: 50;
+    box-shadow: 0 18px 50px #000a;
+  }
   #graphics-engine-app .work-quick-editor { position: absolute; right: 0; bottom: 0; z-index: 40; width: min(100%, 340px); max-height: 58vh; border-top: 1px solid var(--studio-border); box-shadow: 0 -18px 50px #0007; }
 }
 
@@ -179,4 +214,5 @@
   #graphics-engine-app .workspace-filmstrip { height: 74px; padding: 0 10px; }
   #graphics-engine-app .workspace-filmstrip > div { gap: 6px; }
   .workspace-export-dialog { max-height: calc(100dvh - 24px); overflow-y: auto; }
+  #graphics-engine-app .workspace-tool-drawer { top: 58px; }
 }

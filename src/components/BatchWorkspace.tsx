@@ -40,6 +40,83 @@ function reorderById<T>(list: T[], getId: (item: T) => string, selectedIds: Set<
   return [...rest.slice(0, insertAt), ...moving, ...rest.slice(insertAt)];
 }
 
+/** Pointer-Events-based card reorder shared by the photo grid and the works gallery —
+ * replaces native HTML5 drag&drop (mouse-only) so dragging works on touch too. Mouse
+ * starts reordering as soon as the pointer moves past a small threshold (classic drag
+ * feel); touch requires a brief hold with no movement first, so a plain scroll swipe
+ * over a card isn't mistaken for a reorder drag. */
+function usePointerCardReorder(opts: {
+  attr: string;
+  disabled: boolean;
+  onDragOver: (overId: string) => void;
+  onDragEnd: () => void;
+  setDraggedId: (id: string | null) => void;
+}) {
+  const infoRef = useRef<{
+    id: string;
+    pointerId: number;
+    pointerType: string;
+    startX: number;
+    startY: number;
+    dragging: boolean;
+    longPressTimer: number | null;
+  } | null>(null);
+
+  const startDragging = (id: string, pointerId: number, el: HTMLElement) => {
+    infoRef.current!.dragging = true;
+    opts.setDraggedId(id);
+    try { el.setPointerCapture(pointerId); } catch { /* pointer may already be gone */ }
+  };
+
+  const onPointerDown = (id: string) => (e: React.PointerEvent<HTMLElement>) => {
+    if (opts.disabled) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    const el = e.currentTarget;
+    const info = {
+      id, pointerId: e.pointerId, pointerType: e.pointerType,
+      startX: e.clientX, startY: e.clientY, dragging: false,
+      longPressTimer: null as number | null
+    };
+    if (e.pointerType === 'touch') {
+      info.longPressTimer = window.setTimeout(() => {
+        if (infoRef.current === info) startDragging(id, info.pointerId, el);
+      }, 350);
+    }
+    infoRef.current = info;
+  };
+
+  const onPointerMove = (id: string) => (e: React.PointerEvent<HTMLElement>) => {
+    const info = infoRef.current;
+    if (!info || info.id !== id) return;
+    if (!info.dragging) {
+      const moved = Math.hypot(e.clientX - info.startX, e.clientY - info.startY) > 6;
+      if (!moved) return;
+      if (info.pointerType === 'touch') {
+        if (info.longPressTimer) window.clearTimeout(info.longPressTimer);
+        infoRef.current = null;
+        return;
+      }
+      startDragging(id, info.pointerId, e.currentTarget);
+    }
+    e.preventDefault();
+    const hovered = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+    const overEl = hovered?.closest(`[${opts.attr}]`) as HTMLElement | null;
+    const overId = overEl?.getAttribute(opts.attr);
+    if (overId) opts.onDragOver(overId);
+  };
+
+  const endDrag = (id: string) => (e: React.PointerEvent<HTMLElement>) => {
+    const info = infoRef.current;
+    if (!info || info.id !== id) return;
+    if (info.longPressTimer) window.clearTimeout(info.longPressTimer);
+    infoRef.current = null;
+    opts.setDraggedId(null);
+    opts.onDragEnd();
+  };
+
+  return { onPointerDown, onPointerMove, onPointerUp: endDrag, onPointerCancel: endDrag };
+}
+
 export type WorkspaceScreen = 'create' | 'results' | 'works' | 'templates' | 'editor';
 export function ProductionNavigation({ screen, disabled, onChange }: { screen: WorkspaceScreen; disabled: boolean; onChange: (screen: WorkspaceScreen) => void }) {
   const primaryScreen = screen === 'results' || screen === 'editor' ? null : screen;
@@ -122,8 +199,8 @@ export function BatchWorkspace(p: {
   const photoMarqueeStart = useRef<{ x: number; y: number } | null>(null);
   const photosGridRef = useRef<HTMLDivElement>(null);
 
-  const startPhotoMarquee = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget || e.button !== 0) return;
+  const startPhotoMarquee = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget || (e.pointerType === 'mouse' && e.button !== 0)) return;
     const rect = photosGridRef.current!.getBoundingClientRect();
     photoMarqueeStart.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     setPhotoMarquee({ x: photoMarqueeStart.current.x, y: photoMarqueeStart.current.y, w: 0, h: 0 });
@@ -131,7 +208,7 @@ export function BatchWorkspace(p: {
   };
   useEffect(() => {
     if (!photoMarquee) return;
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
       const container = photosGridRef.current;
       const start = photoMarqueeStart.current;
       if (!container || !start) return;
@@ -142,9 +219,9 @@ export function BatchWorkspace(p: {
       setSelectedPhotos(new Set(marqueeHitIds(container, box, 'data-photo-id')));
     };
     const onUp = () => { setPhotoMarquee(null); photoMarqueeStart.current = null; };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
   }, [photoMarquee]);
   const togglePhotoSelected = (id: string) => setSelectedPhotos(previous => {
     const next = new Set(previous);
@@ -157,6 +234,13 @@ export function BatchWorkspace(p: {
     setPhotos(old => reorderById(old, photo => photo.id, selectedPhotos, draggedPhotoId, overId));
   };
   const endPhotoDrag = () => { setDraggedPhotoId(null); lastPhotoOverId.current = null; };
+  const photoDrag = usePointerCardReorder({
+    attr: 'data-photo-id',
+    disabled,
+    onDragOver: handlePhotoDragOver,
+    onDragEnd: endPhotoDrag,
+    setDraggedId: setDraggedPhotoId
+  });
 
   // --- Works gallery: local display order + drag-to-reorder (live-shift) + marquee multi-select ---
   const [worksOrder, setWorksOrder] = useState<string[]>([]);
@@ -176,8 +260,8 @@ export function BatchWorkspace(p: {
   const worksMarqueeStart = useRef<{ x: number; y: number } | null>(null);
   const worksGridRef = useRef<HTMLDivElement>(null);
 
-  const startWorksMarquee = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget || e.button !== 0) return;
+  const startWorksMarquee = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget || (e.pointerType === 'mouse' && e.button !== 0)) return;
     const rect = worksGridRef.current!.getBoundingClientRect();
     worksMarqueeStart.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
     setWorksMarquee({ x: worksMarqueeStart.current.x, y: worksMarqueeStart.current.y, w: 0, h: 0 });
@@ -185,7 +269,7 @@ export function BatchWorkspace(p: {
   };
   useEffect(() => {
     if (!worksMarquee) return;
-    const onMove = (e: MouseEvent) => {
+    const onMove = (e: PointerEvent) => {
       const container = worksGridRef.current;
       const start = worksMarqueeStart.current;
       if (!container || !start) return;
@@ -196,9 +280,9 @@ export function BatchWorkspace(p: {
       setSelectedWorks(new Set(marqueeHitIds(container, box, 'data-work-id')));
     };
     const onUp = () => { setWorksMarquee(null); worksMarqueeStart.current = null; };
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onUp);
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
   }, [worksMarquee]);
   const handleWorkDragOver = (overId: string) => {
     if (!draggedWorkId || draggedWorkId === overId || lastWorkOverId.current === overId) return;
@@ -207,6 +291,13 @@ export function BatchWorkspace(p: {
   };
   const endWorkDrag = () => { setDraggedWorkId(null); lastWorkOverId.current = null;
   };
+  const workDrag = usePointerCardReorder({
+    attr: 'data-work-id',
+    disabled: p.busy,
+    onDragOver: handleWorkDragOver,
+    onDragEnd: endWorkDrag,
+    setDraggedId: setDraggedWorkId
+  });
   let planned = 0; let layoutError = '';
   if (source && photos.length) { try { planned = buildBatchPages(source, photos).length; } catch (e) { layoutError = (e as Error).message; } }
   const addFiles = async (files: File[]) => {
@@ -253,19 +344,18 @@ export function BatchWorkspace(p: {
             <label><span>{selectedPhotos.size} fotoğraf seçildi</span></label>
             <div><button onClick={() => setSelectedPhotos(new Set())}>Seçimi kaldır</button><button className="danger" onClick={() => { setPhotos(old => old.filter(photo => !selectedPhotos.has(photo.id))); setSelectedPhotos(new Set()); }}><Trash2 size={14}/> Sil</button></div>
           </div>}
-          <div className="production-photos" ref={photosGridRef} onMouseDown={startPhotoMarquee}>
+          <div className="production-photos" ref={photosGridRef} onPointerDown={startPhotoMarquee}>
             {photoMarquee && <div className="marquee-box" style={{ left: photoMarquee.x, top: photoMarquee.y, width: photoMarquee.w, height: photoMarquee.h }} />}
             {photos.map((photo, index) => <motion.article
               key={photo.id}
               layout
               transition={{ type: 'spring', stiffness: 500, damping: 38 }}
               data-photo-id={photo.id}
-              draggable={!disabled}
               className={[selectedPhotos.has(photo.id) && 'is-selected', draggedPhotoId === photo.id && 'is-dragging'].filter(Boolean).join(' ')}
-              onDragStart={() => setDraggedPhotoId(photo.id)}
-              onDragOver={e => { e.preventDefault(); handlePhotoDragOver(photo.id); }}
-              onDragEnd={endPhotoDrag}
-              onDrop={(e: React.DragEvent) => e.preventDefault()}
+              onPointerDown={photoDrag.onPointerDown(photo.id)}
+              onPointerMove={photoDrag.onPointerMove(photo.id)}
+              onPointerUp={photoDrag.onPointerUp(photo.id)}
+              onPointerCancel={photoDrag.onPointerCancel(photo.id)}
             >
               <label className="photo-select" onClick={e => e.stopPropagation()}>
                 <input type="checkbox" checked={selectedPhotos.has(photo.id)} onChange={() => togglePhotoSelected(photo.id)} aria-label={`${index + 1}. fotoğrafı seç`}/>
@@ -314,7 +404,7 @@ export function BatchWorkspace(p: {
         <div><button disabled={!selectedWorks.size || p.busy} onClick={() => void p.onDownloadWorks([...selectedWorks])}><Download size={14}/> İndir</button><button className="danger" disabled={!selectedWorks.size || p.busy} onClick={() => { p.onDeleteWorks([...selectedWorks]); setSelectedWorks(new Set()); }}><Trash2 size={14}/> Sil</button></div>
       </div>}
       {p.screen === 'works' ? (
-        <div className="production-gallery" ref={worksGridRef} onMouseDown={startWorksMarquee}>
+        <div className="production-gallery" ref={worksGridRef} onPointerDown={startWorksMarquee}>
           {worksMarquee && <div className="marquee-box" style={{ left: worksMarquee.x, top: worksMarquee.y, width: worksMarquee.w, height: worksMarquee.h }} />}
           {archivedWorks.map(t => <motion.article
             layout
@@ -326,11 +416,10 @@ export function BatchWorkspace(p: {
             ].filter(Boolean).join(' ')}
             key={t.id}
             data-work-id={t.id}
-            draggable={!p.busy}
-            onDragStart={() => setDraggedWorkId(t.id)}
-            onDragOver={e => { e.preventDefault(); handleWorkDragOver(t.id); }}
-            onDragEnd={endWorkDrag}
-            onDrop={(e: React.DragEvent) => e.preventDefault()}
+            onPointerDown={workDrag.onPointerDown(t.id)}
+            onPointerMove={workDrag.onPointerMove(t.id)}
+            onPointerUp={workDrag.onPointerUp(t.id)}
+            onPointerCancel={workDrag.onPointerCancel(t.id)}
           >
             <div className="production-result-preview-wrap">
               <TemplateThumbnail template={resolveExportTemplate(t, p.projects[t.id][0])} data={p.projects[t.id][0]}/>
