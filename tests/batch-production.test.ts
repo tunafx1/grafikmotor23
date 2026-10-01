@@ -22,6 +22,10 @@ test('one-photo design sequences repeat only after every design is used',()=>{
  const pages=buildBatchPages({...template,pages:[layout('first',1,'custom'),layout('second',1,'custom')]},photos(3));
  assert.deepEqual(pages.map(page=>page.templatePageId),['first','second','first']);
 });
+test('generated page names keep the layout title without duplicating the page number',()=>{
+ const pages=buildBatchPages({...template,pages:[layout('2 Fotoğraflı Kolaj',2,'2-image')]},photos(2));
+ assert.equal(pages[0].name,'2 Fotoğraflı Kolaj');
+});
 test('unused slots are hidden, static image decorations are not replaced',()=>{
  const page=layout('only',3,'cover'); page.regions.push({id:'logo',type:'image',placeholderImage:'data:image/png;base64,logo'} as any);
  const result=buildBatchPages({...template,pages:[page]},photos(2)); assert.deepEqual(result[0].hiddenElements,['image-2']); assert.equal(result[0].dynamicImages.logo,undefined);

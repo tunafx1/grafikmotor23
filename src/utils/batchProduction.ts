@@ -35,7 +35,9 @@ export function buildBatchPages(template: DesignTemplate, media: SequenceMediaIt
         ...(item.type === 'video' ? { isVideo: true, videoUrl: item.url, mediaId: item.mediaId, duration: item.duration } : {}) };
       cursor++;
     }
-    pages.push({ id: `batch-page-${pages.length}`, name: `${pages.length + 1}. ${layout.name || 'Sayfa'}`, templatePageId: layout.id,
+    // The filmstrip already shows the page number. Keeping it out of the page
+    // name prevents labels such as "Sayfa 1 / 1. 2 Fotoğraflı Kolaj".
+    pages.push({ id: `batch-page-${pages.length}`, name: layout.name || 'Tasarım', templatePageId: layout.id,
       regions: structuredClone(layout.regions), fixedElements: structuredClone(layout.fixedElements || []),
       backgroundImageUrl: layout.backgroundImageUrl || template.backgroundImageUrl,
       dynamicImages: images, dynamicTexts: Object.fromEntries(layout.regions.filter(r => r.type === 'text').map(r => [r.id, r.placeholderText || ''])), hiddenElements: hidden });

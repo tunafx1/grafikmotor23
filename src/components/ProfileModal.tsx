@@ -97,7 +97,7 @@ export function ProfileModal({ isOpen, onClose, user, onLogout, onUserUpdated }:
           exit={{ opacity: 0, scale: 0.95, y: 8 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           style={{
-            maxWidth: '480px',
+            maxWidth: '540px',
             width: '92%',
             backgroundColor: '#1E1E20',
             color: '#FFFFFF',

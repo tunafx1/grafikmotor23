@@ -26,7 +26,7 @@
 #graphics-engine-app .workspace-brand { font-size: 17px; }
 #graphics-engine-app .workspace-brand small { color: #777a86; letter-spacing: 1.45px; }
 #graphics-engine-app .workspace-breadcrumb { gap: 6px; }
-#graphics-engine-app .workspace-title-btn { max-width: 220px; color: var(--studio-text); }
+#graphics-engine-app .workspace-title-btn { max-width: min(360px, 24vw); color: var(--studio-text); }
 #graphics-engine-app .workspace-header-actions { gap: 5px; }
 #graphics-engine-app .workspace-button,
 #graphics-engine-app .workspace-icon-button {

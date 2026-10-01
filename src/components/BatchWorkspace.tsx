@@ -177,6 +177,7 @@ export function BatchWorkspace(p: {
   const [dragging, setDragging] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [selectedWorks, setSelectedWorks] = useState<Set<string>>(new Set());
+  const [workQuery, setWorkQuery] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const loadingRef = useRef(false);
   const sourceTemplates = p.templates.filter(t => !t.sourceTemplateId);
@@ -254,6 +255,10 @@ export function BatchWorkspace(p: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [archivedWorksUnordered.map(w => w.id).join(',')]);
   const archivedWorks = worksOrder.map(id => archivedWorksUnordered.find(w => w.id === id)).filter((w): w is DesignTemplate => !!w);
+  const normalizedWorkQuery = workQuery.trim().toLocaleLowerCase('tr');
+  const visibleWorks = normalizedWorkQuery
+    ? archivedWorks.filter(work => work.name.toLocaleLowerCase('tr').includes(normalizedWorkQuery))
+    : archivedWorks;
   const [draggedWorkId, setDraggedWorkId] = useState<string | null>(null);
   const lastWorkOverId = useRef<string | null>(null);
   const [worksMarquee, setWorksMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
@@ -370,7 +375,7 @@ export function BatchWorkspace(p: {
         <div className="production-settings">
           <section className="production-card production-template-card"><h2><span>2</span> Şablon</h2>
             {source ? <><label htmlFor="production-template">Kullanılacak şablon</label><select id="production-template" disabled={disabled} value={source.id} onChange={e => p.onSelectTemplate(e.target.value)}>{sourceTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-            <div className="production-template-preview"><TemplateThumbnail template={source}/><div><strong>{source.name}</strong><p>{source.width} × {source.height} px</p><small>Fotoğraflar şablonun kapak ve kolaj alanlarına yerleştirilir.</small></div></div></> : <button onClick={p.onNewTemplate}>Şablon oluştur</button>}
+            <div className="production-template-preview"><TemplateThumbnail template={source}/><div><strong>{source.name}</strong><p>{source.width} × {source.height} px</p><small>Fotoğraflar, şablonun sayfa ve görsel alanı sırasına göre yerleştirilir.</small></div></div></> : <button onClick={p.onNewTemplate}>Şablon oluştur</button>}
           </section>
           <section className="production-card production-brief-card"><h2><span>3</span> İçerik komutu</h2><label htmlFor="production-brief">Bu fotoğraflarla ne anlatalım?</label><textarea id="production-brief" disabled={disabled} value={brief} maxLength={3000} onChange={e => setBrief(e.target.value)} placeholder="Örnek: Okulumuzun yıl sonu etkinliği için samimi bir başlık ve kısa açıklama oluştur." rows={5}/>
             <p className="production-hint">{source?.aiSystemPrompt ? 'Şablonun marka dili kullanılacak.' : 'Komutun, şablonun metin alanlarına uygulanacak.'} Fotoğraflarının yerine yeni görsel üretilmez.</p>
@@ -399,14 +404,17 @@ export function BatchWorkspace(p: {
       <button className="production-link" disabled={p.busy} onClick={() => p.onScreen('create')}>{pages.length ? 'Üretim ayarlarına dön' : 'Toplu oluşturmaya başla'}</button>
     </div>}
     {(p.screen === 'works' || p.screen === 'templates') && <div className="production-container"><div className="production-heading production-heading-row"><div><span className="production-eyebrow">{p.screen === 'works' ? 'ARŞİV' : 'ŞABLON KÜTÜPHANESİ'}</span><h1>{p.screen === 'works' ? 'Çalışmalarım' : 'Şablonlarım'}</h1><p>{p.screen === 'works' ? 'Önceki üretimlerini aç ve kaldığın yerden devam et.' : 'Bir şablon seç veya kendi düzenini hazırla.'}</p></div><button className="production-primary" onClick={p.screen === 'works' ? () => p.onScreen('create') : p.onNewTemplate}><Plus size={18}/>{p.screen === 'works' ? 'Yeni üretim' : 'Yeni şablon'}</button></div>
-      {p.screen === 'works' && archivedWorks.length > 0 && <div className="archive-selection-bar">
+      {p.screen === 'works' && archivedWorks.length > 0 && <div className="archive-controls">
+        <label className="archive-search"><span>Çalışma ara</span><input value={workQuery} onChange={event => setWorkQuery(event.target.value)} placeholder="İsimle ara…" aria-label="Çalışmalarımda ara" /></label>
+        <div className="archive-selection-bar">
         <label><input type="checkbox" checked={selectedWorks.size === archivedWorks.length} onChange={() => setSelectedWorks(selectedWorks.size === archivedWorks.length ? new Set() : new Set(archivedWorks.map(work => work.id)))}/><span>{selectedWorks.size ? `${selectedWorks.size} çalışma seçildi` : 'Tümünü seç'}</span></label>
         <div><button disabled={!selectedWorks.size || p.busy} onClick={() => void p.onDownloadWorks([...selectedWorks])}><Download size={14}/> İndir</button><button className="danger" disabled={!selectedWorks.size || p.busy} onClick={() => { p.onDeleteWorks([...selectedWorks]); setSelectedWorks(new Set()); }}><Trash2 size={14}/> Sil</button></div>
+        </div>
       </div>}
       {p.screen === 'works' ? (
         <div className="production-gallery" ref={worksGridRef} onPointerDown={startWorksMarquee}>
           {worksMarquee && <div className="marquee-box" style={{ left: worksMarquee.x, top: worksMarquee.y, width: worksMarquee.w, height: worksMarquee.h }} />}
-          {archivedWorks.map(t => <motion.article
+          {visibleWorks.map(t => <motion.article
             layout
             transition={{ type: 'spring', stiffness: 500, damping: 38 }}
             className={[
@@ -431,7 +439,7 @@ export function BatchWorkspace(p: {
           </motion.article>)}
         </div>
       ) : (
-        <div className="production-gallery">{p.templates.filter(t => !t.sourceTemplateId).map(t => <article className="production-result" key={t.id}>
+        <div className="production-gallery production-template-gallery">{p.templates.filter(t => !t.sourceTemplateId).map(t => <article className="production-result" key={t.id}>
           <div className="production-result-preview-wrap">
             <TemplateThumbnail template={t}/>
           </div>
@@ -439,6 +447,7 @@ export function BatchWorkspace(p: {
           <div className="production-result-actions"><button className="production-card-primary" onClick={() => { p.onSelectTemplate(t.id); p.onScreen('create'); }}>Bu şablonla oluştur</button><button className="production-card-secondary" onClick={() => p.onEditTemplate(t.id)}>Düzenle</button><button className="production-card-delete" disabled={sourceTemplates.length <= 1} onClick={() => p.onDeleteTemplate(t.id)} aria-label={`${t.name} şablonunu sil`} title={sourceTemplates.length <= 1 ? 'Son şablon silinemez' : 'Şablonu sil'}><Trash2 size={14}/></button></div>
         </article>)}</div>
       )}
+      {p.screen === 'works' && normalizedWorkQuery && visibleWorks.length === 0 && <div className="production-empty"><FolderOpen size={36}/><h2>Çalışma bulunamadı.</h2><p>Farklı bir isimle tekrar arayabilirsin.</p></div>}
       {p.screen === 'works' && archivedWorks.length > 0 && <p className="selection-drag-hint">İpucu: kartları sürükleyerek sırasını değiştirebilir, boş alana tıklayıp sürükleyerek birden fazla çalışma seçebilirsin.</p>}
       {p.screen === 'works' && !Object.values(p.projects).some(pages => pages.length) && <div className="production-empty"><Images size={36}/><h2>İlk üretimin için hazırsın.</h2><p>Fotoğraflarını ve komutunu ekle; tasarımlarını birlikte hazırlayalım.</p><button className="production-primary" onClick={() => p.onScreen('create')}>Toplu oluştur</button></div>}
       {p.screen === 'templates' && sourceTemplates.length === 0 && <div className="production-empty"><LayoutTemplate size={36}/><h2>Henüz bir şablonun yok.</h2><p>İlk şablonunu oluşturarak kendi tasarım düzenini hazırla.</p><button className="production-primary" onClick={p.onNewTemplate}>Şablon oluştur</button></div>}

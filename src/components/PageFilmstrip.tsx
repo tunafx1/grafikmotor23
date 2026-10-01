@@ -1,6 +1,16 @@
 import React from 'react';
 import { Plus, Copy, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 
+/** Page numbers are already shown in the chip metadata. Strip legacy prefixes
+ * so imported names such as "2. 2. Sayfa" do not render twice. */
+function pageDisplayTitle(name: unknown, index: number) {
+  const cleaned = typeof name === 'string'
+    ? name.trim().replace(/^(?:(?:sayfa\s*)?\d+\s*[.:/-]\s*)+/iu, '').trim()
+    : '';
+  if (!cleaned || /^sayfa$/iu.test(cleaned)) return index === 0 ? 'Kapak' : 'Tasarım';
+  return cleaned;
+}
+
 interface PageFilmstripProps {
   pages: any[];
   activePageIndex: number;
@@ -156,7 +166,7 @@ export function PageFilmstrip({
       >
         {pages.map((page, idx) => {
           const isActive = idx === activePageIndex;
-          const pageTitle = page.name || (idx === 0 ? 'Kapak' : `${idx + 1}. Sayfa`);
+          const pageTitle = pageDisplayTitle(page.name, idx);
 
           return (
             <div
