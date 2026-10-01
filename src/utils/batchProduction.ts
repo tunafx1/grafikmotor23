@@ -7,6 +7,15 @@ export const isStaticImageLayer = (r: Region) => r.type === 'image' && !!r.place
 
 const frames = (page: TemplatePage) => page.regions.filter(r => r.type === 'image' && r.isDynamic !== false && !r.hidden && !isStaticImageLayer(r));
 
+/**
+ * A template can contain several distinct full-page designs, each with one
+ * replaceable image. Those pages are a sequence, not interchangeable
+ * single-image layout options: photo 1 belongs to page 1, photo 2 to page 2,
+ * then the sequence repeats only when there are more uploads than designs.
+ */
+const isSequentialSingleImageTemplate = (layouts: TemplatePage[]) =>
+  layouts.length > 1 && layouts.every(layout => frames(layout).length === 1);
+
 /** Consume every selected photo exactly once, respecting actual frame capacity. */
 export function buildBatchPages(template: DesignTemplate, media: SequenceMediaItem[]) {
   if (!media.length) throw new Error('Önce fotoğraflarınızı ekleyin.');
@@ -14,14 +23,8 @@ export function buildBatchPages(template: DesignTemplate, media: SequenceMediaIt
   if (!layouts.length) throw new Error('Bu şablonda fotoğraf yerleştirilecek alan yok. Başka bir şablon seçin.');
   const pages: any[] = [];
   let cursor = 0;
-  while (cursor < media.length) {
-    const remaining = media.length - cursor;
-    const cover = layouts.find(p => p.pageRole === 'cover');
-    const candidates = layouts.filter(p => p !== cover);
-    const options = candidates.length ? candidates : layouts;
-    const layout = cursor === 0 ? cover || layouts[0] :
-      [...options].filter(p => frames(p).length <= remaining).sort((a, b) => frames(b).length - frames(a).length)[0] ||
-      [...options].sort((a, b) => frames(a).length - frames(b).length)[0];
+
+  const addPage = (layout: TemplatePage) => {
     const slots = frames(layout);
     const images: Record<string, any> = {};
     const hidden: string[] = [];
@@ -36,6 +39,30 @@ export function buildBatchPages(template: DesignTemplate, media: SequenceMediaIt
       regions: structuredClone(layout.regions), fixedElements: structuredClone(layout.fixedElements || []),
       backgroundImageUrl: layout.backgroundImageUrl || template.backgroundImageUrl,
       dynamicImages: images, dynamicTexts: Object.fromEntries(layout.regions.filter(r => r.type === 'text').map(r => [r.id, r.placeholderText || ''])), hiddenElements: hidden });
+  };
+
+  // Do not send every upload through the first design when the template is a
+  // series of one-photo designs. This is what lets a two-page template show
+  // photo 1 on page 1 and photo 2 on page 2.
+  if (isSequentialSingleImageTemplate(layouts)) {
+    while (cursor < media.length) {
+      for (const layout of layouts) {
+        if (cursor >= media.length) break;
+        addPage(layout);
+      }
+    }
+    return pages;
+  }
+
+  while (cursor < media.length) {
+    const remaining = media.length - cursor;
+    const cover = layouts.find(p => p.pageRole === 'cover');
+    const candidates = layouts.filter(p => p !== cover);
+    const options = candidates.length ? candidates : layouts;
+    const layout = cursor === 0 ? cover || layouts[0] :
+      [...options].filter(p => frames(p).length <= remaining).sort((a, b) => frames(b).length - frames(a).length)[0] ||
+      [...options].sort((a, b) => frames(a).length - frames(b).length)[0];
+    addPage(layout);
   }
   return pages;
 }

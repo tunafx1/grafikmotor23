@@ -11,6 +11,17 @@ test('12 photos populate cover and collages in order without dropping or repeati
  pages[0].regions[0].name='Changed'; assert.equal(template.pages![0].regions[0].name,'Başlık');
 });
 test('single-frame fallback consumes every photo',()=>{ const pages=buildBatchPages({...template,pages:[layout('only',1,'cover')]},photos(5));assert.equal(pages.length,5); });
+test('distinct one-photo template pages receive uploads in page order',()=>{
+ const first=layout('first-design',1,'custom');
+ const second=layout('second-design',1,'custom');
+ const pages=buildBatchPages({...template,pages:[first,second]},photos(2));
+ assert.deepEqual(pages.map(page=>page.templatePageId),['first-design','second-design']);
+ assert.deepEqual(pages.map(page=>page.dynamicImages['image-0'].url),['photo-0','photo-1']);
+});
+test('one-photo design sequences repeat only after every design is used',()=>{
+ const pages=buildBatchPages({...template,pages:[layout('first',1,'custom'),layout('second',1,'custom')]},photos(3));
+ assert.deepEqual(pages.map(page=>page.templatePageId),['first','second','first']);
+});
 test('unused slots are hidden, static image decorations are not replaced',()=>{
  const page=layout('only',3,'cover'); page.regions.push({id:'logo',type:'image',placeholderImage:'data:image/png;base64,logo'} as any);
  const result=buildBatchPages({...template,pages:[page]},photos(2)); assert.deepEqual(result[0].hiddenElements,['image-2']); assert.equal(result[0].dynamicImages.logo,undefined);

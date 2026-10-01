@@ -365,7 +365,7 @@ export function BatchWorkspace(p: {
               <div><button disabled={disabled || index === 0} aria-label={`${index + 1}. fotoğrafı önceye taşı`} onClick={() => move(index, -1)}><ArrowLeft size={14}/></button><span>{photo.originalName}</span><button disabled={disabled || index === photos.length - 1} aria-label={`${index + 1}. fotoğrafı sonraya taşı`} onClick={() => move(index, 1)}><ArrowRight size={14}/></button></div>
             </motion.article>)}
           </div>
-          {!!photos.length && <p className="production-hint">Fotoğrafları sürükleyerek sırasını değiştirebilir, boş alana tıklayıp sürükleyerek birden fazla fotoğraf seçebilirsin. İlk fotoğraflar kapakta kullanılır.</p>}
+          {!!photos.length && <p className="production-hint">Fotoğrafları sürükleyerek sırasını değiştirebilir, boş alana tıklayıp sürükleyerek birden fazla fotoğraf seçebilirsin. Birer görsel alanlı çok sayfalı şablonlarda fotoğraflar sayfa sırasıyla yerleştirilir.</p>}
         </section>
         <div className="production-settings">
           <section className="production-card production-template-card"><h2><span>2</span> Şablon</h2>
