@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="tr">
+<html lang="tr" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -20,13 +20,15 @@
     
     <!-- PWA & Apple Web App Settings -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <meta name="apple-mobile-web-app-title" content="Grafik Motoru" />
-    <meta name="theme-color" content="#1D1D1F" />
+    <meta name="theme-color" content="#0F1014" />
     
     <!-- Icons & Manifest -->
-    <link rel="icon" type="image/png" href="/grafik_motoru_icon_512.png" />
-    <link rel="apple-touch-icon" href="/grafik_motoru_icon_512.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -42,7 +44,7 @@
         opacity: 0; visibility: hidden; pointer-events: none;
       }
       .loader-logo {
-        width: 54px; height: 54px; background: #FF6B1A; border-radius: 16px; display: flex; justify-content: center; align-items: center; color: white; font-weight: 800; box-shadow: 0 8px 30px rgba(255, 107, 26, 0.35); margin-bottom: 24px; border: 1px solid rgba(255, 255, 255, 0.15);
+        width: 54px; height: 54px; margin-bottom: 24px; filter: drop-shadow(0 8px 24px rgba(255, 107, 26, 0.35));
       }
       .loader-bar-container {
         width: 140px; height: 3px; background-color: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; position: relative; margin-bottom: 12px;
@@ -63,9 +65,7 @@
       @keyframes ds-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
     </style>
     <div id="native-loader">
-      <div class="loader-logo">
-        <img src="/grafik_motoru_icon_512.png" alt="Grafik Motoru" style="width: 34px; height: 34px; object-fit: contain;" />
-      </div>
+      <img class="loader-logo" src="/brand/mark.svg" alt="Grafik Motoru" />
       <div class="loader-bar-container"><div class="loader-bar-progress"></div></div>
       <div class="loader-text">Grafik Motoru hazırlanıyor...</div>
       <button class="loader-retry" type="button" onclick="window.location.reload()">Yeniden dene</button>
