@@ -89,13 +89,16 @@ export function createTextGenerationHandler(options: {hasKey: () => boolean; gen
       return res.json({success:true, texts});
     } catch (error: any) {
       const message = String(error?.message || error);
+      console.error('generate-text failed:', error?.status, message.slice(0, 500));
       const quota = /429|quota|Resource has been exhausted/i.test(message);
       const auth = /401|403|API.key|API_KEY_INVALID/i.test(message);
+      const model = error?.status === 404 || /404|NOT_FOUND|is not found|not supported for generateContent/i.test(message);
       const incomplete = /metin alanı eksik|metin alanları eksik|geçerli bir metin/i.test(message);
       return res.status(quota ? 429 : 502).json({success:false,
-        reason:quota ? 'quota_exceeded' : auth ? 'invalid_api_key' : 'generation_failed',
+        reason:quota ? 'quota_exceeded' : auth ? 'invalid_api_key' : model ? 'model_not_found' : 'generation_failed',
         error:quota ? 'Gemini kullanım kotası dolu. Daha sonra tekrar deneyin; metinleriniz korundu.' :
           auth ? 'Gemini anahtarı geçersiz veya bu modele erişim izni yok. Sunucu ayarlarını kontrol edin.' :
+          model ? 'Sunucudaki Gemini model adı bulunamadı. GEMINI_MODEL / GEMINI_FALLBACK_MODEL ayarını kontrol edin; mevcut metin korundu.' :
           incomplete ? 'AI bazı metin kutularını boş bıraktı. Eksik alanlar otomatik olarak üç kez denendi; mevcut metinler korundu.' :
           'AI metni oluşturamadı. Bağlantıyı ve model ayarını kontrol edip tekrar deneyin; mevcut metin korundu.'});
     }
