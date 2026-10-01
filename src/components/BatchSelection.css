@@ -17,4 +17,4 @@
 .production-result.is-dragging{opacity:.4;cursor:grabbing}
 .production-result.is-drop-target{box-shadow:0 0 0 2px #ff9861,0 10px 24px #0007;transform:scale(1.015)}
 
-.selection-drag-hint{font-size:10px;color:#77798a;margin:-14px 0 18px}
+.selection-drag-hint{font-size:10px;color:#77798a;margin:12px 0 18px}

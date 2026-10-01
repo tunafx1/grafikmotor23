@@ -22,7 +22,7 @@
 }
 
 #graphics-engine-app .workspace-header[data-mode="library"] .workspace-brand { margin-right: auto; }
-#graphics-engine-app .workspace-mark { width: 34px; height: 34px; border-radius: 10px; box-shadow: none; }
+#graphics-engine-app .workspace-mark { width: 34px; height: 34px; }
 #graphics-engine-app .workspace-brand { font-size: 17px; }
 #graphics-engine-app .workspace-brand small { color: #777a86; letter-spacing: 1.45px; }
 #graphics-engine-app .workspace-breadcrumb { gap: 6px; }
@@ -193,14 +193,6 @@
   .todo-touch-reveal { opacity: 1 !important; }
   .todo-checkbox { width: 20px; height: 20px; }
   .todo-icon-btn { width: 30px; height: 30px; }
-}
-
-@media (max-width: 480px) {
-  /* Guarantee every header action (including the primary İndir button) stays reachable
-     instead of being silently clipped when the icons no longer fit in one row. */
-  #graphics-engine-app .workspace-header-actions { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; }
-  #graphics-engine-app .workspace-header-actions::-webkit-scrollbar { display: none; }
-  #graphics-engine-app .workspace-header-actions > * { flex-shrink: 0; }
 }
 
 @media (max-width: 640px) {

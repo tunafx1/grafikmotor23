@@ -1,3 +1,4 @@
+import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { BatchWorkspace, ProductionNavigation, type WorkspaceScreen } from './components/BatchWorkspace';
 import { buildBatchPages, generateBatchTexts, isStaticImageLayer } from './utils/batchProduction';
 import { describeGoogleLoginError } from './lib/authErrors';
@@ -10,7 +11,6 @@ const AuthPortal = lazy(() => import('./components/AuthPortal').then(m => ({ def
 import { createExportAsset, safeFileName } from './utils/exportAssets';
 import { findTopmostUnlockedElement } from './utils/canvasHitTest';
 import { storeVideo, getVideoUrl, replaceVideoUrls } from './lib/mediaStore';
-import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Layout,
@@ -93,6 +93,7 @@ import { useProjectPages } from './hooks/useProjectPages';
 import { storage } from './lib/storage';
 import './workspace.css';
 import './workspace-refined.css';
+import './mobile.css';
 import { CanvasVideoOverlay } from './components/CanvasVideoOverlay';
 import { LeftToolDrawer, ToolDrawerTab } from './components/LeftToolDrawer';
 import { RightInspectorPanel } from './components/RightInspectorPanel';
@@ -682,20 +683,11 @@ export function getMappedTextsForPage(
 
 
 export default function App() {
-  // --- DARK MODE STATE ---
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    return storage.getItem('theme') === 'dark';
-  });
-
+  // Uygulama yalnızca koyu temada çalışır (index.html'de <html class="dark">).
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-      storage.setItem('theme', 'dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-      storage.setItem('theme', 'light');
-    }
-  }, [isDarkMode]);
+    document.documentElement.classList.add('dark');
+    storage.removeItem('theme');
+  }, []);
 
   // --- STATE MANAGEMENT ---
   const [templates, setTemplatesState] = useState<DesignTemplate[]>(() => {
@@ -4778,9 +4770,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-[#1D1D1F] flex flex-col items-center justify-center relative overflow-hidden font-sans">
         <div className="flex flex-col items-center z-10">
-          <div className="w-12 h-12 rounded-[14px] bg-[#1d1d1f] flex items-center justify-center text-[rgba(255,255,255,0.95)] font-extrabold text-2xl shadow-[0_4px_20px_rgba(0,0,0,0.08)] mb-6">
-            G
-          </div>
+          <img src="/brand/mark.svg" alt="Grafik Motoru" className="w-12 h-12 mb-6" />
           <div className="w-[140px] h-[3px] bg-black/5 rounded-full overflow-hidden relative mb-3">
             <div className="absolute left-0 top-0 bottom-0 w-[30%] bg-[#1d1d1f] rounded-full animate-[loading-bar_1.8s_infinite_ease-in-out]" style={{ animation: 'loading-bar 1.8s infinite ease-in-out' }} />
           </div>
@@ -4851,10 +4841,9 @@ export default function App() {
   }
 
   return (
-    <div id="graphics-engine-app" data-export-open={exportPanelOpen} data-workspace-screen={workspaceScreen} className="h-[100dvh] bg-[#1D1D1F] dark:bg-[#1D1D1F] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-sans flex flex-col selection:bg-[#FF6B1A] selection:text-[rgba(255,255,255,0.95)] overflow-hidden relative transition-colors duration-300">
+    <div id="graphics-engine-app" data-export-open={exportPanelOpen} data-workspace-screen={workspaceScreen} data-template-editing={templateEditing} className="h-[100dvh] bg-[#1D1D1F] dark:bg-[#1D1D1F] text-[rgba(255,255,255,0.95)] dark:text-[rgba(255,255,255,0.95)] font-sans flex flex-col selection:bg-[#FF6B1A] selection:text-[rgba(255,255,255,0.95)] overflow-hidden relative transition-colors duration-300">
       <WorkspaceHeader
         templateName={currentTemplate.name}
-        isDark={isDarkMode} onTheme={() => setIsDarkMode(v => !v)}
         userName={user && !user.isAnonymous ? user.displayName || 'Hesabım' : null}
         user={user}
         cloudStatus={cloudStatus} isCloudSynced={isCloudSynced}
@@ -5219,7 +5208,7 @@ export default function App() {
             </div>
 
             {/* Floating Zoom & Pan Controls */}
-            <div className="absolute bottom-4 right-4 sm:bottom-6 sm:right-6 bg-[#252528]/95 backdrop-blur border border-[rgba(255,255,255,0.1)] shadow-2xl rounded-full p-1.5 flex items-center space-x-1 z-20">
+            <div className="workspace-canvas-zoom absolute bottom-4 right-4 sm:bottom-6 sm:right-6 bg-[#252528]/95 backdrop-blur border border-[rgba(255,255,255,0.1)] shadow-2xl rounded-full p-1.5 flex items-center space-x-1 z-20">
               <button
                 type="button"
                 onClick={() => {

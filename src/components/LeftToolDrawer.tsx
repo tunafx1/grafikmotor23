@@ -294,7 +294,7 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
   const selectedAiRegion = aiTextRegions.find(region => region.id === selectedAiRegionId) || aiTextRegions[0];
 
   return (
-    <div className="flex z-20 shrink-0 select-none">
+    <div className="workspace-tools flex z-20 shrink-0 select-none">
       {/* Daily editor tools: keep the reusable template catalog outside the canvas. */}
       <nav 
         className="workspace-tool-rail w-14 bg-[#1D1D1F] border-r border-[rgba(255,255,255,0.08)] flex flex-col items-center py-3 space-y-2 shrink-0 z-20"

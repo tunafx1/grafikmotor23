@@ -1,0 +1,140 @@
+/* ═══════════════════════════════════════════════════════════
+   Uygulama içi mobil düzen.
+   workspace.css ve workspace-refined.css'ten sonra yüklenir;
+   masaüstü görünümüne dokunmaz.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ─── Header "⋯" menu (only shown on phones in the editor) ─── */
+.ws-more-btn { display: none; }
+.ws-more-dot {
+  position: absolute;
+  top: 9px;
+  right: 9px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #FF6B1A;
+}
+.ws-more-backdrop { position: fixed; inset: 0; z-index: 90; }
+.ws-more-menu {
+  position: fixed;
+  z-index: 91;
+  top: 62px;
+  right: 10px;
+  min-width: 220px;
+  padding: 6px;
+  border-radius: 14px;
+  background: #1e1f25;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.55);
+  display: flex;
+  flex-direction: column;
+}
+.ws-more-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 46px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #e7e8ec;
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.ws-more-menu button:hover:not(:disabled),
+.ws-more-menu button:active:not(:disabled) { background: rgba(255, 255, 255, 0.06); }
+.ws-more-menu button:disabled { opacity: 0.4; }
+.ws-more-menu button svg { color: #9295a2; flex-shrink: 0; }
+.ws-more-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #FF6B1A;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+@media (min-width: 641px) {
+  .ws-more-backdrop, .ws-more-menu { display: none; }
+}
+
+@media (max-width: 640px) {
+  #graphics-engine-app .workspace-header[data-mode="editor"] .ws-collapse { display: none !important; }
+  #graphics-engine-app .workspace-header[data-mode="editor"] .ws-more-btn { display: inline-flex; }
+  #graphics-engine-app .workspace-header[data-mode="editor"] .workspace-header-actions { margin-left: auto; }
+  #graphics-engine-app .workspace-header[data-mode="editor"] .ws-save-btn span { display: none; }
+}
+
+/* ─── Editor on phones ─── */
+@media (max-width: 767px) {
+  /* While editing a template the tool rail becomes the bottom tab bar,
+     so the generic Araçlar/Önizleme/İndir bar would only duplicate it. */
+  #graphics-engine-app[data-template-editing="true"] #mobile-nav-bar { display: none !important; }
+  #graphics-engine-app[data-template-editing="true"] main {
+    padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Lift the rail+drawer wrapper above the canvas controls. */
+  #graphics-engine-app .workspace-tools { z-index: 60; }
+
+  #graphics-engine-app .workspace-tool-rail {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    flex-direction: row;
+    justify-content: space-around;
+    align-items: center;
+    padding: 0 6px env(safe-area-inset-bottom, 0px);
+    border-right: 0;
+    border-top: 1px solid var(--studio-border);
+    background: #15161a;
+  }
+  #graphics-engine-app .workspace-tool-rail > * { margin: 0 !important; }
+  #graphics-engine-app .workspace-tool-rail button {
+    flex: 1;
+    max-width: 76px;
+    width: auto;
+    height: 50px;
+    gap: 2px;
+  }
+  #graphics-engine-app .workspace-tool-rail button span { font-size: 10px; }
+
+  /* Tool panels open as a bottom sheet so the canvas stays visible above. */
+  #graphics-engine-app .workspace-tool-drawer,
+  #graphics-engine-app[data-workspace-screen="editor"] main .workspace-tool-drawer {
+    position: fixed;
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+    width: 100%;
+    height: min(56vh, 520px);
+    max-width: none;
+    border-right: 0;
+    border-top: 1px solid var(--studio-border);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Smaller zoom pill tucked in the corner. */
+  #graphics-engine-app .workspace-canvas-zoom {
+    right: 10px;
+    bottom: 10px;
+    padding: 3px;
+  }
+  #graphics-engine-app .workspace-canvas-zoom > span { min-width: 38px; font-size: 10px; }
+  #graphics-engine-app .workspace-canvas-zoom button { padding: 5px; }
+
+  /* "Şablon düzenleniyor" hint is noise on a phone; keep back button + name. */
+  #graphics-engine-app .production-editor-actions { padding: 6px 12px; }
+}

@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { User as FirebaseUser } from 'firebase/auth';
-import { ChevronRight, Download, Moon, Sun, Wrench, CloudUpload, LogIn, Loader2, HardDrive, Pencil, Undo2, Redo2, Sparkles, ListChecks } from 'lucide-react';
+import { ChevronRight, Download, Wrench, CloudUpload, LogIn, Loader2, HardDrive, Pencil, Undo2, Redo2, Sparkles, ListChecks, MoreHorizontal } from 'lucide-react';
 import { ProfileModal } from './ProfileModal';
 import { TodoPanel } from './TodoPanel';
 import { useTodos } from '../hooks/useTodos';
 
 type Props = {
-  templateName: string; isDark: boolean; onTheme: () => void;
+  templateName: string;
   isSigningIn?: boolean; userName: string | null; user?: FirebaseUser | null; cloudStatus: string; isCloudSynced: boolean;
   onLogin: () => void; onLogout: () => void; onSave: () => void;
   onTools?: () => void; onExport: () => void; exportPanelOpen?: boolean;
@@ -27,6 +27,7 @@ export function WorkspaceHeader(p: Props) {
   const [tempName, setTempName] = useState(p.templateName);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isTodoOpen, setIsTodoOpen] = useState(false);
+  const [isMoreOpen, setIsMoreOpen] = useState(false);
   const todos = useTodos();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -40,6 +41,13 @@ export function WorkspaceHeader(p: Props) {
       inputRef.current?.select();
     }
   }, [isEditing]);
+
+  useEffect(() => {
+    if (!isMoreOpen) return;
+    const close = (e: KeyboardEvent) => { if (e.key === 'Escape') setIsMoreOpen(false); };
+    window.addEventListener('keydown', close);
+    return () => window.removeEventListener('keydown', close);
+  }, [isMoreOpen]);
 
   const handleCommit = () => {
     setIsEditing(false);
@@ -59,7 +67,7 @@ export function WorkspaceHeader(p: Props) {
       <header id="app-header" className="workspace-header" data-mode={p.editorMode ? 'editor' : 'library'}>
         <div className="workspace-brand">
           <div className="workspace-mark">
-            <img src="/grafik_motoru_icon_512.png" alt="Grafik Motoru" className="workspace-logo-img" />
+            <img src="/brand/mark.svg" alt="Grafik Motoru" className="workspace-logo-img" />
           </div>
           <span>grafik<span className="brand-light">motoru</span><small>TASARIM STÜDYOSU</small></span>
         </div>
@@ -109,7 +117,7 @@ export function WorkspaceHeader(p: Props) {
           <button
             type="button"
             onClick={p.onOpenBatch}
-            className="workspace-button"
+            className="workspace-button ws-collapse"
             title="Fotoğrafları, şablonu ve üretim komutunu değiştir"
           >
             <Sparkles size={14} />
@@ -134,7 +142,7 @@ export function WorkspaceHeader(p: Props) {
           {p.editorMode && p.onRedo && (
             <button
               type="button"
-              className="workspace-icon-button disabled:opacity-30"
+              className="workspace-icon-button ws-collapse disabled:opacity-30"
               onClick={p.onRedo}
               disabled={!p.canRedo}
               title="İleri Al (Cmd/Ctrl + Y)"
@@ -177,14 +185,14 @@ export function WorkspaceHeader(p: Props) {
           )}
 
           {p.editorMode && p.onTools && (
-            <button className="workspace-icon-button" onClick={p.onTools} title="Medya araçları" aria-label="Medya araçları">
+            <button className="workspace-icon-button ws-collapse" onClick={p.onTools} title="Medya araçları" aria-label="Medya araçları">
               <Wrench size={16}/>
             </button>
           )}
 
           <button
             type="button"
-            className="workspace-icon-button relative"
+            className="workspace-icon-button ws-collapse relative"
             onClick={() => setIsTodoOpen(v => !v)}
             title="Yapılacaklar"
             aria-label="Yapılacaklar"
@@ -197,9 +205,20 @@ export function WorkspaceHeader(p: Props) {
             )}
           </button>
 
-          <button className="workspace-icon-button" onClick={p.onTheme} title={p.isDark ? 'Açık temaya geç' : 'Koyu temaya geç'} aria-label={p.isDark ? 'Açık temaya geç' : 'Koyu temaya geç'}>
-            {p.isDark ? <Sun size={16}/> : <Moon size={16}/>}
-          </button>
+          {/* Mobile editor: secondary actions collapse into one menu */}
+          {p.editorMode && (
+            <button
+              type="button"
+              className="workspace-icon-button ws-more-btn relative"
+              onClick={() => setIsMoreOpen(v => !v)}
+              aria-label="Diğer işlemler"
+              aria-expanded={isMoreOpen}
+              title="Diğer işlemler"
+            >
+              <MoreHorizontal size={18}/>
+              {todos.pendingCount > 0 && <span className="ws-more-dot" />}
+            </button>
+          )}
 
           {/* Profile Avatar Button if logged in, or Login button if guest */}
           {activeUser ? (
@@ -247,6 +266,33 @@ export function WorkspaceHeader(p: Props) {
           </button>}
         </div>
       </header>
+
+      {isMoreOpen && (
+        <>
+          <div className="ws-more-backdrop" onClick={() => setIsMoreOpen(false)} />
+          <div className="ws-more-menu" role="menu">
+            {p.onOpenBatch && (
+              <button type="button" role="menuitem" onClick={() => { setIsMoreOpen(false); p.onOpenBatch?.(); }}>
+                <Sparkles size={16}/> Üretim ayarları
+              </button>
+            )}
+            {p.onRedo && (
+              <button type="button" role="menuitem" disabled={!p.canRedo} onClick={() => { setIsMoreOpen(false); p.onRedo?.(); }}>
+                <Redo2 size={16}/> İleri al
+              </button>
+            )}
+            {p.onTools && (
+              <button type="button" role="menuitem" onClick={() => { setIsMoreOpen(false); p.onTools?.(); }}>
+                <Wrench size={16}/> Medya araçları
+              </button>
+            )}
+            <button type="button" role="menuitem" onClick={() => { setIsMoreOpen(false); setIsTodoOpen(true); }}>
+              <ListChecks size={16}/> Yapılacaklar
+              {todos.pendingCount > 0 && <span className="ws-more-count">{todos.pendingCount > 9 ? '9+' : todos.pendingCount}</span>}
+            </button>
+          </div>
+        </>
+      )}
 
       <TodoPanel
         isOpen={isTodoOpen}

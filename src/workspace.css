@@ -1,15 +1,10 @@
-/* Application chrome. Canvas artwork keeps its own palette in canvasRenderer. */
+/* Application chrome — dark only. Canvas artwork keeps its own palette in canvasRenderer. */
 :root {
-  --ws-bg: #f5f6f9; --ws-panel: #ffffff; --ws-field: #f7f8fa; --ws-hover: #FFF1E8;
-  --ws-text: #1a1a1f; --ws-muted: #667085; --ws-border: #e6e7ed; --ws-accent: #FF6B1A;
+  --ws-bg: #0F1014; --ws-panel: #17181D; --ws-field: #202127; --ws-hover: #261B14;
+  --ws-text: #f0f0f5; --ws-muted: #9497a6; --ws-border: #2C2D35; --ws-accent: #FF6B1A;
   --apple-bg-primary: var(--ws-field); --apple-bg-secondary: var(--ws-panel);
   --apple-bg-card: var(--ws-panel); --apple-bg-surface: var(--ws-field); --apple-bg-hover: var(--ws-hover);
   --apple-text-primary: var(--ws-text); --apple-text-secondary: var(--ws-muted); --apple-border: var(--ws-border);
-  color-scheme: light;
-}
-:root.dark {
-  --ws-bg: #0F1014; --ws-panel: #17181D; --ws-field: #202127; --ws-hover: #261B14;
-  --ws-text: #f0f0f5; --ws-muted: #9497a6; --ws-border: #2C2D35; --ws-accent: #FF6B1A;
   color-scheme: dark;
 }
 #graphics-engine-app { background: var(--ws-bg); color: var(--ws-text); font-size: 13px; }
@@ -48,7 +43,7 @@
 .workspace-brand { display: flex; align-items: center; gap: 11px; font-size: 18px; font-weight: 800; letter-spacing: -.6px; flex-shrink: 0; line-height: 1.2; }
 .workspace-brand small { display: block; font-size: 8px; letter-spacing: 1.8px; color: var(--ws-muted); font-weight: 600; margin-top: 3px; }
 .brand-light { font-weight: 450; }
-.workspace-mark { width: 36px; height: 36px; border-radius: 11px; background: #FF6B1A; color: white; display: grid; place-items: center; overflow: hidden; padding: 2px; box-shadow: 0 4px 12px rgba(255, 107, 26, 0.28); flex-shrink: 0; }
+.workspace-mark { width: 36px; height: 36px; display: grid; place-items: center; flex-shrink: 0; }
 .workspace-logo-img { width: 100%; height: 100%; object-fit: contain; }
 .workspace-breadcrumb { display: flex; align-items: center; gap: 8px; color: var(--ws-muted); font-size: 12px; min-width: 0; flex: 1; }
 .workspace-breadcrumb-root { color: var(--ws-muted); font-weight: 500; }
@@ -102,10 +97,10 @@
 @media (max-width: 1023px) { .workspace-breadcrumb { display: none; } #canvas-stage { padding: 14px; } }
 @media (max-width: 600px) {
   #graphics-engine-app .workspace-header { height: 62px; padding: 0 12px; gap: 8px; }
-  .workspace-brand { font-size: 16px; gap: 7px; } .workspace-mark { width: 31px; height: 31px; border-radius: 8px; }
+  .workspace-brand { font-size: 16px; gap: 7px; } .workspace-mark { width: 31px; height: 31px; }
   .workspace-brand small { font-size: 6px; letter-spacing: 1.5px; }
   .workspace-header-actions { gap: 2px; }
-  .workspace-account, .workspace-header-actions > .workspace-icon-button[aria-label="Geri Al"] { display: none; }
+  .workspace-account { display: none; }
   .workspace-primary span { display: none; } .workspace-primary { padding: 8px 10px; }
   #canvas-stage > div:first-child { font-size: 10px; gap: 8px; flex-wrap: wrap; }
   #canvas-viewport { padding: 20px 12px; }
