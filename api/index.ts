@@ -113,8 +113,11 @@ if (!process.env.VERCEL) {
 }
 
 // Models and credentials are supplied by the host environment.
-const DEFAULT_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash';
-const FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL || DEFAULT_MODEL;
+// gemini-2.5-flash is the primary stable and fast model.
+const rawModel = process.env.GEMINI_MODEL?.trim();
+const DEFAULT_MODEL = (rawModel && rawModel !== 'gemini-3.6-flash') ? rawModel : 'gemini-2.5-flash';
+const rawFallback = process.env.GEMINI_FALLBACK_MODEL?.trim();
+const FALLBACK_MODEL = (rawFallback && rawFallback !== 'gemini-3.6-flash') ? rawFallback : 'gemini-2.5-flash';
 let aiClient: GoogleGenAI | null = null;
 
 function getGeminiClient(): GoogleGenAI | null {
@@ -151,6 +154,8 @@ async function generateContentWithRetry(client: GoogleGenAI, params: any, attemp
                                      errMsg.includes('429') || 
                                      errMsg.includes('high demand') ||
                                      errMsg.includes('404') ||
+                                     errMsg.includes('DEADLINE_EXCEEDED') ||
+                                     errMsg.includes('timeout') ||
                                      err?.status === 503 ||
                                      err?.status === 429 ||
                                      err?.status === 404;
@@ -159,15 +164,25 @@ async function generateContentWithRetry(client: GoogleGenAI, params: any, attemp
       console.log(`[API Notice] Attempt ${attempt} model ${currentModel} returned: ${isRateLimitOrUnavailable ? 'RETRYABLE_STATUS' : 'UNEXPECTED_STATUS'}`);
     }
 
-    if (isRateLimitOrUnavailable && attempt < 3) {
-      const delay = attempt * 600;
-      await new Promise(resolve => setTimeout(resolve, delay));
+    if (isRateLimitOrUnavailable && attempt < 2) {
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       if (currentModel !== FALLBACK_MODEL) {
         if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
           console.log(`Switching model to ${FALLBACK_MODEL} for retry attempt...`);
         }
         params.model = FALLBACK_MODEL;
+      }
+
+      // If request has image and failed, retry text-only on attempt 2 to prevent timeout
+      if (Array.isArray(params.contents)) {
+        const textOnly = params.contents.filter((c: any) => !c?.inlineData);
+        if (textOnly.length > 0 && textOnly.length < params.contents.length) {
+          if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
+            console.log('Retrying text generation without inline image to prevent timeout...');
+          }
+          params.contents = textOnly;
+        }
       }
 
       return generateContentWithRetry(client, params, attempt + 1);
@@ -202,7 +217,7 @@ app.post(['/api/generate-text', '/generate-text'], createTextGenerationHandler({
     }
     const response = await generateContentWithRetry(getGeminiClient()!, {
       model:DEFAULT_MODEL, contents,
-      config:{httpOptions:{timeout:45000}, responseMimeType:'application/json', responseSchema:{
+      config:{httpOptions:{timeout:25000}, responseMimeType:'application/json', responseSchema:{
         type:Type.OBJECT, properties:{texts:{type:Type.ARRAY, items:{type:Type.OBJECT,
           properties:{id:{type:Type.STRING},text:{type:Type.STRING}},required:['id','text']}}}, required:['texts'],
       }},

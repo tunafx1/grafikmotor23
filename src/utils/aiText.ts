@@ -11,9 +11,17 @@ export function getAiTextFields(regions: Pick<Region, 'id' | 'name' | 'type' | '
 }
 
 export async function requestAiText(payload: {fields:{id:string}[]; [key:string]:unknown}, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<Record<string,string>> {
-  const response = await fetcher('/api/generate-text', {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal,
-  });
+  let response: Response;
+  try {
+    response = await fetcher('/api/generate-text', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal,
+    });
+  } catch (err: any) {
+    if (signal?.aborted || /timed?\s*out|aborted/i.test(err?.message || '')) {
+      throw new Error('Yapay zeka yanıt süresi aşıldı (zaman aşımı). Lütfen yeniden deneyin.');
+    }
+    throw err;
+  }
   let data: any;
   try { data = await response.json(); }
   catch {

@@ -98,11 +98,15 @@ export async function generateBatchTexts(template: DesignTemplate, pages: any[],
         systemPrompt: template.aiSystemPrompt || '', templateName: template.name,
         brief: `${brief}\nBu fotoğraf grubunun ${index + 1}/${pages.length} sayfası için yaz.`, fields: context, context,
         ...(image ? {image} : {}),
-      }, AbortSignal.any([options.signal, AbortSignal.timeout(60000)])) : {};
+      }, AbortSignal.any([options.signal, AbortSignal.timeout(90000)])) : {};
       output.push({ ...page, dynamicTexts: { ...page.dynamicTexts, ...texts }, productionError: undefined });
     } catch (error) {
       if (options.signal.aborted) throw error;
-      output.push({ ...page, productionError: error instanceof Error ? error.message : 'Metin oluşturulamadı.' });
+      const rawMessage = error instanceof Error ? error.message : 'Metin oluşturulamadı.';
+      const friendlyMessage = /timed?\s*out|aborted/i.test(rawMessage)
+        ? 'Yapay zeka yanıt süresi aşıldı (zaman aşımı). Lütfen yeniden deneyin.'
+        : rawMessage;
+      output.push({ ...page, productionError: friendlyMessage });
     }
     options.onProgress(index + 1, pages.length);
   }
