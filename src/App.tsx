@@ -1271,7 +1271,7 @@ export default function App() {
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
-  // Get all unique uploaded Base64 images across the entire project (all templates, pages, etc.)
+  // Get all unique uploaded Base64 or Blob images across the entire project (all templates, pages, etc.)
   const getUniqueUploadedImages = () => {
     const urls: string[] = [];
 
@@ -1279,7 +1279,7 @@ export default function App() {
     (Object.values(graphicData) as any[]).forEach(gd => {
       if (gd && gd.dynamicImages) {
         Object.values(gd.dynamicImages).forEach((img: any) => {
-          if (img && img.url && img.url.startsWith('data:')) {
+          if (img && img.url && (img.url.startsWith('data:') || img.url.startsWith('blob:') || img.url.startsWith('http'))) {
             urls.push(img.url);
           }
         });
@@ -1290,7 +1290,7 @@ export default function App() {
     (generatedPages as any[]).forEach(p => {
       if (p && p.dynamicImages) {
         Object.values(p.dynamicImages).forEach((img: any) => {
-          if (img && img.url && img.url.startsWith('data:')) {
+          if (img && img.url && (img.url.startsWith('data:') || img.url.startsWith('blob:') || img.url.startsWith('http'))) {
             urls.push(img.url);
           }
         });
@@ -2151,7 +2151,7 @@ export default function App() {
     });
   };
 
-  const compressImage = (file: File, maxWidth = 1000, maxHeight = 1000, quality = 0.76): Promise<string> => {
+  const compressImage = (file: File, maxWidth = 3840, maxHeight = 3840, quality = 0.98): Promise<string> => {
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -2177,8 +2177,12 @@ export default function App() {
 
           const ctx = canvas.getContext('2d');
           if (ctx) {
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
             ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', quality));
+            const isPng = file.type === 'image/png' || /\.png$/i.test(file.name);
+            const mimeType = isPng ? 'image/png' : 'image/jpeg';
+            resolve(canvas.toDataURL(mimeType, isPng ? undefined : quality));
           } else {
             resolve((e.target?.result as string) || '');
           }
@@ -2226,12 +2230,17 @@ export default function App() {
       return;
     }
 
-    const backgroundImageUrl = await compressImage(file, 2400, 2400, 0.9);
-    if (!backgroundImageUrl) {
-      window.alert('Arka plan görseli hazırlanamadı.');
-      return;
+    try {
+      const stored = await storeVideo(file);
+      updateTemplateBackground(stored.url);
+    } catch {
+      const backgroundImageUrl = await compressImage(file, 3840, 3840, 0.98);
+      if (!backgroundImageUrl) {
+        window.alert('Arka plan görseli hazırlanamadı.');
+        return;
+      }
+      updateTemplateBackground(backgroundImageUrl);
     }
-    updateTemplateBackground(backgroundImageUrl);
   };
 
   const fillEmptyImageFramesWithWizard = (imageUrls: string[]) => {
@@ -2347,7 +2356,7 @@ export default function App() {
     const coverImgRegions = coverPageDef.regions.filter(r => isTemplateImageFrame(r));
     if (coverImgRegions.length > 0) {
       coverImages[coverImgRegions[0].id] = {
-        url: firstItem.thumbnailUrl || firstItem.url,
+        url: (firstItem.type === 'image' ? (firstItem.url || firstItem.thumbnailUrl) : (firstItem.thumbnailUrl || firstItem.url)),
         videoUrl: firstItem.type === 'video' ? firstItem.url : undefined,
         isVideo: firstItem.type === 'video',
         mediaId: firstItem.mediaId,
@@ -2424,7 +2433,8 @@ export default function App() {
 
           if (imageRegions.length > 0) {
             pageImages[imageRegions[0].id] = {
-              url: currentItem.thumbnailUrl || currentItem.url,
+              url: (currentItem.type === 'image' ? (currentItem.url || currentItem.thumbnailUrl) : (currentItem.thumbnailUrl || currentItem.url)),
+              mediaId: currentItem.mediaId,
               scale: 1.0,
               offsetX: 0,
               offsetY: 0,
@@ -2454,7 +2464,8 @@ export default function App() {
             if (itemIdx < remainingItems.length && remainingItems[itemIdx].type === 'image') {
               const imgItem = remainingItems[itemIdx];
               pageImages[imageRegions[i].id] = {
-                url: imgItem.thumbnailUrl || imgItem.url,
+                url: (imgItem.type === 'image' ? (imgItem.url || imgItem.thumbnailUrl) : (imgItem.thumbnailUrl || imgItem.url)),
+                mediaId: imgItem.mediaId,
                 scale: 1.0,
                 offsetX: 0,
                 offsetY: 0,
@@ -3629,101 +3640,110 @@ export default function App() {
   };
 
   // Add new image layer from uploaded PNG/image file
-  const addImageRegionFromFile = (file: File) => {
+  const addImageRegionFromFile = async (file: File) => {
     if (!file.type.startsWith('image/')) {
       alert('Lütfen yalnızca bir resim dosyası seçin!');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = (e.target?.result as string) || '';
-      if (!dataUrl) return;
 
-      const id = `region-image-${Date.now()}`;
-      const img = new Image();
-      img.onload = () => {
-        const tempWidth = currentTemplate.width;
-        const tempHeight = currentTemplate.height;
+    let assetUrl = '';
+    let mediaId: string | undefined;
 
-        let w = img.width;
-        let h = img.height;
-        let x = 0;
-        let y = 0;
+    try {
+      const stored = await storeVideo(file);
+      assetUrl = stored.url;
+      mediaId = stored.id;
+    } catch {
+      assetUrl = URL.createObjectURL(file);
+    }
 
-        // Calculate aspect ratios
-        const imgRatio = w / h;
-        const tempRatio = tempWidth / tempHeight;
-        const ratioDiff = Math.abs(imgRatio - tempRatio);
+    const id = `region-image-${Date.now()}`;
+    const img = new Image();
+    img.onload = () => {
+      const tempWidth = currentTemplate.width;
+      const tempHeight = currentTemplate.height;
 
-        // Check if the uploaded image matches the workspace template dimension proportions
-        if (ratioDiff < 0.05 || (w >= tempWidth * 0.9 && h >= tempHeight * 0.9)) {
-          // If the image is extremely close to the workspace aspect ratio or dimensions,
-          // make it fit the workspace perfectly and position it at the top-left (0,0)
-          w = tempWidth;
-          h = tempHeight;
-          x = 0;
-          y = 0;
-        } else {
-          // Otherwise, it is a custom design asset or transparent element.
-          // Keep its original size if it fits inside the workspace,
-          // but if it is larger than the workspace, scale it down proportionally to fit 80% of workspace size
-          if (w > tempWidth || h > tempHeight) {
-            const scaleX = (tempWidth * 0.8) / w;
-            const scaleY = (tempHeight * 0.8) / h;
-            const scale = Math.min(scaleX, scaleY);
-            w = Math.round(w * scale);
-            h = Math.round(h * scale);
-          }
-          // Center it in the workspace
-          x = Math.round((tempWidth - w) / 2);
-          y = Math.round((tempHeight - h) / 2);
+      let w = img.width;
+      let h = img.height;
+      let x = 0;
+      let y = 0;
+
+      // Calculate aspect ratios
+      const imgRatio = w / h;
+      const tempRatio = tempWidth / tempHeight;
+      const ratioDiff = Math.abs(imgRatio - tempRatio);
+
+      // Check if the uploaded image matches the workspace template dimension proportions
+      if (ratioDiff < 0.05 || (w >= tempWidth * 0.9 && h >= tempHeight * 0.9)) {
+        // If the image is extremely close to the workspace aspect ratio or dimensions,
+        // make it fit the workspace perfectly and position it at the top-left (0,0)
+        w = tempWidth;
+        h = tempHeight;
+        x = 0;
+        y = 0;
+      } else {
+        // Otherwise, it is a custom design asset or transparent element.
+        // Keep its original size if it fits inside the workspace,
+        // but if it is larger than the workspace, scale it down proportionally to fit 80% of workspace size
+        if (w > tempWidth || h > tempHeight) {
+          const scaleX = (tempWidth * 0.8) / w;
+          const scaleY = (tempHeight * 0.8) / h;
+          const scale = Math.min(scaleX, scaleY);
+          w = Math.round(w * scale);
+          h = Math.round(h * scale);
         }
+        // Center it in the workspace
+        x = Math.round((tempWidth - w) / 2);
+        y = Math.round((tempHeight - h) / 2);
+      }
 
-        const newReg: Region = {
-          id,
-          name: `${file.name.replace(/\.[^/.]+$/, "")}`,
-          type: 'image',
-          x,
-          y,
-          width: w,
-          height: h,
-          backgroundColor: 'transparent',
-          opacity: 1,
-          borderColor: 'transparent',
-          borderWidth: 0,
-          borderRadius: 0,
-          isDynamic: true,
-          placeholderImage: dataUrl,
-          clipImage: true // Default newly uploaded files to fit and clip to their frame bounds (Maskeli)
-        };
-
-        setTemplates(prev => {
-          const updated = prev.map(t => {
-            if (t.id === currentTemplateId) {
-              const pageWithFallback = ensureMultiPageSupport(t);
-              const updatedPages = pageWithFallback.pages!.map((p, idx) => {
-                if (idx === activePageIndex) {
-                  return { ...p, regions: [...p.regions, newReg] };
-                }
-                return p;
-              });
-              return {
-                ...t,
-                pages: updatedPages,
-                regions: updatedPages[0].regions,
-                fixedElements: updatedPages[0].fixedElements
-              };
-            }
-            return t;
-          });
-          saveTemplatesToLocalStorage(updated);
-          return updated;
-        });
-        setSelectedNodeId(id);
+      const newReg: Region = {
+        id,
+        name: `${file.name.replace(/\.[^/.]+$/, "")}`,
+        type: 'image',
+        x,
+        y,
+        width: w,
+        height: h,
+        backgroundColor: 'transparent',
+        opacity: 1,
+        borderColor: 'transparent',
+        borderWidth: 0,
+        borderRadius: 0,
+        isDynamic: true,
+        placeholderImage: assetUrl,
+        clipImage: true // Default newly uploaded files to fit and clip to their frame bounds (Maskeli)
       };
-      img.src = dataUrl;
+
+      setTemplates(prev => {
+        const updated = prev.map(t => {
+          if (t.id === currentTemplateId) {
+            const pageWithFallback = ensureMultiPageSupport(t);
+            const updatedPages = pageWithFallback.pages!.map((p, idx) => {
+              if (idx === activePageIndex) {
+                return { ...p, regions: [...p.regions, newReg] };
+              }
+              return p;
+            });
+            return {
+              ...t,
+              pages: updatedPages,
+              regions: updatedPages[0].regions,
+              fixedElements: updatedPages[0].fixedElements
+            };
+          }
+          return t;
+        });
+        saveTemplatesToLocalStorage(updated);
+        return updated;
+      });
+      setSelectedNodeId(id);
+      if (mediaId) {
+        updateActiveImageProp(id, 'mediaId', mediaId);
+        updateActiveImageProp(id, 'url', assetUrl);
+      }
     };
-    reader.readAsDataURL(file);
+    img.src = assetUrl;
   };
 
   // Move region within layers list to update its rendering and visual ordering hierarchy
@@ -4541,30 +4561,50 @@ export default function App() {
       alert('Lütfen bir resim veya MP4 video dosyası seçin!');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      if (event.target?.result) {
-        const region = editingTemplate.regions.find(r => r.id === regionId);
-        if (templateEditing && region && isStaticImageLayer(region)) {
-          // A PNG layer belongs to this template page. graphicData is shared by every page
-          // and ignored by batch production, so store the new image on the region itself.
-          handleRegionPropertyChange(regionId, 'placeholderImage', event.target.result as string);
-          setGraphicData(prev => {
-            const current = prev[currentTemplateId];
-            if (!current?.dynamicImages?.[regionId]) return prev;
-            const { [regionId]: _stale, ...dynamicImages } = current.dynamicImages;
-            return { ...prev, [currentTemplateId]: { ...current, dynamicImages } };
-          });
-          return;
-        }
-        updateActiveImageProp(regionId, 'url', event.target.result as string);
-        updateActiveImageProp(regionId, 'mediaId', undefined);
-        updateActiveImageProp(regionId, 'isVideo', false);
-        updateActiveImageProp(regionId, 'videoUrl', undefined);
-        updateActiveImageProp(regionId, 'duration', undefined);
+
+    try {
+      const stored = await storeVideo(file);
+      const region = editingTemplate.regions.find(r => r.id === regionId);
+      if (templateEditing && region && isStaticImageLayer(region)) {
+        handleRegionPropertyChange(regionId, 'placeholderImage', stored.url);
+        setGraphicData(prev => {
+          const current = prev[currentTemplateId];
+          if (!current?.dynamicImages?.[regionId]) return prev;
+          const { [regionId]: _stale, ...dynamicImages } = current.dynamicImages;
+          return { ...prev, [currentTemplateId]: { ...current, dynamicImages } };
+        });
+        return;
       }
-    };
-    reader.readAsDataURL(file);
+      updateActiveImageProp(regionId, 'url', stored.url);
+      updateActiveImageProp(regionId, 'mediaId', stored.id);
+      updateActiveImageProp(regionId, 'isVideo', false);
+      updateActiveImageProp(regionId, 'videoUrl', undefined);
+      updateActiveImageProp(regionId, 'duration', undefined);
+    } catch (err) {
+      console.warn('Direct media store fallback:', err);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          const region = editingTemplate.regions.find(r => r.id === regionId);
+          if (templateEditing && region && isStaticImageLayer(region)) {
+            handleRegionPropertyChange(regionId, 'placeholderImage', event.target.result as string);
+            setGraphicData(prev => {
+              const current = prev[currentTemplateId];
+              if (!current?.dynamicImages?.[regionId]) return prev;
+              const { [regionId]: _stale, ...dynamicImages } = current.dynamicImages;
+              return { ...prev, [currentTemplateId]: { ...current, dynamicImages } };
+            });
+            return;
+          }
+          updateActiveImageProp(regionId, 'url', event.target.result as string);
+          updateActiveImageProp(regionId, 'mediaId', undefined);
+          updateActiveImageProp(regionId, 'isVideo', false);
+          updateActiveImageProp(regionId, 'videoUrl', undefined);
+          updateActiveImageProp(regionId, 'duration', undefined);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   // Generate only requested text fields on the captured page; never change the palette.

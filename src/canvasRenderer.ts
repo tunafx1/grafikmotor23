@@ -479,6 +479,9 @@ async function renderTemplateFrame(
   canvas.width = width;
   canvas.height = height;
 
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
   ctx.clearRect(0, 0, width, height);
 
   // Apply colors
@@ -707,12 +710,15 @@ async function renderTemplateFrame(
             // Canvas clipping normally cuts off an image's shadow. Render a clipped
             // copy to a transparent buffer first, then shadow that buffer as one layer.
             if (nodeShadowEnabled && reg.clipImage !== false) {
+              const shadowScale = scale || 1;
               const shadowCanvas = document.createElement('canvas');
-              shadowCanvas.width = Math.max(1, Math.ceil(reg.width));
-              shadowCanvas.height = Math.max(1, Math.ceil(reg.height));
+              shadowCanvas.width = Math.max(1, Math.ceil(reg.width * shadowScale));
+              shadowCanvas.height = Math.max(1, Math.ceil(reg.height * shadowScale));
               const shadowCtx = shadowCanvas.getContext('2d');
               if (shadowCtx) {
-                shadowCtx.scale(shadowCanvas.width / reg.width, shadowCanvas.height / reg.height);
+                shadowCtx.imageSmoothingEnabled = true;
+                shadowCtx.imageSmoothingQuality = 'high';
+                shadowCtx.scale(shadowScale, shadowScale);
                 shadowCtx.beginPath();
                 if (reg.borderRadius > 0) shadowCtx.roundRect(0, 0, reg.width, reg.height, reg.borderRadius);
                 else shadowCtx.rect(0, 0, reg.width, reg.height);
@@ -906,7 +912,7 @@ async function renderTemplateFrame(
         const color = el.textStyle?.color || textColor;
         const resolvedColor = color === '#6C5CE7' ? primaryColor : (color === 'rgba(255,255,255,0.72)' || color === 'rgba(255,255,255,0.72)' ? textColor : color);
 
-        const logoIsImage = el.type === 'logo' && !!el.content && (/^data:image\//.test(el.content) || /^https?:\/\//.test(el.content));
+        const logoIsImage = el.type === 'logo' && !!el.content && (/^(data:image\/|blob:|https?:\/\/)/.test(el.content));
         if (logoIsImage) {
           try {
             const logo = await loadImage(el.content!);

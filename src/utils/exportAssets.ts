@@ -25,10 +25,17 @@ export async function createExportAsset(template: DesignTemplate, page: ExportPa
   const layout = resolveExportTemplate(template, page);
   const images = {...page.dynamicImages};
   for (const [id, image] of Object.entries(images)) {
-    if (image.isVideo && image.mediaId) {
-      const url = await getVideoUrl(image.mediaId);
-      if (!url) throw new Error('Bu videonun dosyası bu tarayıcıda bulunamadı. Videoyu yeniden yükleyin.');
-      images[id] = {...image, videoUrl:url};
+    if (image.mediaId) {
+      const liveUrl = await getVideoUrl(image.mediaId);
+      if (liveUrl) {
+        if (image.isVideo) {
+          images[id] = {...image, videoUrl: liveUrl};
+        } else {
+          images[id] = {...image, url: liveUrl};
+        }
+      } else if (image.isVideo) {
+        throw new Error('Bu videonun dosyası bu tarayıcıda bulunamadı. Videoyu yeniden yükleyin.');
+      }
     }
   }
   const hidden = page.hiddenElements || [];
@@ -40,7 +47,7 @@ export async function createExportAsset(template: DesignTemplate, page: ExportPa
   const canvas = document.createElement('canvas');
   await renderTemplateToCanvas(canvas, layout, page.dynamicTexts || {}, images, {...options, isExport:true, hiddenElements:hidden, showGrid:false, showSafeMargins:false});
   const mimeType = options.format === 'jpeg' ? 'image/jpeg' : options.format === 'webp' ? 'image/webp' : 'image/png';
-  const quality = options.format === 'png' ? undefined : 0.95;
+  const quality = options.format === 'png' ? undefined : 0.98;
   const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Görsel dosyası oluşturulamadı.')), mimeType, quality));
   const extension = options.format === 'jpeg' ? 'jpg' : options.format === 'webp' ? 'webp' : 'png';
   return {blob, extension};

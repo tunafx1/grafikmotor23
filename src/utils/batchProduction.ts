@@ -31,8 +31,15 @@ export function buildBatchPages(template: DesignTemplate, media: SequenceMediaIt
     for (const slot of slots) {
       const item = media[cursor];
       if (!item) { hidden.push(slot.id); continue; }
-      images[slot.id] = { url: item.thumbnailUrl || item.url, scale: 1, offsetX: 0, offsetY: 0, rotation: 0,
-        ...(item.type === 'video' ? { isVideo: true, videoUrl: item.url, mediaId: item.mediaId, duration: item.duration } : {}) };
+      images[slot.id] = {
+        url: (item.type === 'image' ? (item.url || item.thumbnailUrl) : (item.thumbnailUrl || item.url)),
+        scale: 1,
+        offsetX: 0,
+        offsetY: 0,
+        rotation: 0,
+        mediaId: item.mediaId,
+        ...(item.type === 'video' ? { isVideo: true, videoUrl: item.url, duration: item.duration } : {})
+      };
       cursor++;
     }
     // The filmstrip already shows the page number. Keeping it out of the page

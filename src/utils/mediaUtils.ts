@@ -17,9 +17,9 @@ export function isMediaVideo(fileOrUrl: string | File): boolean {
  */
 export function compressImageFile(
   file: File,
-  maxWidth: number = 1000,
-  maxHeight: number = 1000,
-  quality: number = 0.76
+  maxWidth: number = 3840,
+  maxHeight: number = 3840,
+  quality: number = 0.95
 ): Promise<string> {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -46,8 +46,12 @@ export function compressImageFile(
 
         const ctx = canvas.getContext('2d');
         if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'high';
           ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
+          const isPng = file.type === 'image/png' || /\.png$/i.test(file.name);
+          const mimeType = isPng ? 'image/png' : 'image/jpeg';
+          resolve(canvas.toDataURL(mimeType, isPng ? undefined : quality));
         } else {
           resolve((e.target?.result as string) || '');
         }
@@ -178,38 +182,40 @@ export async function createSequenceMediaItem(file: File): Promise<SequenceMedia
   const id = `media-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
   if (isVideo) {
-    const { thumbnailUrl, duration } = await extractVideoSnapshot(file, 1.0, 1000);
+    const { thumbnailUrl, duration } = await extractVideoSnapshot(file, 1.0, 1080);
     const stored = await storeVideo(file);
     return {id, type:'video', mediaId:stored.id, file, url:stored.url, thumbnailUrl, duration, originalName:file.name};
   } else {
-    // Compress image to prevent huge strings in memory and localStorage quota crash
+    // Store original image in IndexedDB without downscaling or compression, preserving 100% full quality
     try {
-      const compressedDataUrl = await compressImageFile(file, 1000, 1000, 0.76);
+      const stored = await storeVideo(file);
+      // Generate a fast thumbnail strictly for filmstrip preview and AI brief prompt
+      let thumbnailUrl = stored.url;
+      try {
+        thumbnailUrl = await compressImageFile(file, 800, 800, 0.82);
+      } catch {
+        thumbnailUrl = stored.url;
+      }
+      return {
+        id,
+        type: 'image',
+        mediaId: stored.id,
+        file,
+        url: stored.url, // Original full-resolution object URL
+        thumbnailUrl,    // Thumbnail strictly for UI previews
+        originalName: file.name
+      };
+    } catch (err) {
+      console.warn('Image store fallback:', err);
+      const fallbackUrl = URL.createObjectURL(file);
       return {
         id,
         type: 'image',
         file,
-        url: compressedDataUrl,
-        thumbnailUrl: compressedDataUrl,
+        url: fallbackUrl,
+        thumbnailUrl: fallbackUrl,
         originalName: file.name
       };
-    } catch (err) {
-      console.warn('Image compression fallback:', err);
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const dataUrl = (e.target?.result as string) || '';
-          resolve({
-            id,
-            type: 'image',
-            file,
-            url: dataUrl,
-            thumbnailUrl: dataUrl,
-            originalName: file.name
-          });
-        };
-        reader.readAsDataURL(file);
-      });
     }
   }
 }

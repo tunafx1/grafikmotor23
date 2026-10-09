@@ -48,6 +48,8 @@ function drawVideoFrameToCanvas(
 
   ctx.save();
   ctx.scale(scale, scale);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
 
   // 1. Region Background if configured
   if (reg.hasBackground !== false && reg.backgroundColor && reg.backgroundColor !== 'transparent') {
@@ -211,6 +213,8 @@ export async function compositeTemplateVideo(
   if (!mainCtx) {
     throw new Error('Canvas 2D render context oluşturulamadı.');
   }
+  mainCtx.imageSmoothingEnabled = true;
+  mainCtx.imageSmoothingQuality = 'high';
 
   // 5. Connect Web Audio API to route video sound directly into recorder without speaker noise
   const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
@@ -254,7 +258,7 @@ export async function compositeTemplateVideo(
 
   const recorder = new MediaRecorder(canvasStream, {
     mimeType,
-    videoBitsPerSecond: 6_500_000 // 6.5 Mbps high quality video
+    videoBitsPerSecond: 12_000_000 // 12 Mbps crystal-clear video
   });
 
   const recordedChunks: Blob[] = [];

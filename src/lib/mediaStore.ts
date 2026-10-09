@@ -50,10 +50,22 @@ export function replaceVideoUrls<T>(value: T, urls: Map<string, string>): T {
     const updated = replaceVideoUrls(child, urls);
     if (updated !== child) { if (result === value) result = {...value}; result[key] = updated; }
   }
-  const media = result as {mediaId?: string; videoUrl?: string};
-  if (media.mediaId && urls.has(media.mediaId) && media.videoUrl !== urls.get(media.mediaId)) {
-    result = {...result, videoUrl: urls.get(media.mediaId)};
+  const media = result as {mediaId?: string; videoUrl?: string; url?: string; isVideo?: boolean};
+  if (media.mediaId && urls.has(media.mediaId)) {
+    const live = urls.get(media.mediaId)!;
+    if (media.videoUrl && media.videoUrl !== live) {
+      result = {...result, videoUrl: live};
+    }
+    if (!media.isVideo && media.url !== live) {
+      result = {...result, url: live};
+    }
   }
   return result;
 }
 export function videoFileExtension(blob: Blob) { return blob.type.includes('webm') ? 'webm' : 'mp4'; }
+
+export const storeMedia = storeVideo;
+export const storeImage = storeVideo;
+export const getMediaUrl = getVideoUrl;
+export const getMediaBlob = getVideoBlob;
+export const replaceMediaUrls = replaceVideoUrls;
