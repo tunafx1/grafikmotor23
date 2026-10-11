@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getAuthErrorMessage } from '../src/lib/firebase';
+import { getAuthErrorMessage } from '../src/lib/authErrors';
 
 test('returns a generic message when no error is given', () => {
   assert.equal(getAuthErrorMessage(null), 'Bilinmeyen bir hata oluştu.');

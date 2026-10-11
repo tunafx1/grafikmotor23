@@ -558,6 +558,12 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
+  const createdBlobUrlsRef = useRef<string[]>([]);
+  useEffect(() => {
+    return () => {
+      createdBlobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
+    };
+  }, []);
 
   // Unify handlers
   const onTextChange = updateActiveText || handleDynamicTextChange;
@@ -738,8 +744,10 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
         handleDynamicImageUpload(selectedRegion.id, file);
       } else if (updateActiveImageProp) {
         const objectUrl = URL.createObjectURL(file);
+        createdBlobUrlsRef.current.push(objectUrl);
         updateActiveImageProp(selectedRegion.id, 'url', objectUrl);
       }
+      e.target.value = '';
     }
   };
 

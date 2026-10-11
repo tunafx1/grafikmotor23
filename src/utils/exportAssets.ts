@@ -48,7 +48,22 @@ export async function createExportAsset(template: DesignTemplate, page: ExportPa
   await renderTemplateToCanvas(canvas, layout, page.dynamicTexts || {}, images, {...options, isExport:true, hiddenElements:hidden, showGrid:false, showSafeMargins:false});
   const mimeType = options.format === 'jpeg' ? 'image/jpeg' : options.format === 'webp' ? 'image/webp' : 'image/png';
   const quality = options.format === 'png' ? undefined : 0.98;
-  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob(value => value ? resolve(value) : reject(new Error('Görsel dosyası oluşturulamadı.')), mimeType, quality));
+  let blob: Blob;
+  try {
+    blob = await new Promise<Blob>((resolve, reject) => {
+      try {
+        canvas.toBlob(
+          value => value ? resolve(value) : reject(new Error('Görsel dosyası oluşturulamadı.')),
+          mimeType,
+          quality
+        );
+      } catch (err) {
+        reject(err);
+      }
+    });
+  } catch (err: any) {
+    throw new Error('Görsel dışa aktarılırken hata oluştu: ' + (err?.message || 'CORS veya güvenlik kısıtlaması nedeniyle tuval kaydedilemedi.'));
+  }
   const extension = options.format === 'jpeg' ? 'jpg' : options.format === 'webp' ? 'webp' : 'png';
   return {blob, extension};
 }

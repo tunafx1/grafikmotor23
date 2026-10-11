@@ -23,3 +23,56 @@ export function describeGoogleLoginError(error: unknown, hostname: string): {tit
       return {title:'Google girişi tamamlanamadı',message:`Tekrar deneyin. Sorun devam ederse bu hata kodunu paylaşın: ${code || 'unknown-error'}.`};
   }
 }
+
+/**
+ * Human-readable Turkish error messages for Firebase Auth errors.
+ */
+export function getAuthErrorMessage(error: any): string {
+  if (!error) return 'Bilinmeyen bir hata oluştu.';
+  const code = error.code || '';
+  switch (code) {
+    case 'auth/invalid-email':
+      return 'Lütfen geçerli bir e-posta adresi girin.';
+    case 'auth/user-disabled':
+      return 'Bu hesap devre dışı bırakılmıştır. Lütfen destek ile iletişime geçin.';
+    case 'auth/user-not-found':
+      return 'Bu e-posta adresine ait bir hesap bulunamadı.';
+    case 'auth/wrong-password':
+      return 'Girdiğiniz şifre hatalı. Lütfen tekrar deneyin.';
+    case 'auth/invalid-credential':
+      return 'E-posta veya şifre hatalı. Lütfen bilgilerinizi kontrol edin.';
+    case 'auth/email-already-in-use':
+      return 'Bu e-posta adresiyle zaten kayıtlı bir hesap var. Giriş yapabilirsiniz.';
+    case 'auth/weak-password':
+      return 'Şifreniz en az 6 karakter uzunluğunda olmalıdır.';
+    case 'auth/too-many-requests':
+      return 'Çok fazla başarısız deneme yapıldı. Lütfen biraz bekleyip tekrar deneyin.';
+    case 'auth/popup-closed-by-user':
+      return 'Giriş penceresi tamamlanmadan kapatıldı.';
+    case 'auth/cancelled-popup-request':
+      return 'Önceki oturum açma işlemi iptal edildi.';
+    case 'auth/network-request-failed':
+      return 'Ağ bağlantısı kurulamadı. Lütfen internet bağlantınızı kontrol edin.';
+    case 'auth/operation-not-allowed':
+      return "Firebase konsolunda 'E-posta/Şifre' (Email/Password) ile kayıt seçeneği henüz etkinleştirilmemiş. Firebase Console > Authentication > Sign-in method sekmesinden 'Email/Password' sağlayıcısını etkinleştirmeniz gerekmektedir.";
+    case 'auth/unverified-email':
+      return 'E-posta adresiniz henüz doğrulanmamış. Lütfen gelen kutunuzdaki linke tıklayın.';
+    case 'auth/requires-recent-login':
+      return 'Güvenlik nedeniyle şifre belirlemeden önce lütfen oturumunuzu kapatıp tekrar giriş yapın.';
+    case 'auth/unauthorized-domain':
+      return `${typeof window !== 'undefined' ? window.location.hostname : 'Bu site'} adresi Firebase Google girişine izin verilen alan adları arasında değil. Firebase Console → Authentication → Settings → Authorized domains bölümüne bu alan adını ekleyin.`;
+    case 'auth/popup-blocked':
+      return 'Google doğrulama penceresi engellendi. Bu site için açılır pencerelere izin verin veya e-posta bağlantısını kullanın.';
+    case 'auth/user-mismatch':
+      return 'Farklı bir Google hesabı seçildi. Profilinizdeki e-posta adresine ait Google hesabını seçin.';
+    case 'auth/password-does-not-meet-requirements':
+      return 'Şifreniz güvenlik koşullarını karşılamıyor. Daha uzun, büyük/küçük harf, rakam ve özel karakter içeren bir şifre deneyin.';
+    case 'auth/credential-already-in-use':
+      return 'Bu kimlik bilgisi başka bir hesap tarafından kullanılıyor.';
+    default:
+      if (error.message && typeof error.message === 'string') {
+        return error.message;
+      }
+      return 'İşlem sırasında bir hata oluştu. Lütfen tekrar deneyin.';
+  }
+}

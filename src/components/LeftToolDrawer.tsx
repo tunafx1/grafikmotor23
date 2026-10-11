@@ -300,6 +300,20 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
         className="workspace-tool-rail w-14 bg-[#1D1D1F] border-r border-[rgba(255,255,255,0.08)] flex flex-col items-center py-3 space-y-2 shrink-0 z-20"
         aria-label="Araç çubuğu"
       >
+        <button
+          type="button"
+          onClick={() => handleToolClick('templates')}
+          className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition cursor-pointer active:scale-95 ${
+            activeTab === 'templates'
+              ? 'bg-[#FF6B1A] text-white shadow-lg shadow-[#FF6B1A]/20'
+              : 'text-[rgba(255,255,255,0.6)] hover:text-white hover:bg-white/5'
+          }`}
+          title="Şablon Kataloğu"
+        >
+          <LayoutTemplate size={18} />
+          <span className="text-[8.5px] mt-0.5 font-medium">Şablon</span>
+        </button>
+
         {isTemplateEditing && (
           <button
             type="button"

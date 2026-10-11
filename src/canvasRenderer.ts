@@ -100,18 +100,41 @@ function getFontString(fontFamily: string, fontSize: number, isBold: boolean, is
   return `${style} ${weight} ${fontSize}px "${fontFamily}", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
 }
 
-// Async image loader cache to prevent flickering
-const imageCache: Record<string, HTMLImageElement> = {};
+// Keep recently used decoded images to prevent flickering without retaining every
+// uploaded asset for the lifetime of a long-running editor session.
+const MAX_IMAGE_CACHE_ENTRIES = 100;
+const imageCache = new Map<string, HTMLImageElement>();
+
+// Reusable offscreen canvas for layer shadows to avoid continuous DOM allocation in the render loop
+let sharedShadowCanvas: HTMLCanvasElement | null = null;
+function getSharedShadowCanvas(width: number, height: number): HTMLCanvasElement {
+  if (!sharedShadowCanvas) {
+    sharedShadowCanvas = document.createElement('canvas');
+  }
+  if (sharedShadowCanvas.width !== width || sharedShadowCanvas.height !== height) {
+    sharedShadowCanvas.width = width;
+    sharedShadowCanvas.height = height;
+  }
+  return sharedShadowCanvas;
+}
 
 export function loadImage(url: string): Promise<HTMLImageElement> {
-  if (imageCache[url]) {
-    return Promise.resolve(imageCache[url]);
+  const cached = imageCache.get(url);
+  if (cached) {
+    // Refresh recency so frequently rendered images are not evicted.
+    imageCache.delete(url);
+    imageCache.set(url, cached);
+    return Promise.resolve(cached);
   }
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.crossOrigin = 'anonymous'; // Support external images without CORS issues where possible
     img.onload = () => {
-      imageCache[url] = img;
+      imageCache.set(url, img);
+      if (imageCache.size > MAX_IMAGE_CACHE_ENTRIES) {
+        const oldestUrl = imageCache.keys().next().value;
+        if (oldestUrl) imageCache.delete(oldestUrl);
+      }
       resolve(img);
     };
     img.onerror = (e) => {
@@ -707,15 +730,18 @@ async function renderTemplateFrame(
             const finalDrawWidth = drawWidth * scaleFactor;
             const finalDrawHeight = drawHeight * scaleFactor;
 
+            let hasRenderedShadowBuffer = false;
             // Canvas clipping normally cuts off an image's shadow. Render a clipped
             // copy to a transparent buffer first, then shadow that buffer as one layer.
             if (nodeShadowEnabled && reg.clipImage !== false) {
               const shadowScale = scale || 1;
-              const shadowCanvas = document.createElement('canvas');
-              shadowCanvas.width = Math.max(1, Math.ceil(reg.width * shadowScale));
-              shadowCanvas.height = Math.max(1, Math.ceil(reg.height * shadowScale));
+              const shadowW = Math.max(1, Math.ceil(reg.width * shadowScale));
+              const shadowH = Math.max(1, Math.ceil(reg.height * shadowScale));
+              const shadowCanvas = getSharedShadowCanvas(shadowW, shadowH);
               const shadowCtx = shadowCanvas.getContext('2d');
               if (shadowCtx) {
+                shadowCtx.clearRect(0, 0, shadowW, shadowH);
+                shadowCtx.save();
                 shadowCtx.imageSmoothingEnabled = true;
                 shadowCtx.imageSmoothingQuality = 'high';
                 shadowCtx.scale(shadowScale, shadowScale);
@@ -726,11 +752,13 @@ async function renderTemplateFrame(
                 shadowCtx.translate(contentX - reg.x + contentWidth / 2 + offsetX, contentY - reg.y + contentHeight / 2 + offsetY);
                 if (rotation !== 0) shadowCtx.rotate((rotation * Math.PI) / 180);
                 shadowCtx.drawImage(img, -finalDrawWidth / 2, -finalDrawHeight / 2, finalDrawWidth, finalDrawHeight);
+                shadowCtx.restore();
                 ctx.drawImage(shadowCanvas, reg.x, reg.y, reg.width, reg.height);
                 ctx.shadowColor = 'transparent';
                 ctx.shadowBlur = 0;
                 ctx.shadowOffsetX = 0;
                 ctx.shadowOffsetY = 0;
+                hasRenderedShadowBuffer = true;
               }
             }
 
@@ -752,27 +780,29 @@ async function renderTemplateFrame(
               ctx.restore();
             }
 
-            ctx.save();
-            const shouldClip = reg.clipImage !== false;
-            if (shouldClip) {
-              // Apply clipping path to region bounding box (with border-radius support)
-              ctx.beginPath();
-              if (reg.borderRadius > 0) {
-                ctx.roundRect(reg.x, reg.y, reg.width, reg.height, reg.borderRadius);
-              } else {
-                ctx.rect(reg.x, reg.y, reg.width, reg.height);
+            if (!hasRenderedShadowBuffer) {
+              ctx.save();
+              const shouldClip = reg.clipImage !== false;
+              if (shouldClip) {
+                // Apply clipping path to region bounding box (with border-radius support)
+                ctx.beginPath();
+                if (reg.borderRadius > 0) {
+                  ctx.roundRect(reg.x, reg.y, reg.width, reg.height, reg.borderRadius);
+                } else {
+                  ctx.rect(reg.x, reg.y, reg.width, reg.height);
+                }
+                ctx.clip();
               }
-              ctx.clip();
-            }
 
-            ctx.translate(centerX + offsetX, centerY + offsetY);
-            if (rotation !== 0) {
-              ctx.rotate((rotation * Math.PI) / 180);
-            }
+              ctx.translate(centerX + offsetX, centerY + offsetY);
+              if (rotation !== 0) {
+                ctx.rotate((rotation * Math.PI) / 180);
+              }
 
-            // Draw image centered inside translation matrix
-            ctx.drawImage(img, -finalDrawWidth / 2, -finalDrawHeight / 2, finalDrawWidth, finalDrawHeight);
-            ctx.restore();
+              // Draw image centered inside translation matrix
+              ctx.drawImage(img, -finalDrawWidth / 2, -finalDrawHeight / 2, finalDrawWidth, finalDrawHeight);
+              ctx.restore();
+            }
 
             // If this region contains a video and we are NOT in export mode, draw a small video indicator badge
             if (customImgData?.isVideo && !options?.isExport) {

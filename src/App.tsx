@@ -4503,6 +4503,17 @@ export default function App() {
     setIsPanning(false);
   };
 
+  useEffect(() => {
+    if (!isPanning) return;
+    const stopPanning = () => setIsPanning(false);
+    window.addEventListener('pointerup', stopPanning);
+    window.addEventListener('pointercancel', stopPanning);
+    return () => {
+      window.removeEventListener('pointerup', stopPanning);
+      window.removeEventListener('pointercancel', stopPanning);
+    };
+  }, [isPanning]);
+
   // --- FILE DRAG & DROP & MANUALLY CHOOSE HANDLERS ---
   const handleDrag = (e: React.DragEvent, regionId: string) => {
     e.preventDefault();

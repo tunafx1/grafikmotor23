@@ -37,7 +37,15 @@ export function WorkQuickEditor(props: {
   const applyFontSize = (next: number) => {
     if (!selected) return;
     const clamped = Math.max(8, Math.min(200, next));
-    props.onRegionChange(selected.id, { textStyle: { ...selected.textStyle!, fontSize: clamped } });
+    const baseStyle = selected.textStyle || {
+      fontFamily: 'Inter',
+      color: '#FFFFFF',
+      fontWeight: 'bold' as const,
+      lineHeight: 1.2,
+      align: 'left' as const,
+      fontSize: 24,
+    };
+    props.onRegionChange(selected.id, { textStyle: { ...baseStyle, fontSize: clamped } });
   };
 
   const toggleBoldOnSelection = () => {

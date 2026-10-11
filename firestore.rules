@@ -8,7 +8,9 @@ service cloud.firestore {
     }
 
     function isValidId(id) {
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+      // Firestore document IDs may contain Unicode and spaces; only a slash is
+      // disallowed because it changes the document path.
+      return id is string && id.size() > 0 && id.size() <= 128 && !id.matches('.*/.*');
     }
 
     // Secure owner authorization: requires a valid authenticated user (Google Auth or Anonymous Auth)

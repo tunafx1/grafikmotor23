@@ -6,7 +6,12 @@ import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { createSignedMediaUpload, readCloudinaryConfig } from './cloudinary-upload.js';
 
-const firebaseAppletConfig = JSON.parse(readFileSync(path.join(process.cwd(), 'firebase-applet-config.json'), 'utf-8'));
+let firebaseAppletConfig: any = {};
+try {
+  firebaseAppletConfig = JSON.parse(readFileSync(path.join(process.cwd(), 'firebase-applet-config.json'), 'utf-8'));
+} catch {
+  // Graceful fallback when running in serverless bundle without root JSON file
+}
 // Text generation types and helper functions (inlined for self-contained Vercel serverless execution)
 export type TextField = {id: string; name: string; role: string; prompt?: string; text: string};
 export type TextRequest = {systemPrompt: string; templateName: string; brief: string; fields: TextField[]; context: TextField[]; image?: string};

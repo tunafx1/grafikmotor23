@@ -223,7 +223,7 @@ export function BatchWorkspace(p: {
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
-  }, [photoMarquee]);
+  }, [Boolean(photoMarquee)]);
   const togglePhotoSelected = (id: string) => setSelectedPhotos(previous => {
     const next = new Set(previous);
     if (next.has(id)) next.delete(id); else next.add(id);
@@ -288,7 +288,7 @@ export function BatchWorkspace(p: {
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
     return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
-  }, [worksMarquee]);
+  }, [Boolean(worksMarquee)]);
   const handleWorkDragOver = (overId: string) => {
     if (!draggedWorkId || draggedWorkId === overId || lastWorkOverId.current === overId) return;
     lastWorkOverId.current = overId;

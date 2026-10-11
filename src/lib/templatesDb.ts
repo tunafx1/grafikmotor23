@@ -411,8 +411,10 @@ export async function saveUserGraphicProject(
       currentTemplateId,
       graphicData,
       generatedPages,
-      templates,
-      pagesByTemplate,
+      // Firestore rules require these keys. Supplying safe empty defaults also
+      // keeps older callers from producing a payload with omitted undefined keys.
+      templates: templates ?? [],
+      pagesByTemplate: pagesByTemplate ?? {},
       syncVersion: 1
     }, userId));
     payload.updatedAt = serverTimestamp();
