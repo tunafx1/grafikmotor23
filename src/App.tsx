@@ -3654,7 +3654,13 @@ export default function App() {
       assetUrl = stored.url;
       mediaId = stored.id;
     } catch {
-      assetUrl = URL.createObjectURL(file);
+      // Keep the fallback serializable and avoid an unowned Blob URL.
+      assetUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
     }
 
     const id = `region-image-${Date.now()}`;

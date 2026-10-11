@@ -207,7 +207,14 @@ export async function createSequenceMediaItem(file: File): Promise<SequenceMedia
       };
     } catch (err) {
       console.warn('Image store fallback:', err);
-      const fallbackUrl = URL.createObjectURL(file);
+      // The fallback is saved in editor state, so retain it as data rather than
+      // an unowned Blob URL that survives until the page is closed.
+      const fallbackUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result || ''));
+        reader.onerror = () => reject(reader.error);
+        reader.readAsDataURL(file);
+      });
       return {
         id,
         type: 'image',

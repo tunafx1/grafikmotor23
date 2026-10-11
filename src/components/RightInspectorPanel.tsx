@@ -558,12 +558,6 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
-  const createdBlobUrlsRef = useRef<string[]>([]);
-  useEffect(() => {
-    return () => {
-      createdBlobUrlsRef.current.forEach(url => URL.revokeObjectURL(url));
-    };
-  }, []);
 
   // Unify handlers
   const onTextChange = updateActiveText || handleDynamicTextChange;
@@ -737,15 +731,21 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
 
   if (isOpen === false) return null;
 
-  const handleImageFilePicked = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageFilePicked = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0] && selectedRegion) {
       const file = e.target.files[0];
       if (handleDynamicImageUpload) {
         handleDynamicImageUpload(selectedRegion.id, file);
       } else if (updateActiveImageProp) {
-        const objectUrl = URL.createObjectURL(file);
-        createdBlobUrlsRef.current.push(objectUrl);
-        updateActiveImageProp(selectedRegion.id, 'url', objectUrl);
+        // This fallback persists the replacement in editor state, so a data URL
+        // is safer than a Blob URL whose lifetime is otherwise hard to own.
+        const dataUrl = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+        updateActiveImageProp(selectedRegion.id, 'url', dataUrl);
       }
       e.target.value = '';
     }
