@@ -178,6 +178,7 @@ export function BatchWorkspace(p: {
   onFetchSharedTemplate?: (code: string) => Promise<SharedTemplateInfo>;
   onImportSharedTemplate?: (info: SharedTemplateInfo) => string;
   initialShareCode?: string | null;
+  onClearInitialShareCode?: () => void;
 }) {
   const [photos, setPhotos] = useState<SequenceMediaItem[]>([]);
   const [brief, setBrief] = useState('');
@@ -555,14 +556,14 @@ export function BatchWorkspace(p: {
             {p.onShareTemplate && (
               <button className="production-card-share" onClick={() => setShareTargetTemplate(t)} aria-label={`${t.name} şablonunu paylaş`} title="Şablonu başka bir hesapla paylaş"><Share2 size={14}/></button>
             )}
-            <button className="production-card-delete" disabled={sourceTemplates.length <= 1} onClick={() => p.onDeleteTemplate(t.id)} aria-label={`${t.name} şablonunu sil`} title={sourceTemplates.length <= 1 ? 'Son şablon silinemez' : 'Şablonu sil'}><Trash2 size={14}/></button>
+            <button className="production-card-delete" onClick={() => p.onDeleteTemplate(t.id)} aria-label={`${t.name} şablonunu sil`} title="Şablonu sil"><Trash2 size={14}/></button>
           </div>
         </article>)}</div>
       )}
       {p.screen === 'works' && normalizedWorkQuery && visibleWorks.length === 0 && <div className="production-empty"><FolderOpen size={36}/><h2>Çalışma bulunamadı.</h2><p>Farklı bir isimle tekrar arayabilirsin.</p></div>}
       {p.screen === 'works' && archivedWorks.length > 0 && <p className="selection-drag-hint">İpucu: kartları sürükleyerek sırasını değiştirebilir, boş alana tıklayıp sürükleyerek birden fazla çalışma seçebilirsin.</p>}
       {p.screen === 'works' && !Object.values(p.projects).some(pages => pages.length) && <div className="production-empty"><Images size={36}/><h2>İlk üretimin için hazırsın.</h2><p>Fotoğraflarını ve komutunu ekle; tasarımlarını birlikte hazırlayalım.</p><button className="production-primary" onClick={() => p.onScreen('create')}>Toplu oluştur</button></div>}
-      {p.screen === 'templates' && sourceTemplates.length === 0 && <div className="production-empty"><LayoutTemplate size={36}/><h2>Henüz bir şablonun yok.</h2><p>İlk şablonunu oluşturarak kendi tasarım düzenini hazırla.</p><button className="production-primary" onClick={p.onNewTemplate}>Şablon oluştur</button></div>}
+      {p.screen === 'templates' && sourceTemplates.length === 0 && <div className="production-empty"><LayoutTemplate size={36}/><h2>Henüz bir şablonun yok.</h2><p>İlk şablonunu oluşturarak kendi tasarım düzenini hazırla veya paylaşılan bir şablon ekle.</p><div style={{ display: 'flex', gap: '10px', marginTop: '16px', justifyContent: 'center' }}><button className="production-primary" onClick={p.onNewTemplate}><Plus size={16}/>Şablon oluştur</button>{p.onImportSharedTemplate && <button className="production-secondary-btn" onClick={() => setImportModalOpen(true)}><Download size={16}/>Kod ile ekle</button>}</div></div>}
     </div>}
     {shareTargetTemplate && p.onShareTemplate && p.onRevokeShareTemplate && (
       <ShareTemplateDialog
@@ -582,7 +583,10 @@ export function BatchWorkspace(p: {
           p.onSelectTemplate(id);
           p.onScreen('create');
         }}
-        onClose={() => setImportModalOpen(false)}
+        onClose={() => {
+          setImportModalOpen(false);
+          p.onClearInitialShareCode?.();
+        }}
       />
     )}
   </section>;

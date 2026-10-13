@@ -290,30 +290,56 @@ export function ImportTemplateDialog({ initialCode, onFetch, onImport, onUseTemp
             onSubmit={event => { event.preventDefault(); void lookup(value); }}
           >
             <label className="tpl-share-label" htmlFor="tpl-import-code">Paylaşım kodu veya bağlantısı</label>
-            <input
-              id="tpl-import-code"
-              ref={inputRef}
-              className="tpl-share-input"
-              value={value}
-              onChange={event => setValue(formatInput(event.target.value))}
-              placeholder="ABCD-EFGH"
-              autoComplete="off"
-              spellCheck={false}
-              disabled={state.status === 'loading'}
-            />
+            <div style={{ position: 'relative', width: '100%' }}>
+              <input
+                id="tpl-import-code"
+                ref={inputRef}
+                className="tpl-share-input"
+                style={{ paddingRight: value ? '36px' : '14px' }}
+                value={value}
+                onChange={event => {
+                  setValue(formatInput(event.target.value));
+                  if (state.status === 'idle' && state.error) setState({ status: 'idle' });
+                }}
+                placeholder="ABCD-EFGH"
+                autoComplete="off"
+                spellCheck={false}
+                disabled={state.status === 'loading'}
+              />
+              {value && state.status !== 'loading' && (
+                <button
+                  type="button"
+                  onClick={() => { setValue(''); setState({ status: 'idle' }); inputRef.current?.focus(); }}
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'transparent',
+                    border: 'none',
+                    color: 'rgba(255,255,255,0.4)',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                  title="Temizle"
+                  aria-label="Kodu temizle"
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
             {state.status === 'idle' && state.error && (
-              <>
-                <p className="tpl-share-error" role="alert">{state.error}</p>
-                {/güvenlik kuralları|izin/i.test(state.error) && (
-                  <p className="text-[11px] text-white/60 bg-white/5 p-2.5 rounded-lg border border-white/10 leading-relaxed">
-                    💡 <b>Çözüm:</b> Firebase Console &rarr; Firestore Database &rarr; <b>Rules (Kurallar)</b> sekmesinden projedeki güncel <code>firestore.rules</code> kurallarını yayınlamanız (Publish) gerekmektedir.
-                  </p>
-                )}
-              </>
+              <p className="tpl-share-error" role="alert">{state.error}</p>
             )}
-            <button type="submit" className="tpl-share-primary" disabled={state.status === 'loading' || !value.trim()}>
-              {state.status === 'loading' ? <><Loader2 size={16} className="tpl-spin" /> Şablon aranıyor…</> : 'Şablonu bul'}
-            </button>
+            <div className="tpl-share-actions" style={{ marginTop: '12px' }}>
+              <button type="button" className="tpl-share-ghost" onClick={onClose}>Vazgeç</button>
+              <button type="submit" className="tpl-share-primary compact" disabled={state.status === 'loading' || !value.trim()}>
+                {state.status === 'loading' ? <><Loader2 size={16} className="tpl-spin" /> Şablon aranıyor…</> : 'Şablonu bul'}
+              </button>
+            </div>
           </motion.form>
         )}
 

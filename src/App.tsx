@@ -695,14 +695,18 @@ export default function App() {
 
   // --- STATE MANAGEMENT ---
   const [templates, setTemplatesState] = useState<DesignTemplate[]>(() => {
+    const filterCustoms = (list: any[]) => {
+      if (!Array.isArray(list)) return [];
+      return list.filter((t: DesignTemplate) => t && typeof t === 'object' && t.id && !t.id.startsWith('preset-'));
+    };
+
     // 1. Try to load complete list (v2) first
     const savedV2 = storage.getItem('active_templates_v2');
     if (savedV2) {
       try {
         const parsed = JSON.parse(savedV2);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
+        const filtered = filterCustoms(parsed);
+        if (filtered.length > 0) return filtered;
       } catch (e) {
         console.error('Failed to parse active_templates_v2', e);
       }
@@ -713,16 +717,15 @@ export default function App() {
     if (savedV1) {
       try {
         const parsed = JSON.parse(savedV1);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
+        const filtered = filterCustoms(parsed);
+        if (filtered.length > 0) return filtered;
       } catch (e) {
         console.error('Failed to parse custom_templates', e);
       }
     }
 
-    // 3. Absolute fallback
-    return structuredClone(TEMPLATE_PRESETS);
+    // 3. Absolute fallback: start completely clean with no preset templates
+    return [];
   });
 
   // --- CANVAS DRAGGING & TOUCH REPOSITIONING STATES ---
@@ -830,26 +833,24 @@ export default function App() {
 
   const [currentTemplateId, setCurrentTemplateId] = useState<string>(() => {
     const remembered = storage.getItem('active_template_id');
-    if (templates.some(t => t.id === remembered)) return remembered!;
+    if (remembered && !remembered.startsWith('preset-') && templates.some(t => t.id === remembered)) return remembered;
     const savedV2 = storage.getItem('active_templates_v2');
     if (savedV2) {
       try {
         const parsed = JSON.parse(savedV2);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed[0].id;
-        }
+        const valid = Array.isArray(parsed) ? parsed.filter((t: DesignTemplate) => t && t.id && !t.id.startsWith('preset-')) : [];
+        if (valid.length > 0) return valid[0].id;
       } catch (e) {}
     }
     const savedV1 = storage.getItem('custom_templates');
     if (savedV1) {
       try {
         const parsed = JSON.parse(savedV1);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed[0].id;
-        }
+        const valid = Array.isArray(parsed) ? parsed.filter((t: DesignTemplate) => t && t.id && !t.id.startsWith('preset-')) : [];
+        if (valid.length > 0) return valid[0].id;
       } catch (e) {}
     }
-    return TEMPLATE_PRESETS[0].id;
+    return templates[0]?.id || INITIAL_FALLBACK_TEMPLATE.id;
   });
   const [user, setUser] = useState<User | null>(null);
   const [cloudStatus, setCloudStatus] = useState<'idle' | 'syncing' | 'synced' | 'error' | 'offline'>('idle');
@@ -1140,6 +1141,14 @@ export default function App() {
       if (code) {
         setInitialShareCode(code);
         setWorkspaceScreen('templates');
+        // Clean URL to prevent recurring popup on subsequent page refreshes
+        if (typeof window !== 'undefined' && window.history?.replaceState) {
+          const cleanUrl = new URL(window.location.href);
+          cleanUrl.searchParams.delete(SHARE_QUERY_PARAM);
+          cleanUrl.searchParams.delete('d');
+          cleanUrl.searchParams.delete('data');
+          window.history.replaceState({}, document.title, cleanUrl.pathname + (cleanUrl.search ? cleanUrl.search : '') + cleanUrl.hash);
+        }
       }
     } catch { /* noop */ }
   }, []);
@@ -1953,8 +1962,8 @@ export default function App() {
 
   // Save custom templates to localStorage
   const saveTemplatesToLocalStorage = (updatedTemplates: DesignTemplate[]) => {
-    storage.setItem('active_templates_v2', JSON.stringify(updatedTemplates));
-    const customs = updatedTemplates.filter(t => !TEMPLATE_PRESETS.some(p => p.id === t.id));
+    const customs = updatedTemplates.filter(t => t && !t.id.startsWith('preset-'));
+    storage.setItem('active_templates_v2', JSON.stringify(customs));
     storage.setItem('custom_templates', JSON.stringify(customs));
   };
 
@@ -3130,10 +3139,6 @@ export default function App() {
 
   // Delete any template from the catalog
   const deleteTemplate = (id: string) => {
-    if (templates.length <= 1) {
-      alert('Katalogda en az bir şablon bulunmalıdır! Son kalan şablonu silemezsiniz.');
-      return;
-    }
     setConfirmDialog({
       isOpen: true,
       title: 'Şablonu Sil',
@@ -3174,7 +3179,7 @@ export default function App() {
         }
         
         // Switch active template
-        const fallbackId = updated[index === 0 ? 0 : index - 1]?.id || updated[0].id;
+        const fallbackId = updated[index === 0 ? 0 : index - 1]?.id || updated[0]?.id || INITIAL_FALLBACK_TEMPLATE.id;
         setCurrentTemplateId(fallbackId);
         setSelectedNodeId(null);
         setConfirmDialog(null);
@@ -5091,6 +5096,7 @@ export default function App() {
         onFetchSharedTemplate={handleFetchSharedTemplate}
         onImportSharedTemplate={handleImportSharedTemplate}
         initialShareCode={initialShareCode}
+        onClearInitialShareCode={() => setInitialShareCode(null)}
       />
       {workspaceScreen === 'editor' && (
         <div className="production-editor-actions bg-[#222225] border-b border-white/10 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 text-xs shrink-0">
