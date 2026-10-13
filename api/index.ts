@@ -877,7 +877,9 @@ async function getFromNtfy(code: string): Promise<SharedTemplateRecord | null> {
     if (!res.ok) return null;
     const text = await res.text();
     if (!text || !text.trim()) return null;
-    const parsed = JSON.parse(text.trim());
+    const lines = text.trim().split('\n').filter(Boolean);
+    const lastLine = lines[lines.length - 1];
+    const parsed = JSON.parse(lastLine);
     if (parsed && typeof parsed === 'object' && parsed.templateJson) {
       return {
         code: parsed.code || code,

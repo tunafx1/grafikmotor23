@@ -565,7 +565,9 @@ async function fetchSharedTemplateFromServer(code: string): Promise<any | null> 
     if (res.ok) {
       const text = await res.text();
       if (text && text.trim()) {
-        const parsed = JSON.parse(text.trim());
+        const lines = text.trim().split('\n').filter(Boolean);
+        const lastLine = lines[lines.length - 1];
+        const parsed = JSON.parse(lastLine);
         if (parsed && typeof parsed === 'object' && parsed.templateJson) {
           return parsed;
         }
