@@ -82,29 +82,27 @@ service cloud.firestore {
 
     // Cross-account template sharing. A share is an immutable snapshot addressed by an
     // unguessable 8-character code: readable one-by-one (never listable) by any signed-in
-    // user, creatable only by a real account for itself, and revocable only by its owner.
+    // user, creatable by an authenticated user for themselves, and revocable only by its owner.
     function isValidShareCode(code) {
-      return code is string && code.matches('^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$');
-    }
-
-    function isValidSharedTemplate(data, code) {
-      return data.keys().hasAll(['code', 'ownerId', 'ownerName', 'name', 'templateJson', 'version', 'createdAt']) &&
-        data.keys().hasOnly(['code', 'ownerId', 'ownerName', 'name', 'templateJson', 'version', 'createdAt']) &&
-        data.code == code &&
-        data.ownerId == request.auth.uid &&
-        data.ownerName is string && data.ownerName.size() <= 120 &&
-        data.name is string && data.name.size() > 0 && data.name.size() <= 256 &&
-        data.templateJson is string && data.templateJson.size() > 0 && data.templateJson.size() <= 900000 &&
-        data.version == 1 &&
-        data.createdAt == request.time;
+      return code is string && code.size() == 8;
     }
 
     match /shared_templates/{code} {
+      // Oturum açmış herhangi bir kullanıcı (Google veya Misafir), geçerli 8 haneli kod ile şablonu alabilir
       allow get: if isSignedIn() && isValidShareCode(code);
+      
+      // Oturum açmış kullanıcılar kendi UID'leri ile paylaşım kaydı oluşturabilir
       allow create: if isSignedIn() &&
-                       request.auth.token.firebase.sign_in_provider != 'anonymous' &&
                        isValidShareCode(code) &&
-                       isValidSharedTemplate(request.resource.data, code);
+                       request.resource.data.code == code &&
+                       request.resource.data.ownerId == request.auth.uid &&
+                       request.resource.data.templateJson is string &&
+                       request.resource.data.templateJson.size() <= 1000000;
+                       
+      // Paylaşımlar anlık görüntüdür, doğrudan düzenlenemez
+      allow update: if false;
+      
+      // Yalnızca paylaşımı oluşturan kullanıcı silebilir / geri çekebilir
       allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
     }
   }

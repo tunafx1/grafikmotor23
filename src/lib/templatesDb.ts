@@ -438,7 +438,7 @@ export function normalizeShareCode(input: string): string | null {
 function describeShareError(error: unknown, fallback: string): Error {
   const code = (error as any)?.code || '';
   if (/permission-denied/.test(code)) {
-    return new Error('Paylaşım izni reddedildi. Firestore güvenlik kurallarının yayınlandığından emin ol.');
+    return new Error('Paylaşım izni reddedildi. Firestore güvenlik kurallarının Firebase Console üzerinde yayınlandığından emin ol.');
   }
   if (/unavailable|deadline-exceeded/.test(code)) {
     return new Error('Bulut bağlantısı kurulamadı. İnternet bağlantını kontrol edip tekrar dene.');
@@ -461,8 +461,11 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
  */
 export async function shareTemplate(template: DesignTemplate, ownerName: string): Promise<string> {
   if (!isValidConfig) throw new Error('Bulut bağlantısı yapılandırılmadığı için şablon paylaşılamıyor.');
-  const user = auth.currentUser;
-  if (!user || user.isAnonymous) throw new Error('Şablon paylaşmak için hesabınla giriş yapmalısın.');
+  let user = auth.currentUser;
+  if (!user) {
+    user = (await ensureUserSignIn()) as any;
+  }
+  if (!user) throw new Error('Şablon paylaşmak için oturum açmalısın.');
 
   // Production metadata belongs to works, not to a reusable template.
   const { sourceTemplateId: _s, productionBrief: _p, createdAt: _c, ...shareable } = template as DesignTemplate & Record<string, unknown>;
@@ -480,12 +483,10 @@ export async function shareTemplate(template: DesignTemplate, ownerName: string)
     const code = createShareCode();
     const ref = doc(db, 'shared_templates', code);
     try {
-      const existing = await withTimeout(getDoc(ref), 15_000, 'Bulut bağlantısı zaman aşımına uğradı.');
-      if (existing.exists()) continue;
       await withTimeout(setDoc(ref, {
         code,
         ownerId: user.uid,
-        ownerName: (ownerName || 'Grafik Motoru kullanıcısı').slice(0, 120),
+        ownerName: (ownerName || user.displayName || 'Grafik Motoru kullanıcısı').slice(0, 120),
         name: (template.name || 'Adsız şablon').slice(0, 256),
         templateJson,
         version: 1,

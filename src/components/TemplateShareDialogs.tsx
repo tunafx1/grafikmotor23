@@ -191,6 +191,11 @@ export function ShareTemplateDialog({ template, onShare, onRevoke, onClose }: {
         {state.status === 'error' && (
           <motion.div key="error" className="tpl-share-body" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
             <p className="tpl-share-error" role="alert">{state.message}</p>
+            {/güvenlik kuralları|izin/i.test(state.message) && (
+              <p className="text-[11px] text-white/60 bg-white/5 p-2.5 rounded-lg border border-white/10 leading-relaxed">
+                💡 <b>Çözüm:</b> Firebase Console &rarr; Firestore Database &rarr; <b>Rules (Kurallar)</b> sekmesinden projedeki güncel <code>firestore.rules</code> kurallarını yayınlamanız (Publish) gerekmektedir.
+              </p>
+            )}
             <div className="tpl-share-actions">
               <button type="button" className="tpl-share-ghost" onClick={onClose}>Vazgeç</button>
               <button type="button" className="tpl-share-primary compact" onClick={() => state.code ? setState({ status: 'ready', code: state.code }) : void create()}>Tekrar dene</button>
@@ -290,7 +295,16 @@ export function ImportTemplateDialog({ initialCode, onFetch, onImport, onUseTemp
               spellCheck={false}
               disabled={state.status === 'loading'}
             />
-            {state.status === 'idle' && state.error && <p className="tpl-share-error" role="alert">{state.error}</p>}
+            {state.status === 'idle' && state.error && (
+              <>
+                <p className="tpl-share-error" role="alert">{state.error}</p>
+                {/güvenlik kuralları|izin/i.test(state.error) && (
+                  <p className="text-[11px] text-white/60 bg-white/5 p-2.5 rounded-lg border border-white/10 leading-relaxed">
+                    💡 <b>Çözüm:</b> Firebase Console &rarr; Firestore Database &rarr; <b>Rules (Kurallar)</b> sekmesinden projedeki güncel <code>firestore.rules</code> kurallarını yayınlamanız (Publish) gerekmektedir.
+                  </p>
+                )}
+              </>
+            )}
             <button type="submit" className="tpl-share-primary" disabled={state.status === 'loading' || !value.trim()}>
               {state.status === 'loading' ? <><Loader2 size={16} className="tpl-spin" /> Şablon aranıyor…</> : 'Şablonu bul'}
             </button>
