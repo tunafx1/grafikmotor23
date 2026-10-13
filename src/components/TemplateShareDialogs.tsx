@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { Check, Copy, Download, Link2, Loader2, Share2, ShieldCheck, Trash2, UserRound, X } from 'lucide-react';
 import type { DesignTemplate } from '../types';
 import type { SharedTemplateInfo } from '../lib/templatesDb';
-import { buildShareLink, formatShareCode, normalizeShareCode } from '../lib/templatesDb';
+import { buildShareLink, formatShareCode, normalizeShareCode, compressTemplateJson } from '../lib/templatesDb';
 import { TemplateThumbnail } from './TemplateThumbnail';
 import './TemplateShare.css';
 
@@ -75,7 +75,7 @@ function DialogShell({ labelledBy, onClose, children }: { labelledBy: string; on
 type ShareState =
   | { status: 'idle' }
   | { status: 'working' }
-  | { status: 'ready'; code: string }
+  | { status: 'ready'; code: string; link?: string }
   | { status: 'revoked' }
   | { status: 'error'; message: string; code?: string };
 
@@ -93,7 +93,13 @@ export function ShareTemplateDialog({ template, onShare, onRevoke, onClose }: {
     setState({ status: 'working' });
     try {
       const code = await onShare();
-      setState({ status: 'ready', code });
+      let compressed = '';
+      try {
+        const { sourceTemplateId: _s, productionBrief: _p, createdAt: _c, ...shareable } = template as any;
+        compressed = await compressTemplateJson(JSON.stringify(shareable));
+      } catch { /* noop */ }
+      const link = buildShareLink(code, compressed);
+      setState({ status: 'ready', code, link });
     } catch (error) {
       setState({ status: 'error', message: (error as Error).message || 'Şablon paylaşılamadı.' });
     }
@@ -111,7 +117,7 @@ export function ShareTemplateDialog({ template, onShare, onRevoke, onClose }: {
     }
   };
 
-  const link = state.status === 'ready' ? buildShareLink(state.code) : '';
+  const link = state.status === 'ready' ? (state.link || buildShareLink(state.code)) : '';
   const pageCount = template.pages?.length || 1;
 
   return (

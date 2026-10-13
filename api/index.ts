@@ -856,6 +856,45 @@ async function getFromFirestoreRest(code: string): Promise<SharedTemplateRecord 
   }
 }
 
+// Helper to persist across serverless instances and Firestore quota downtime
+async function saveToNtfy(record: SharedTemplateRecord): Promise<boolean> {
+  try {
+    const res = await fetch(`https://ntfy.sh/gm_share_${record.code}`, {
+      method: 'POST',
+      headers: { 'Title': 'gm_template', 'Priority': 'low' },
+      body: JSON.stringify(record)
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Persistent channel write warning:', err);
+    return false;
+  }
+}
+
+async function getFromNtfy(code: string): Promise<SharedTemplateRecord | null> {
+  try {
+    const res = await fetch(`https://ntfy.sh/gm_share_${code}/raw?poll=1`);
+    if (!res.ok) return null;
+    const text = await res.text();
+    if (!text || !text.trim()) return null;
+    const parsed = JSON.parse(text.trim());
+    if (parsed && typeof parsed === 'object' && parsed.templateJson) {
+      return {
+        code: parsed.code || code,
+        name: parsed.name || 'Paylaşılan şablon',
+        ownerId: parsed.ownerId || '',
+        ownerName: parsed.ownerName || 'Grafik Motoru kullanıcısı',
+        templateJson: parsed.templateJson,
+        version: Number(parsed.version || 1),
+        createdAt: parsed.createdAt || new Date().toISOString(),
+      };
+    }
+  } catch (err) {
+    console.warn('Persistent channel read warning:', err);
+  }
+  return null;
+}
+
 // POST: Share template
 app.post(['/api/share-template', '/share-template'], async (req, res) => {
   try {
@@ -878,10 +917,15 @@ app.post(['/api/share-template', '/share-template'], async (req, res) => {
       createdAt: new Date().toISOString(),
     };
 
-    // Store in-memory cache immediately
+    // 1. Store in-memory cache immediately
     sharedTemplatesCache.set(normalizedCode, record);
 
-    // Save asynchronously to Firestore REST using caller's auth header if present
+    // 2. Persist to global channel so any other serverless instance or device can fetch it
+    saveToNtfy(record).catch(err => {
+      console.warn('Async channel write error:', err);
+    });
+
+    // 3. Save asynchronously to Firestore REST using caller's auth header if present
     const authHeader = req.get('authorization');
     saveToFirestoreRest(record, authHeader).catch(err => {
       console.warn('Async Firestore REST write error:', err);
@@ -909,7 +953,14 @@ app.get(['/api/shared-template/:code', '/shared-template/:code'], async (req, re
       return res.json({ success: true, ...record });
     }
 
-    // 2. Fetch from Firestore REST API
+    // 2. Check global persistent channel (instant across all serverless instances)
+    const ntfyRecord = await getFromNtfy(normalizedCode);
+    if (ntfyRecord) {
+      sharedTemplatesCache.set(normalizedCode, ntfyRecord);
+      return res.json({ success: true, ...ntfyRecord });
+    }
+
+    // 3. Fetch from Firestore REST API
     const remoteRecord = await getFromFirestoreRest(normalizedCode);
     if (remoteRecord) {
       sharedTemplatesCache.set(normalizedCode, remoteRecord);

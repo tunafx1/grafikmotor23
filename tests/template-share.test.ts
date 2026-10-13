@@ -3,8 +3,30 @@ import assert from 'node:assert/strict';
 import {
   formatShareCode,
   normalizeShareCode,
-  SHARE_QUERY_PARAM
+  SHARE_QUERY_PARAM,
+  compressTemplateJson,
+  decompressTemplateJson,
+  buildShareLink
 } from '../src/lib/templatesDb';
+
+test('compressTemplateJson and decompressTemplateJson roundtrip data correctly', async () => {
+  const original = JSON.stringify({
+    name: 'Test Template'.repeat(50),
+    width: 1080,
+    height: 1080,
+    regions: [{ id: '1', type: 'text', name: 'Title', content: 'Long description '.repeat(20) }]
+  });
+  const compressed = await compressTemplateJson(original);
+  assert.ok(compressed.length > 0);
+  assert.ok(compressed.length < original.length);
+  const decompressed = await decompressTemplateJson(compressed);
+  assert.equal(decompressed, original);
+
+  // Link generation includes compressed data
+  const link = buildShareLink('ABCD2345', compressed);
+  assert.ok(link.includes('sablon=ABCD2345'));
+  assert.ok(link.includes('&d=' + compressed));
+});
 
 test('formatShareCode splits 8-character codes into 4-4 blocks', () => {
   assert.equal(formatShareCode('ABCD2345'), 'ABCD-2345');

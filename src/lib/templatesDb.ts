@@ -433,9 +433,44 @@ export function formatShareCode(code: string): string {
   return code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
 }
 
-export function buildShareLink(code: string): string {
-  const url = new URL(window.location.origin + window.location.pathname);
+/** Native stream compression (deflate-raw) to base64url */
+export async function compressTemplateJson(json: string): Promise<string> {
+  if (typeof CompressionStream === 'undefined') return '';
+  try {
+    const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    const buffer = await new Response(stream).arrayBuffer();
+    const bytes = new Uint8Array(buffer);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  } catch {
+    return '';
+  }
+}
+
+/** Native stream decompression (deflate-raw) from base64url */
+export async function decompressTemplateJson(base64url: string): Promise<string | null> {
+  if (typeof DecompressionStream === 'undefined' || !base64url) return null;
+  try {
+    let base64 = base64url.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return await new Response(stream).text();
+  } catch {
+    return null;
+  }
+}
+
+export function buildShareLink(code: string, compressedData?: string): string {
+  const origin = typeof window !== 'undefined' ? (window.location.origin + window.location.pathname) : 'https://grafik-motoru-studio.vercel.app/';
+  const url = new URL(origin);
   url.searchParams.set(SHARE_QUERY_PARAM, code);
+  if (compressedData && compressedData.length < 3500) {
+    url.searchParams.set('d', compressedData);
+  }
   return url.toString();
 }
 
@@ -476,6 +511,7 @@ async function postSharedTemplateToServer(payload: {
   templateJson: string;
   version: number;
 }): Promise<boolean> {
+  let apiOk = false;
   try {
     const user = auth.currentUser;
     const token = user ? await user.getIdToken().catch(() => null) : null;
@@ -489,17 +525,30 @@ async function postSharedTemplateToServer(payload: {
     });
     if (res.ok) {
       const data = await res.json();
-      return Boolean(data.success);
+      apiOk = Boolean(data.success);
     }
   } catch (err) {
     console.warn('Backend share API request failed:', err);
   }
-  return false;
+
+  // Also publish directly to global resilient channel from client
+  try {
+    fetch(`https://ntfy.sh/gm_share_${payload.code}`, {
+      method: 'POST',
+      headers: { 'Title': 'gm_template', 'Priority': 'low' },
+      body: JSON.stringify(payload)
+    }).catch(() => {});
+  } catch { /* noop */ }
+
+  return apiOk;
 }
 
 async function fetchSharedTemplateFromServer(code: string): Promise<any | null> {
+  const normalizedCode = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+  // 1. Try backend Express API
   try {
-    const res = await fetch(`/api/shared-template/${encodeURIComponent(code)}`);
+    const res = await fetch(`/api/shared-template/${encodeURIComponent(normalizedCode)}`);
     if (res.ok) {
       const data = await res.json();
       if (data && data.success && data.templateJson) {
@@ -509,6 +558,23 @@ async function fetchSharedTemplateFromServer(code: string): Promise<any | null> 
   } catch (err) {
     console.warn('Backend shared template fetch failed:', err);
   }
+
+  // 2. Direct lookup from global persistent channel
+  try {
+    const res = await fetch(`https://ntfy.sh/gm_share_${normalizedCode}/raw?poll=1`);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.trim()) {
+        const parsed = JSON.parse(text.trim());
+        if (parsed && typeof parsed === 'object' && parsed.templateJson) {
+          return parsed;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('Global channel direct fetch failed:', err);
+  }
+
   return null;
 }
 
@@ -603,23 +669,43 @@ export async function fetchSharedTemplate(code: string): Promise<SharedTemplateI
 
   let rawData: any = null;
 
-  // 1. Try direct Firestore getDoc with a short 3.5s timeout
-  if (isValidConfig) {
+  // 0. Check if current URL query contains embedded compressed template data
+  if (typeof window !== 'undefined') {
     try {
-      const snapshot = await withTimeout(getDoc(doc(db, 'shared_templates', code)), 3_500, 'Firestore zaman aşımı');
-      if (snapshot.exists()) {
-        rawData = snapshot.data();
+      const params = new URLSearchParams(window.location.search);
+      const d = params.get('d') || params.get('data');
+      if (d) {
+        const decompressed = await decompressTemplateJson(d);
+        if (decompressed) {
+          rawData = {
+            code: normalizeShareCode(code) || code,
+            name: 'Paylaşılan şablon',
+            templateJson: decompressed,
+            ownerId: 'shared',
+            ownerName: 'Grafik Motoru kullanıcısı',
+          };
+        }
       }
-    } catch (fsErr) {
-      console.warn('Direct Firestore getDoc failed, trying server endpoint:', fsErr);
-    }
+    } catch { /* noop */ }
   }
 
-  // 2. If Firestore failed or document was not found, try the server API fallback
+  // 1. Try server endpoint & resilient global channel (fast & quota-independent)
   if (!rawData) {
     const serverData = await fetchSharedTemplateFromServer(code);
     if (serverData) {
       rawData = serverData;
+    }
+  }
+
+  // 2. Direct Firestore fallback
+  if (!rawData && isValidConfig) {
+    try {
+      const snapshot = await withTimeout(getDoc(doc(db, 'shared_templates', code)), 3_000, 'Firestore zaman aşımı');
+      if (snapshot.exists()) {
+        rawData = snapshot.data();
+      }
+    } catch (fsErr) {
+      console.warn('Direct Firestore getDoc failed:', fsErr);
     }
   }
 
