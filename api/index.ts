@@ -71,7 +71,27 @@ function collectValidTextResult(raw: unknown, fields: TextField[]): Record<strin
       result[field.id] = matches[0].text.trim();
     }
   }
+  // Some chat-completions models preserve the requested ordering but replace
+  // opaque editor IDs with labels. Only when every requested field has a
+  // non-empty positional answer do we safely recover that response.
+  if (fields.length > 1 && texts.length === fields.length &&
+      texts.every(item => typeof item?.text === 'string' && item.text.trim())) {
+    fields.forEach((field, index) => {
+      if (!result[field.id]) result[field.id] = texts[index].text.trim();
+    });
+  }
   return result;
+}
+
+function parseAiJson(text: string): unknown {
+  const trimmed = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  try { return JSON.parse(trimmed); }
+  catch {
+    const start = trimmed.indexOf('{');
+    const end = trimmed.lastIndexOf('}');
+    if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1));
+    throw new Error('AI yanıtı geçerli JSON biçiminde değil.');
+  }
 }
 
 export function createTextGenerationHandler(options: {hasKey: () => boolean; generate: (input: TextRequest) => Promise<unknown>}) {
@@ -84,7 +104,7 @@ export function createTextGenerationHandler(options: {hasKey: () => boolean; gen
     try {
       const texts: Record<string, string> = Object.create(null);
       let pendingFields = input.fields;
-      for (let attempt = 0; attempt < 3 && pendingFields.length; attempt++) {
+      for (let attempt = 0; attempt < 5 && pendingFields.length; attempt++) {
         const raw = await options.generate({...input, fields: pendingFields});
         Object.assign(texts, collectValidTextResult(raw, pendingFields));
         pendingFields = pendingFields.filter(field => !texts[field.id]);
@@ -103,7 +123,7 @@ export function createTextGenerationHandler(options: {hasKey: () => boolean; gen
         error:quota ? 'Evren kullanım kotası dolu. Daha sonra tekrar deneyin; metinleriniz korundu.' :
           auth ? 'Evren API anahtarı geçersiz veya bu modele erişim izni yok. Sunucu ayarlarını kontrol edin.' :
           model ? 'Sunucudaki Evren model adı bulunamadı. EVREN_MODEL ayarını kontrol edin; mevcut metin korundu.' :
-          incomplete ? 'AI bazı metin kutularını boş bıraktı. Eksik alanlar otomatik olarak üç kez denendi; mevcut metinler korundu.' :
+          incomplete ? 'AI bazı metin kutularını boş bıraktı. Eksik alanlar otomatik olarak beş kez denendi; mevcut metinler korundu.' :
           'AI metni oluşturamadı. Bağlantıyı ve model ayarını kontrol edip tekrar deneyin; mevcut metin korundu.'});
     }
   };
@@ -207,7 +227,7 @@ app.post(['/api/generate-text', '/generate-text'], createTextGenerationHandler({
       contents.unshift({inlineData:{mimeType:header.slice(5, header.indexOf(';')), data}});
     }
     const response = await generateContentWithRetry(getEvrenKey()!, {contents});
-    return JSON.parse(response.text || '{}');
+    return parseAiJson(response.text || '{}');
   },
 }));
 

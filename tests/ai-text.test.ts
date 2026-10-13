@@ -47,6 +47,20 @@ test('AI endpoint preserves valid fields and retries only fields omitted by the 
   assert.deepEqual({...res.body.texts},{headline:'Yeni Başlık',body:'Yeni açıklama'});
 });
 
+test('AI endpoint recovers ordered answers when the model changes opaque field IDs', async () => {
+  const technicalFields = [
+    {id:'text-7f3a',name:'Başlık',role:'title',text:''},
+    {id:'text-9c12',name:'Açıklama',role:'description',text:''},
+  ];
+  const handler = createTextGenerationHandler({hasKey:()=>true,generate:async()=>({
+    texts:[{id:'Başlık',text:'Yeni Başlık'},{id:'Açıklama',text:'Yeni açıklama'}],
+  })});
+  const res = responseRecorder();
+  await handler({body:{...payload,fields:technicalFields,context:technicalFields}} as any,res as any);
+  assert.equal(res.code,200);
+  assert.deepEqual({...res.body.texts},{'text-7f3a':'Yeni Başlık','text-9c12':'Yeni açıklama'});
+});
+
 test('missing credentials, quota, and malformed model output return errors rather than sample content', async () => {
   for (const scenario of [
     {hasKey:()=>false,generate:async()=>assert.fail('No provider call without key'),code:503},
