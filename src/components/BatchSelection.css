@@ -3,18 +3,247 @@
 .production-photos,.production-gallery{position:relative;user-select:none}
 .marquee-box{position:absolute;z-index:50;border:1.5px solid #ff6b1a;background:#ff6b1a22;border-radius:4px;pointer-events:none}
 
-.production-photos article{cursor:grab;transition:box-shadow .15s,transform .15s,opacity .15s;box-shadow:0 0 0 0 transparent}
-.production-photos article.is-selected{box-shadow:0 0 0 2px #ff6b1a;}
-.production-photos article.is-dragging{opacity:.4;cursor:grabbing}
-.production-photos article.is-drop-target{box-shadow:0 0 0 2px #ff9861,0 8px 20px #0007;transform:scale(1.02)}
-.photo-select{position:absolute;z-index:4;top:6px;left:6px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border:1px solid #ffffff2a;border-radius:7px;background:#111216e8;opacity:0;transition:opacity .15s}
+.production-photos article{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  border-radius:12px;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,0.08);
+  background:#17181c;
+  transition:box-shadow .2s cubic-bezier(0.22, 1, 0.36, 1), transform .2s cubic-bezier(0.22, 1, 0.36, 1), border-color .2s;
+  box-shadow:0 4px 14px rgba(0,0,0,0.25);
+}
+.production-photos article:hover{
+  border-color:rgba(255,107,26,0.35);
+  box-shadow:0 8px 24px rgba(0,0,0,0.38);
+}
+.production-photos article.is-selected{
+  box-shadow:0 0 0 2px #ff6b1a, 0 8px 24px rgba(255,107,26,0.25);
+  border-color:#ff6b1a;
+}
+.production-photos article.is-dragging{
+  z-index:40;
+  opacity:0.92;
+  transform:scale(1.05) rotate(1deg);
+  box-shadow:0 20px 40px rgba(0,0,0,0.65), 0 0 0 2px #ff7a2e, 0 0 24px rgba(255,107,26,0.45);
+  border-color:#ff7a2e;
+  cursor:grabbing !important;
+}
+
+/* Dedicated aesthetic grip handle (tutamaç) */
+.photo-card-grip{
+  position:absolute;
+  top:8px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:15;
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:3px 9px 3px 7px;
+  border-radius:999px;
+  background:rgba(18, 19, 24, 0.88);
+  border:1px solid rgba(255, 255, 255, 0.16);
+  color:#c8cad4;
+  font-size:11px;
+  font-weight:600;
+  cursor:grab;
+  user-select:none;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  box-shadow:0 3px 10px rgba(0,0,0,0.4);
+  transition:all 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.photo-card-grip:hover{
+  background:rgba(255, 107, 26, 0.22);
+  border-color:#ff7a2e;
+  color:#fff;
+  box-shadow:0 4px 14px rgba(255, 107, 26, 0.35);
+  transform:translateX(-50%) translateY(-1px);
+}
+.photo-card-grip:active,
+.production-photos article.is-dragging .photo-card-grip{
+  cursor:grabbing;
+  background:#ff6b1a;
+  border-color:#ff6b1a;
+  color:#fff;
+  box-shadow:0 4px 16px rgba(255, 107, 26, 0.5);
+}
+
+.photo-card-badge{
+  position:absolute;
+  z-index:12;
+  top:8px;
+  left:8px;
+  display:grid;
+  place-items:center;
+  min-width:22px;
+  height:22px;
+  padding:0 5px;
+  border-radius:7px;
+  background:rgba(10, 11, 14, 0.82);
+  border:1px solid rgba(255, 255, 255, 0.14);
+  color:#e4e5ea;
+  font-size:11px;
+  font-weight:700;
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+}
+
+.photo-select{
+  position:absolute;
+  z-index:12;
+  top:8px;
+  right:34px;
+  width:22px;
+  height:22px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border:1px solid rgba(255,255,255,0.18);
+  border-radius:6px;
+  background:rgba(14,15,19,0.85);
+  backdrop-filter:blur(6px);
+  opacity:0;
+  transition:opacity .15s;
+}
 .production-photos article:hover .photo-select,.production-photos article.is-selected .photo-select{opacity:1}
 .photo-select input{appearance:none;-webkit-appearance:none;display:block;width:14px;height:14px;margin:0;padding:0;border:1.5px solid #777b87;border-radius:4px;background:#101115;cursor:pointer}
 .photo-select input:checked{border-color:#ff6b1a;background-color:#ff6b1a;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E");background-position:center;background-repeat:no-repeat;background-size:10px 10px}
 
+.photo-card-delete{
+  position:absolute;
+  z-index:12;
+  top:8px;
+  right:8px;
+  display:grid;
+  place-items:center;
+  width:22px;
+  height:22px;
+  border-radius:6px;
+  border:1px solid rgba(255, 255, 255, 0.14);
+  background:rgba(14, 15, 19, 0.85);
+  color:#9a9da8;
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  cursor:pointer;
+  transition:all .15s;
+}
+.photo-card-delete:hover:not(:disabled){
+  background:rgba(255, 69, 58, 0.25);
+  border-color:#ff453a;
+  color:#ff7b72;
+}
+
+.photo-card-footer{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:6px;
+  padding:6px 8px;
+  background:#131418;
+  border-top:1px solid rgba(255,255,255,0.06);
+}
+.photo-card-footer span{
+  overflow:hidden;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  font-size:11px;
+  color:#c2c4ce;
+  font-weight:500;
+  min-width:0;
+}
+.photo-card-nav{
+  display:flex;
+  align-items:center;
+  gap:2px;
+  flex-shrink:0;
+}
+.photo-card-nav button{
+  display:grid;
+  place-items:center;
+  width:22px;
+  height:22px;
+  padding:0;
+  border-radius:5px;
+  background:rgba(255,255,255,0.05);
+  border:1px solid rgba(255,255,255,0.08);
+  color:#9ea1ad;
+  cursor:pointer;
+  transition:all .15s;
+}
+.photo-card-nav button:hover:not(:disabled){
+  background:rgba(255,107,26,0.18);
+  border-color:rgba(255,107,26,0.4);
+  color:#ff9861;
+}
+.photo-card-nav button:disabled{
+  opacity:0.3;
+  cursor:default;
+}
+
+/* Works gallery */
 .production-result{cursor:grab;transition:box-shadow .15s,transform .15s,opacity .15s}
 .production-result.is-selected{box-shadow:0 0 0 2px #ff6b1a}
-.production-result.is-dragging{opacity:.4;cursor:grabbing}
+.production-result.is-dragging{opacity:.85;transform:scale(1.02);box-shadow:0 18px 36px rgba(0,0,0,0.6), 0 0 0 2px #ff7a2e;cursor:grabbing}
 .production-result.is-drop-target{box-shadow:0 0 0 2px #ff9861,0 10px 24px #0007;transform:scale(1.015)}
 
 .selection-drag-hint{font-size:10px;color:#77798a;margin:12px 0 18px}
+
+/* Desktop Drag & Drop Area Overlay */
+.production-photo-card{
+  position:relative;
+}
+.production-photo-card.is-desktop-dragging{
+  outline:2px dashed #ff6b1a !important;
+  outline-offset:-2px;
+}
+.photo-desktop-dropzone{
+  position:absolute;
+  inset:6px;
+  z-index:90;
+  display:grid;
+  place-items:center;
+  padding:24px;
+  border-radius:14px;
+  border:2px dashed #ff7a2e;
+  background:rgba(18, 19, 24, 0.94);
+  backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  pointer-events:none;
+  animation:dropzone-in 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow:0 12px 40px rgba(0,0,0,0.6), inset 0 0 30px rgba(255,107,26,0.1);
+}
+.photo-desktop-dropzone-inner{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:10px;
+  text-align:center;
+}
+.photo-desktop-dropzone-inner strong{
+  font-size:17px;
+  font-weight:700;
+  color:#ffffff;
+  letter-spacing:-0.01em;
+}
+.photo-desktop-dropzone-inner span{
+  font-size:12.5px;
+  color:#ff9e67;
+  max-width:320px;
+  line-height:1.5;
+}
+.drop-bounce-icon{
+  color:#ff7a2e;
+  animation:drop-icon-bounce 0.9s infinite alternate ease-in-out;
+}
+@keyframes drop-icon-bounce{
+  from{transform:translateY(0) scale(1);}
+  to{transform:translateY(-8px) scale(1.06);}
+}
+@keyframes dropzone-in{
+  from{opacity:0;transform:scale(0.98);}
+  to{opacity:1;transform:scale(1);}
+}
+

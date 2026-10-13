@@ -79,5 +79,33 @@ service cloud.firestore {
       allow create, update: if isValidProject(request.resource.data, userId);
       allow delete: if isAuthorizedOwner(userId);
     }
+
+    // Cross-account template sharing. A share is an immutable snapshot addressed by an
+    // unguessable 8-character code: readable one-by-one (never listable) by any signed-in
+    // user, creatable only by a real account for itself, and revocable only by its owner.
+    function isValidShareCode(code) {
+      return code is string && code.matches('^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$');
+    }
+
+    function isValidSharedTemplate(data, code) {
+      return data.keys().hasAll(['code', 'ownerId', 'ownerName', 'name', 'templateJson', 'version', 'createdAt']) &&
+        data.keys().hasOnly(['code', 'ownerId', 'ownerName', 'name', 'templateJson', 'version', 'createdAt']) &&
+        data.code == code &&
+        data.ownerId == request.auth.uid &&
+        data.ownerName is string && data.ownerName.size() <= 120 &&
+        data.name is string && data.name.size() > 0 && data.name.size() <= 256 &&
+        data.templateJson is string && data.templateJson.size() > 0 && data.templateJson.size() <= 900000 &&
+        data.version == 1 &&
+        data.createdAt == request.time;
+    }
+
+    match /shared_templates/{code} {
+      allow get: if isSignedIn() && isValidShareCode(code);
+      allow create: if isSignedIn() &&
+                       request.auth.token.firebase.sign_in_provider != 'anonymous' &&
+                       isValidShareCode(code) &&
+                       isValidSharedTemplate(request.resource.data, code);
+      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+    }
   }
 }

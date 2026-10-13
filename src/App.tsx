@@ -286,7 +286,11 @@ import {
   deleteCloudTemplate,
   saveUserGraphicProject,
   getUserGraphicProject,
-  subscribeUserGraphicProject
+  subscribeUserGraphicProject,
+  shareTemplate,
+  revokeSharedTemplate,
+  fetchSharedTemplate,
+  SHARE_QUERY_PARAM
 } from './lib/templatesDb';
 import { 
   auth, 
@@ -1128,6 +1132,45 @@ export default function App() {
   // General App configuration
   const [templateEditing, setTemplateEditing] = useState(false);
   const [workspaceScreen, setWorkspaceScreen] = useState<WorkspaceScreen>('create');
+  const [initialShareCode, setInitialShareCode] = useState<string | null>(null);
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get(SHARE_QUERY_PARAM);
+      if (code) {
+        setInitialShareCode(code);
+        setWorkspaceScreen('templates');
+      }
+    } catch { /* noop */ }
+  }, []);
+
+  const handleShareTemplate = async (template: DesignTemplate): Promise<string> => {
+    const ownerName = user?.displayName || user?.email?.split('@')[0] || 'Kullanıcı';
+    return await shareTemplate(template, ownerName);
+  };
+
+  const handleRevokeShareTemplate = async (code: string): Promise<void> => {
+    await revokeSharedTemplate(code);
+  };
+
+  const handleFetchSharedTemplate = async (code: string) => {
+    return await fetchSharedTemplate(code);
+  };
+
+  const handleImportSharedTemplate = (info: any): string => {
+    const newId = `imported-tpl-${Date.now()}`;
+    const imported: DesignTemplate = {
+      ...JSON.parse(JSON.stringify(info.template)),
+      id: newId,
+      name: `${info.name} (Paylaşılan)`,
+      isCustom: true
+    };
+    setTemplates(prev => [imported, ...prev]);
+    saveTemplatesToLocalStorage([imported, ...templatesRef.current]);
+    saveCloudTemplate(imported).catch(console.error);
+    return newId;
+  };
+
   const [batchBusy, setBatchBusy] = useState(false);
   const [batchProgress, setBatchProgress] = useState('');
   const [batchError, setBatchError] = useState<string | null>(null);
@@ -5037,7 +5080,13 @@ export default function App() {
         onDeleteTemplate={deleteTemplate}
         onDeleteWorks={deleteArchivedWorks}
         onDownloadWorks={downloadArchivedWorks}
-        onExport={() => setIsExportModalOpen(true)} onScreen={screen => { setTemplateEditing(false); setWorkspaceScreen(screen); }}/>
+        onExport={() => setIsExportModalOpen(true)} onScreen={screen => { setTemplateEditing(false); setWorkspaceScreen(screen); }}
+        onShareTemplate={handleShareTemplate}
+        onRevokeShareTemplate={handleRevokeShareTemplate}
+        onFetchSharedTemplate={handleFetchSharedTemplate}
+        onImportSharedTemplate={handleImportSharedTemplate}
+        initialShareCode={initialShareCode}
+      />
       {workspaceScreen === 'editor' && (
         <div className="production-editor-actions bg-[#222225] border-b border-white/10 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 text-xs shrink-0">
           <div className="flex items-center gap-3 min-w-0">

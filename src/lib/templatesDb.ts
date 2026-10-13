@@ -393,6 +393,160 @@ export async function deleteCloudTemplate(templateId: string): Promise<void> {
   }
 }
 
+/* ─────────────── Cross-account template sharing ─────────────── */
+
+// No 0/O/1/I so codes survive being read aloud or typed from a screenshot.
+const SHARE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const SHARE_CODE_PATTERN = /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{8}$/;
+export const SHARE_QUERY_PARAM = 'sablon';
+
+export type SharedTemplateInfo = {
+  code: string;
+  name: string;
+  ownerId: string;
+  ownerName: string;
+  createdAt: Date | null;
+  template: DesignTemplate;
+};
+
+function createShareCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  return Array.from(bytes, byte => SHARE_ALPHABET[byte % SHARE_ALPHABET.length]).join('');
+}
+
+/** `ABCDEFGH` → `ABCD-EFGH` for display. */
+export function formatShareCode(code: string): string {
+  return code.length === 8 ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
+}
+
+export function buildShareLink(code: string): string {
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set(SHARE_QUERY_PARAM, code);
+  return url.toString();
+}
+
+/** Accepts a raw code, a hyphenated code or a full share link. */
+export function normalizeShareCode(input: string): string | null {
+  let candidate = input.trim();
+  if (/^https?:\/\//i.test(candidate)) {
+    try { candidate = new URL(candidate).searchParams.get(SHARE_QUERY_PARAM) || ''; } catch { candidate = ''; }
+  }
+  candidate = candidate.toLocaleUpperCase('en-US').replace(/[^A-Z0-9]/g, '');
+  return SHARE_CODE_PATTERN.test(candidate) ? candidate : null;
+}
+
+function describeShareError(error: unknown, fallback: string): Error {
+  const code = (error as any)?.code || '';
+  if (/permission-denied/.test(code)) {
+    return new Error('Paylaşım izni reddedildi. Firestore güvenlik kurallarının yayınlandığından emin ol.');
+  }
+  if (/unavailable|deadline-exceeded/.test(code)) {
+    return new Error('Bulut bağlantısı kurulamadı. İnternet bağlantını kontrol edip tekrar dene.');
+  }
+  return error instanceof Error && error.message ? error : new Error(fallback);
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) => { timer = setTimeout(() => reject(Object.assign(new Error(message), {code: 'deadline-exceeded'})), ms); }),
+  ]).finally(() => clearTimeout(timer!));
+}
+
+/**
+ * Publishes a read-only snapshot of a template under a short share code. Anyone signed in
+ * with that code can copy it into their own account; later edits to the original are not
+ * propagated, and the recipient's copy is fully independent.
+ */
+export async function shareTemplate(template: DesignTemplate, ownerName: string): Promise<string> {
+  if (!isValidConfig) throw new Error('Bulut bağlantısı yapılandırılmadığı için şablon paylaşılamıyor.');
+  const user = auth.currentUser;
+  if (!user || user.isAnonymous) throw new Error('Şablon paylaşmak için hesabınla giriş yapmalısın.');
+
+  // Production metadata belongs to works, not to a reusable template.
+  const { sourceTemplateId: _s, productionBrief: _p, createdAt: _c, ...shareable } = template as DesignTemplate & Record<string, unknown>;
+  let templateJson: string;
+  try {
+    templateJson = JSON.stringify(sanitizePayload(await prepareCloudValue(shareable, user.uid)));
+  } catch (error) {
+    throw describeShareError(error, 'Şablondaki görseller buluta yüklenemedi.');
+  }
+  if (templateJson.length > 900_000) {
+    throw new Error('Bu şablon paylaşım için çok büyük. Gömülü görselleri azaltıp tekrar dene.');
+  }
+
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const code = createShareCode();
+    const ref = doc(db, 'shared_templates', code);
+    try {
+      const existing = await withTimeout(getDoc(ref), 15_000, 'Bulut bağlantısı zaman aşımına uğradı.');
+      if (existing.exists()) continue;
+      await withTimeout(setDoc(ref, {
+        code,
+        ownerId: user.uid,
+        ownerName: (ownerName || 'Grafik Motoru kullanıcısı').slice(0, 120),
+        name: (template.name || 'Adsız şablon').slice(0, 256),
+        templateJson,
+        version: 1,
+        createdAt: serverTimestamp(),
+      }), 20_000, 'Paylaşım kaydı zaman aşımına uğradı.');
+      return code;
+    } catch (error) {
+      throw describeShareError(error, 'Şablon paylaşılamadı.');
+    }
+  }
+  throw new Error('Paylaşım kodu oluşturulamadı. Lütfen tekrar dene.');
+}
+
+/** Owners can revoke a code at any time; copies already imported stay with their recipients. */
+export async function revokeSharedTemplate(code: string): Promise<void> {
+  if (!isValidConfig) return;
+  try {
+    await withTimeout(deleteDoc(doc(db, 'shared_templates', code)), 15_000, 'Bulut bağlantısı zaman aşımına uğradı.');
+  } catch (error) {
+    throw describeShareError(error, 'Paylaşım durdurulamadı.');
+  }
+}
+
+export async function fetchSharedTemplate(code: string): Promise<SharedTemplateInfo> {
+  if (!isValidConfig) throw new Error('Bulut bağlantısı yapılandırılmadığı için şablon alınamıyor.');
+  const user = await ensureUserSignIn();
+  if (!user) throw new Error('Paylaşılan şablonu almak için giriş yapmalısın.');
+  let snapshot;
+  try {
+    snapshot = await withTimeout(getDoc(doc(db, 'shared_templates', code)), 15_000, 'Bulut bağlantısı zaman aşımına uğradı.');
+  } catch (error) {
+    throw describeShareError(error, 'Paylaşılan şablon alınamadı.');
+  }
+  if (!snapshot.exists()) throw new Error('Bu koda ait bir şablon bulunamadı. Kod yanlış olabilir ya da paylaşım durdurulmuş.');
+  const data = snapshot.data();
+  let template: DesignTemplate;
+  try {
+    template = JSON.parse(String(data.templateJson || ''));
+  } catch {
+    throw new Error('Paylaşılan şablon okunamadı.');
+  }
+  const valid = template && typeof template === 'object' &&
+    Number.isFinite(Number(template.width)) && Number.isFinite(Number(template.height)) &&
+    Array.isArray(template.regions);
+  if (!valid) throw new Error('Paylaşılan şablonun içeriği geçersiz.');
+  return {
+    code,
+    name: String(data.name || template.name || 'Paylaşılan şablon'),
+    ownerId: String(data.ownerId || ''),
+    ownerName: String(data.ownerName || 'Bir kullanıcı'),
+    createdAt: typeof data.createdAt?.toDate === 'function' ? data.createdAt.toDate() : null,
+    template: {
+      ...template,
+      width: Number(template.width),
+      height: Number(template.height),
+      fixedElements: Array.isArray(template.fixedElements) ? template.fixedElements : [],
+      palette: template.palette || {primary: '#FF6B1A', accent: '#FF9F0A', text: 'rgba(255,255,255,0.95)', bg: '#1D1D1F'},
+    },
+  };
+}
+
 /**
  * Save user graphic project (uploaded PNGs, text selections, and generated pages) to Firestore.
  */

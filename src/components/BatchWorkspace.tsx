@@ -1,15 +1,19 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Sparkles, ArrowRight, X, ArrowLeft, Plus, Images, Download, FolderOpen, LayoutTemplate, Check, Trash2, Pencil } from 'lucide-react';
+import { Upload, Sparkles, ArrowRight, X, ArrowLeft, Plus, Images, Download, FolderOpen, LayoutTemplate, Check, Trash2, Pencil, GripVertical, Share2 } from 'lucide-react';
 import type { DesignTemplate, SequenceMediaItem } from '../types';
 import { TemplateThumbnail } from './TemplateThumbnail';
 import { resolveExportTemplate } from '../utils/exportAssets';
 import { buildBatchPages } from '../utils/batchProduction';
 import { createSequenceMediaItem } from '../utils/mediaUtils';
+import { ProductionLoadingMotion } from './ProductionLoadingMotion';
+import { ShareTemplateDialog, ImportTemplateDialog } from './TemplateShareDialogs';
+import type { SharedTemplateInfo } from '../lib/templatesDb';
 import './BatchWorkspace.css';
 import './BatchWorkspace.simple.css';
 import './BatchCreate.css';
 import './BatchSelection.css';
+import './TemplateShare.css';
 
 /** Rectangle-intersection test used by marquee (mouse box) selection. Ids come from
  * a data attribute on each selectable card so this stays generic across grids. */
@@ -169,12 +173,24 @@ export function BatchWorkspace(p: {
   onNewTemplate: () => void; onEditTemplate: (id: string) => void; onDeleteTemplate: (id: string) => void;
   onDeleteWorks: (ids: string[]) => void; onDownloadWorks: (ids: string[]) => Promise<void>;
   onExport: () => void; onRetry: () => void; onCancel: () => void; onScreen: (screen: WorkspaceScreen) => void;
+  onShareTemplate?: (template: DesignTemplate) => Promise<string>;
+  onRevokeShareTemplate?: (code: string) => Promise<void>;
+  onFetchSharedTemplate?: (code: string) => Promise<SharedTemplateInfo>;
+  onImportSharedTemplate?: (info: SharedTemplateInfo) => string;
+  initialShareCode?: string | null;
 }) {
   const [photos, setPhotos] = useState<SequenceMediaItem[]>([]);
   const [brief, setBrief] = useState('');
   const [loading, setLoading] = useState(false);
   const [fileError, setFileError] = useState('');
   const [dragging, setDragging] = useState(false);
+  const [isDesktopDragging, setIsDesktopDragging] = useState(false);
+  const desktopDragCounter = useRef(0);
+  const [shareTargetTemplate, setShareTargetTemplate] = useState<DesignTemplate | null>(null);
+  const [importModalOpen, setImportModalOpen] = useState(Boolean(p.initialShareCode));
+  useEffect(() => {
+    if (p.initialShareCode) setImportModalOpen(true);
+  }, [p.initialShareCode]);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [selectedWorks, setSelectedWorks] = useState<Set<string>>(new Set());
   const [workQuery, setWorkQuery] = useState('');
@@ -337,18 +353,14 @@ export function BatchWorkspace(p: {
       if (event.key === 'Tab') { event.preventDefault(); cancelGenerationButton.current?.focus(); }
       if (event.key === 'Escape') p.onCancel();
     }}>
-      <div className="production-loading-content">
-        <div className="production-loading-emblem" aria-hidden="true">
-          <span className="production-loading-ring" />
-          <img src="/brand/mark.svg" alt="" />
-        </div>
-        <span className="production-loading-eyebrow">GRAFİK MOTORU</span>
-        <h2 id="production-loading-title">Tasarımların hazırlanıyor</h2>
-        <p id="production-loading-progress" className="production-loading-progress" role="status" aria-live="polite">{p.progress || 'Sayfalar hazırlanıyor…'}</p>
-        <div className="production-loading-track" aria-hidden="true"><span /></div>
-        <p className="production-loading-note">Fotoğrafların ve komutun bu ekranda korunuyor.</p>
-        <button ref={cancelGenerationButton} type="button" className="production-loading-cancel" onClick={p.onCancel}>Üretimi iptal et</button>
-      </div>
+      <ProductionLoadingMotion
+        template={source || p.current}
+        photos={photos}
+        brief={brief}
+        progress={p.progress}
+        onCancel={p.onCancel}
+        cancelButtonRef={cancelGenerationButton}
+      />
     </div>}
     {p.screen === 'create' && <div className="production-container production-create-container">
       <div className="production-heading">
@@ -358,10 +370,51 @@ export function BatchWorkspace(p: {
       </div>
       <div className="production-builder">
         <div className="production-grid">
-        <section className="production-card production-photo-card"><h2><span>1</span> Fotoğraflar <small>{photos.length} / 25</small></h2>
+        <section
+          className={`production-card production-photo-card ${isDesktopDragging ? 'is-desktop-dragging' : ''}`}
+          onDragEnter={e => {
+            e.preventDefault();
+            if (e.dataTransfer.types.includes('Files')) {
+              desktopDragCounter.current++;
+              setIsDesktopDragging(true);
+            }
+          }}
+          onDragOver={e => {
+            e.preventDefault();
+            if (e.dataTransfer.types.includes('Files')) {
+              e.dataTransfer.dropEffect = 'copy';
+              if (!isDesktopDragging) setIsDesktopDragging(true);
+            }
+          }}
+          onDragLeave={e => {
+            e.preventDefault();
+            desktopDragCounter.current = Math.max(0, desktopDragCounter.current - 1);
+            if (desktopDragCounter.current === 0) {
+              setIsDesktopDragging(false);
+            }
+          }}
+          onDrop={e => {
+            e.preventDefault();
+            desktopDragCounter.current = 0;
+            setIsDesktopDragging(false);
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+              void addFiles(Array.from(e.dataTransfer.files));
+            }
+          }}
+        >
+          {isDesktopDragging && (
+            <div className="photo-desktop-dropzone">
+              <div className="photo-desktop-dropzone-inner">
+                <Upload size={40} className="drop-bounce-icon" />
+                <strong>Fotoğrafları buraya bırak</strong>
+                <span>Masaüstünden sürüklediğin görseller anında üretim listesine eklenir</span>
+              </div>
+            </div>
+          )}
+          <h2><span>1</span> Fotoğraflar <small>{photos.length} / 25</small></h2>
           <input ref={fileInput} type="file" multiple accept="image/*" aria-label="Toplu fotoğraf seç" hidden onChange={e => { void addFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
           <button className={`production-drop ${dragging ? 'dragging' : ''}`} disabled={disabled} onClick={() => fileInput.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); void addFiles(Array.from(e.dataTransfer.files)); }}>
-            <Upload size={30}/><strong>{loading ? 'Fotoğraflar hazırlanıyor…' : 'Fotoğrafları seç veya buraya bırak'}</strong><span>Birden fazla fotoğraf seçebilirsin · Dosya başına en fazla 25 MB</span>
+            <Upload size={30}/><strong>{loading ? 'Fotoğraflar hazırlanıyor…' : 'Fotoğrafları seç veya buraya bırak'}</strong><span>Masaüstünden sürükleyip bırakabilir veya tıkla · En fazla 25 MB</span>
           </button>
           {!!p.mediaLibrary.length && <button className="production-link" disabled={disabled} onClick={() => setLibraryOpen(v => !v)}>Kütüphaneden seç</button>}
           {libraryOpen && <div className="production-photos" aria-label="Medya kütüphanesi">{p.mediaLibrary.map((url, i) => <button key={url} disabled={disabled || photos.length >= 25} aria-label={`${i + 1}. görseli üretime ekle`} onClick={() => setPhotos(old => [...old, {id: crypto.randomUUID(), type: 'image', url, thumbnailUrl: url, originalName: `Kütüphane ${i + 1}`}])}><img src={url} alt={`Kütüphane ${i + 1}`}/></button>)}</div>}
@@ -378,20 +431,42 @@ export function BatchWorkspace(p: {
               transition={{ type: 'spring', stiffness: 500, damping: 38 }}
               data-photo-id={photo.id}
               className={[selectedPhotos.has(photo.id) && 'is-selected', draggedPhotoId === photo.id && 'is-dragging'].filter(Boolean).join(' ')}
-              onPointerDown={photoDrag.onPointerDown(photo.id)}
-              onPointerMove={photoDrag.onPointerMove(photo.id)}
-              onPointerUp={photoDrag.onPointerUp(photo.id)}
-              onPointerCancel={photoDrag.onPointerCancel(photo.id)}
             >
+              <span className="photo-card-badge">{index + 1}</span>
+              <div
+                className="photo-card-grip"
+                title="Sıralamayı değiştirmek için tut ve sürükle"
+                onPointerDown={photoDrag.onPointerDown(photo.id)}
+                onPointerMove={photoDrag.onPointerMove(photo.id)}
+                onPointerUp={photoDrag.onPointerUp(photo.id)}
+                onPointerCancel={photoDrag.onPointerCancel(photo.id)}
+              >
+                <GripVertical size={13}/>
+                <span>Taşı</span>
+              </div>
               <label className="photo-select" onClick={e => e.stopPropagation()}>
                 <input type="checkbox" checked={selectedPhotos.has(photo.id)} onChange={() => togglePhotoSelected(photo.id)} aria-label={`${index + 1}. fotoğrafı seç`}/>
               </label>
-              <img src={photo.thumbnailUrl} alt={photo.originalName || `Fotoğraf ${index + 1}`} draggable={false}/><span className="photo-number">{index + 1}</span>
-              <button className="photo-remove" disabled={disabled} aria-label={`${index + 1}. fotoğrafı seçimden çıkar`} onClick={() => setPhotos(old => old.filter((_, i) => i !== index))}><X size={14}/></button>
-              <div><button disabled={disabled || index === 0} aria-label={`${index + 1}. fotoğrafı önceye taşı`} onClick={() => move(index, -1)}><ArrowLeft size={14}/></button><span>{photo.originalName}</span><button disabled={disabled || index === photos.length - 1} aria-label={`${index + 1}. fotoğrafı sonraya taşı`} onClick={() => move(index, 1)}><ArrowRight size={14}/></button></div>
+              <button className="photo-card-delete" disabled={disabled} aria-label={`${index + 1}. fotoğrafı seçimden çıkar`} onClick={() => setPhotos(old => old.filter((_, i) => i !== index))}><X size={13}/></button>
+              <div
+                className="photo-card-img-wrap"
+                onPointerDown={photoDrag.onPointerDown(photo.id)}
+                onPointerMove={photoDrag.onPointerMove(photo.id)}
+                onPointerUp={photoDrag.onPointerUp(photo.id)}
+                onPointerCancel={photoDrag.onPointerCancel(photo.id)}
+              >
+                <img src={photo.thumbnailUrl} alt={photo.originalName || `Fotoğraf ${index + 1}`} draggable={false}/>
+              </div>
+              <div className="photo-card-footer">
+                <span title={photo.originalName}>{photo.originalName || `Fotoğraf ${index + 1}`}</span>
+                <div className="photo-card-nav">
+                  <button disabled={disabled || index === 0} aria-label={`${index + 1}. fotoğrafı sola taşı`} title="Sola taşı" onClick={() => move(index, -1)}><ArrowLeft size={13}/></button>
+                  <button disabled={disabled || index === photos.length - 1} aria-label={`${index + 1}. fotoğrafı sağa taşı`} title="Sağa taşı" onClick={() => move(index, 1)}><ArrowRight size={13}/></button>
+                </div>
+              </div>
             </motion.article>)}
           </div>
-          {!!photos.length && <p className="production-hint">Fotoğrafları sürükleyerek sırasını değiştirebilir, boş alana tıklayıp sürükleyerek birden fazla fotoğraf seçebilirsin. Birer görsel alanlı çok sayfalı şablonlarda fotoğraflar sayfa sırasıyla yerleştirilir.</p>}
+          {!!photos.length && <p className="production-hint">Fotoğrafları tutamaçtan veya görselden sürükleyerek sırasını değiştirebilir, ok butonlarıyla tek tek taşıyabilir, boş alana tıklayıp birden fazla fotoğraf seçebilirsin.</p>}
         </section>
         <div className="production-settings">
           <section className="production-card production-template-card"><h2><span>2</span> Şablon</h2>
@@ -424,7 +499,16 @@ export function BatchWorkspace(p: {
       <div className="production-gallery">{pages.map((page, i) => <button key={page.id} className="production-result" disabled={p.busy} onClick={() => p.onOpen(p.current.id, i)}><TemplateThumbnail template={resolveExportTemplate(p.current, page)} data={page}/><div><strong>{page.name}</strong><span>{page.productionError ? 'Metin üretilemedi' : `Sayfa ${i + 1}`}</span><span className="production-card-action">Düzenle <ArrowRight size={13}/></span></div></button>)}</div>
       <button className="production-link" disabled={p.busy} onClick={() => p.onScreen('create')}>{pages.length ? 'Üretim ayarlarına dön' : 'Toplu oluşturmaya başla'}</button>
     </div>}
-    {(p.screen === 'works' || p.screen === 'templates') && <div className="production-container"><div className="production-heading production-heading-row"><div><span className="production-eyebrow">{p.screen === 'works' ? 'ARŞİV' : 'ŞABLON KÜTÜPHANESİ'}</span><h1>{p.screen === 'works' ? 'Çalışmalarım' : 'Şablonlarım'}</h1><p>{p.screen === 'works' ? 'Önceki üretimlerini aç ve kaldığın yerden devam et.' : 'Bir şablon seç veya kendi düzenini hazırla.'}</p></div><button className="production-primary" onClick={p.screen === 'works' ? () => p.onScreen('create') : p.onNewTemplate}><Plus size={18}/>{p.screen === 'works' ? 'Yeni üretim' : 'Yeni şablon'}</button></div>
+    {(p.screen === 'works' || p.screen === 'templates') && <div className="production-container"><div className="production-heading production-heading-row"><div><span className="production-eyebrow">{p.screen === 'works' ? 'ARŞİV' : 'ŞABLON KÜTÜPHANESİ'}</span><h1>{p.screen === 'works' ? 'Çalışmalarım' : 'Şablonlarım'}</h1><p>{p.screen === 'works' ? 'Önceki üretimlerini aç ve kaldığın yerden devam et.' : 'Bir şablon seç veya kendi düzenini hazırla.'}</p></div>
+      {p.screen === 'works' ? (
+        <button className="production-primary" onClick={() => p.onScreen('create')}><Plus size={18}/>Yeni üretim</button>
+      ) : (
+        <div className="production-heading-actions">
+          {p.onImportSharedTemplate && <button className="production-secondary-btn" onClick={() => setImportModalOpen(true)} title="Paylaşılan bir şablonu kod ile hesabına ekle"><Download size={15}/><span>Kod ile ekle</span></button>}
+          <button className="production-primary" onClick={p.onNewTemplate}><Plus size={18}/>Yeni şablon</button>
+        </div>
+      )}
+    </div>
       {p.screen === 'works' && archivedWorks.length > 0 && <div className="archive-controls">
         <label className="archive-search"><span>Çalışma ara</span><input value={workQuery} onChange={event => setWorkQuery(event.target.value)} placeholder="İsimle ara…" aria-label="Çalışmalarımda ara" /></label>
         <div className="archive-selection-bar">
@@ -465,7 +549,14 @@ export function BatchWorkspace(p: {
             <TemplateThumbnail template={t}/>
           </div>
           <div><strong>{t.name}</strong><span>{`${t.width} × ${t.height} px · ${t.pages?.length || 1} düzen`}</span></div>
-          <div className="production-result-actions"><button className="production-card-primary" onClick={() => { p.onSelectTemplate(t.id); p.onScreen('create'); }}>Bu şablonla oluştur</button><button className="production-card-secondary" onClick={() => p.onEditTemplate(t.id)}>Düzenle</button><button className="production-card-delete" disabled={sourceTemplates.length <= 1} onClick={() => p.onDeleteTemplate(t.id)} aria-label={`${t.name} şablonunu sil`} title={sourceTemplates.length <= 1 ? 'Son şablon silinemez' : 'Şablonu sil'}><Trash2 size={14}/></button></div>
+          <div className="production-result-actions">
+            <button className="production-card-primary" onClick={() => { p.onSelectTemplate(t.id); p.onScreen('create'); }}>Bu şablonla oluştur</button>
+            <button className="production-card-secondary" onClick={() => p.onEditTemplate(t.id)}>Düzenle</button>
+            {p.onShareTemplate && (
+              <button className="production-card-share" onClick={() => setShareTargetTemplate(t)} aria-label={`${t.name} şablonunu paylaş`} title="Şablonu başka bir hesapla paylaş"><Share2 size={14}/></button>
+            )}
+            <button className="production-card-delete" disabled={sourceTemplates.length <= 1} onClick={() => p.onDeleteTemplate(t.id)} aria-label={`${t.name} şablonunu sil`} title={sourceTemplates.length <= 1 ? 'Son şablon silinemez' : 'Şablonu sil'}><Trash2 size={14}/></button>
+          </div>
         </article>)}</div>
       )}
       {p.screen === 'works' && normalizedWorkQuery && visibleWorks.length === 0 && <div className="production-empty"><FolderOpen size={36}/><h2>Çalışma bulunamadı.</h2><p>Farklı bir isimle tekrar arayabilirsin.</p></div>}
@@ -473,5 +564,26 @@ export function BatchWorkspace(p: {
       {p.screen === 'works' && !Object.values(p.projects).some(pages => pages.length) && <div className="production-empty"><Images size={36}/><h2>İlk üretimin için hazırsın.</h2><p>Fotoğraflarını ve komutunu ekle; tasarımlarını birlikte hazırlayalım.</p><button className="production-primary" onClick={() => p.onScreen('create')}>Toplu oluştur</button></div>}
       {p.screen === 'templates' && sourceTemplates.length === 0 && <div className="production-empty"><LayoutTemplate size={36}/><h2>Henüz bir şablonun yok.</h2><p>İlk şablonunu oluşturarak kendi tasarım düzenini hazırla.</p><button className="production-primary" onClick={p.onNewTemplate}>Şablon oluştur</button></div>}
     </div>}
+    {shareTargetTemplate && p.onShareTemplate && p.onRevokeShareTemplate && (
+      <ShareTemplateDialog
+        template={shareTargetTemplate}
+        onShare={() => p.onShareTemplate!(shareTargetTemplate)}
+        onRevoke={code => p.onRevokeShareTemplate!(code)}
+        onClose={() => setShareTargetTemplate(null)}
+      />
+    )}
+
+    {importModalOpen && p.onFetchSharedTemplate && p.onImportSharedTemplate && (
+      <ImportTemplateDialog
+        initialCode={p.initialShareCode || undefined}
+        onFetch={code => p.onFetchSharedTemplate!(code)}
+        onImport={info => p.onImportSharedTemplate!(info)}
+        onUseTemplate={id => {
+          p.onSelectTemplate(id);
+          p.onScreen('create');
+        }}
+        onClose={() => setImportModalOpen(false)}
+      />
+    )}
   </section>;
 }
