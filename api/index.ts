@@ -856,45 +856,90 @@ async function getFromFirestoreRest(code: string): Promise<SharedTemplateRecord 
   }
 }
 
-// Helper to persist across serverless instances and Firestore quota downtime
-async function saveToNtfy(record: SharedTemplateRecord): Promise<boolean> {
+const KV_APP_KEY = '43n628a7';
+
+// 1. Save template payload to persistent storage (dpaste primary, bytebin backup)
+async function persistTemplatePayload(payloadStr: string): Promise<string | null> {
+  // Primary: dpaste.org (365 days retention)
   try {
-    const res = await fetch(`https://ntfy.sh/gm_share_${record.code}`, {
+    const form = new URLSearchParams();
+    form.append('content', payloadStr);
+    form.append('expiry_days', '365');
+    const res = await fetch('https://dpaste.org/api/', {
       method: 'POST',
-      headers: { 'Title': 'gm_template', 'Priority': 'low' },
-      body: JSON.stringify(record)
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString(),
+    });
+    if (res.ok) {
+      const url = (await res.text()).trim().replace(/"/g, '');
+      const slug = url.split('/').filter(Boolean).pop();
+      if (slug && /^[a-zA-Z0-9]+$/.test(slug)) return slug;
+    }
+  } catch (err) {
+    console.warn('dpaste save failed:', err);
+  }
+
+  // Secondary: bytebin.lucko.me
+  try {
+    const res = await fetch('https://bytebin.lucko.me/post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payloadStr,
+    });
+    if (res.ok) {
+      const data = await res.json() as any;
+      if (data?.key) return 'bb_' + data.key;
+    }
+  } catch (err) {
+    console.warn('bytebin save failed:', err);
+  }
+
+  return null;
+}
+
+// 2. Fetch template payload by slug
+async function fetchTemplatePayloadBySlug(slug: string): Promise<string | null> {
+  try {
+    if (slug.startsWith('bb_')) {
+      const key = slug.slice(3);
+      const res = await fetch(`https://bytebin.lucko.me/${key}`);
+      if (res.ok) return await res.text();
+    } else {
+      const res = await fetch(`https://dpaste.org/${slug}/raw`);
+      if (res.ok) return await res.text();
+    }
+  } catch (err) {
+    console.warn('Payload fetch by slug failed:', err);
+  }
+  return null;
+}
+
+// 3. Save mapping code -> slug in permanent KV store
+async function saveCodeMapping(code: string, slug: string): Promise<boolean> {
+  try {
+    const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/UpdateValue/${KV_APP_KEY}/${code}/${slug}`, {
+      method: 'POST',
+      headers: { 'Content-Length': '0' },
     });
     return res.ok;
   } catch (err) {
-    console.warn('Persistent channel write warning:', err);
+    console.warn('KV mapping save failed:', err);
     return false;
   }
 }
 
-async function getFromNtfy(code: string): Promise<SharedTemplateRecord | null> {
+// 4. Retrieve slug by code from permanent KV store
+async function getSlugByCode(code: string): Promise<string | null> {
   try {
-    const res = await fetch(`https://ntfy.sh/gm_share_${code}/raw?poll=1`);
+    const res = await fetch(`https://keyvalue.immanuel.co/api/KeyVal/GetValue/${KV_APP_KEY}/${code}`);
     if (!res.ok) return null;
     const text = await res.text();
-    if (!text || !text.trim()) return null;
-    const lines = text.trim().split('\n').filter(Boolean);
-    const lastLine = lines[lines.length - 1];
-    const parsed = JSON.parse(lastLine);
-    if (parsed && typeof parsed === 'object' && parsed.templateJson) {
-      return {
-        code: parsed.code || code,
-        name: parsed.name || 'Paylaşılan şablon',
-        ownerId: parsed.ownerId || '',
-        ownerName: parsed.ownerName || 'Grafik Motoru kullanıcısı',
-        templateJson: parsed.templateJson,
-        version: Number(parsed.version || 1),
-        createdAt: parsed.createdAt || new Date().toISOString(),
-      };
-    }
+    const slug = text ? text.trim().replace(/^"|"$/g, '') : null;
+    return slug && /^[a-zA-Z0-9_]+$/.test(slug) ? slug : null;
   } catch (err) {
-    console.warn('Persistent channel read warning:', err);
+    console.warn('KV mapping get failed:', err);
+    return null;
   }
-  return null;
 }
 
 // POST: Share template
@@ -904,7 +949,7 @@ app.post(['/api/share-template', '/share-template'], async (req, res) => {
     if (!code || typeof code !== 'string' || !/^[A-Z0-9]{8}$/i.test(code.trim())) {
       return res.status(400).json({ success: false, error: 'Geçersiz paylaşım kodu.' });
     }
-    if (!templateJson || typeof templateJson !== 'string' || templateJson.length > 1_500_000) {
+    if (!templateJson || typeof templateJson !== 'string' || templateJson.length > 2_500_000) {
       return res.status(400).json({ success: false, error: 'Geçersiz veya çok büyük şablon verisi.' });
     }
 
@@ -922,24 +967,25 @@ app.post(['/api/share-template', '/share-template'], async (req, res) => {
     // 1. Store in-memory cache immediately
     sharedTemplatesCache.set(normalizedCode, record);
 
-    // 2. Persist to global channel so any other serverless instance or device can fetch it
-    saveToNtfy(record).catch(err => {
-      console.warn('Async channel write error:', err);
-    });
+    // 2. Persist to cloud storage and register mapping in KV
+    const payloadStr = JSON.stringify(record);
+    const slug = await persistTemplatePayload(payloadStr);
+    if (slug) {
+      await saveCodeMapping(normalizedCode, slug);
+    }
 
-    // 3. Save asynchronously to Firestore REST using caller's auth header if present
+    // 3. Save asynchronously to Firestore REST if credentials available
     const authHeader = req.get('authorization');
     saveToFirestoreRest(record, authHeader).catch(err => {
       console.warn('Async Firestore REST write error:', err);
     });
 
-    return res.json({ success: true, code: normalizedCode });
+    return res.json({ success: true, code: normalizedCode, slug });
   } catch (err: any) {
     console.error('Error in /api/share-template:', err);
     return res.status(500).json({ success: false, error: 'Şablon paylaşılamadı: ' + err.message });
   }
 });
-
 // GET: Fetch shared template
 app.get(['/api/shared-template/:code', '/shared-template/:code'], async (req, res) => {
   try {
@@ -955,14 +1001,31 @@ app.get(['/api/shared-template/:code', '/shared-template/:code'], async (req, re
       return res.json({ success: true, ...record });
     }
 
-    // 2. Check global persistent channel (instant across all serverless instances)
-    const ntfyRecord = await getFromNtfy(normalizedCode);
-    if (ntfyRecord) {
-      sharedTemplatesCache.set(normalizedCode, ntfyRecord);
-      return res.json({ success: true, ...ntfyRecord });
+    // 2. Lookup slug from permanent KV store
+    const slug = await getSlugByCode(normalizedCode);
+    if (slug) {
+      const payloadStr = await fetchTemplatePayloadBySlug(slug);
+      if (payloadStr) {
+        try {
+          const parsed = JSON.parse(payloadStr);
+          if (parsed && typeof parsed === 'object' && parsed.templateJson) {
+            const record: SharedTemplateRecord = {
+              code: normalizedCode,
+              name: parsed.name || 'Paylaşılan şablon',
+              ownerId: parsed.ownerId || '',
+              ownerName: parsed.ownerName || 'Grafik Motoru kullanıcısı',
+              templateJson: parsed.templateJson,
+              version: Number(parsed.version || 1),
+              createdAt: parsed.createdAt || new Date().toISOString(),
+            };
+            sharedTemplatesCache.set(normalizedCode, record);
+            return res.json({ success: true, ...record });
+          }
+        } catch { /* json parse error fallback */ }
+      }
     }
 
-    // 3. Fetch from Firestore REST API
+    // 3. Fallback to Firestore REST API
     const remoteRecord = await getFromFirestoreRest(normalizedCode);
     if (remoteRecord) {
       sharedTemplatesCache.set(normalizedCode, remoteRecord);

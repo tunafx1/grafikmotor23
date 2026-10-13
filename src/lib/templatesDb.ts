@@ -531,22 +531,13 @@ async function postSharedTemplateToServer(payload: {
     console.warn('Backend share API request failed:', err);
   }
 
-  // Also publish directly to global resilient channel from client
-  try {
-    fetch(`https://ntfy.sh/gm_share_${payload.code}`, {
-      method: 'POST',
-      headers: { 'Title': 'gm_template', 'Priority': 'low' },
-      body: JSON.stringify(payload)
-    }).catch(() => {});
-  } catch { /* noop */ }
-
   return apiOk;
 }
 
 async function fetchSharedTemplateFromServer(code: string): Promise<any | null> {
   const normalizedCode = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-  // 1. Try backend Express API
+  // 1. Query application backend API (resolves in-memory, persistent KV, and cloud storage)
   try {
     const res = await fetch(`/api/shared-template/${encodeURIComponent(normalizedCode)}`);
     if (res.ok) {
@@ -557,24 +548,6 @@ async function fetchSharedTemplateFromServer(code: string): Promise<any | null> 
     }
   } catch (err) {
     console.warn('Backend shared template fetch failed:', err);
-  }
-
-  // 2. Direct lookup from global persistent channel
-  try {
-    const res = await fetch(`https://ntfy.sh/gm_share_${normalizedCode}/raw?poll=1`);
-    if (res.ok) {
-      const text = await res.text();
-      if (text && text.trim()) {
-        const lines = text.trim().split('\n').filter(Boolean);
-        const lastLine = lines[lines.length - 1];
-        const parsed = JSON.parse(lastLine);
-        if (parsed && typeof parsed === 'object' && parsed.templateJson) {
-          return parsed;
-        }
-      }
-    }
-  } catch (err) {
-    console.warn('Global channel direct fetch failed:', err);
   }
 
   return null;
