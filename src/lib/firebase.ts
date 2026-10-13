@@ -80,11 +80,11 @@ if (isBrowser) {
   mediaStorage.maxUploadRetryTime = 20_000;
 }
 
-// Check if quota was exceeded in a prior session to immediately go offline and avoid background write retry storms
-if (isValidConfig && typeof window !== 'undefined' && storage.getItem('firestore_quota_exceeded') === 'true') {
-  disableNetwork(db).catch(err => {
-    console.error('Failed to disable Firestore network during startup:', err);
-  });
+// Ensure Firestore network is ready and clear any stale offline quota locks
+if (isValidConfig && typeof window !== 'undefined') {
+  try {
+    storage.removeItem('firestore_quota_exceeded');
+  } catch { /* noop */ }
 }
 
 // Initialize Authentication
@@ -113,9 +113,7 @@ export async function ensureUserSignIn(): Promise<{ uid: string; isAnonymous?: b
     const userCredential = await signInAnonymously(auth);
     return userCredential.user;
   } catch (err) {
-    console.warn('Firebase Anonymous Auth failed or is disabled. Operating in local offline mode:', err);
-    // Gracefully switch to offline mode to avoid permission errors
-    await disableFirestoreNetwork();
+    console.warn('Firebase Anonymous Auth failed or is disabled:', err);
     return null;
   }
 }

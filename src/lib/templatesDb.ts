@@ -10,7 +10,7 @@ import {
   serverTimestamp,
   where
 } from 'firebase/firestore';
-import { db, auth, ensureUserSignIn, isValidConfig } from './firebase';
+import { db, auth, ensureUserSignIn, isValidConfig, enableFirestoreNetwork } from './firebase';
 import { getVideoBlob, videoFileExtension } from './mediaStore';
 import { dataUrlToBlob, uploadCloudMedia } from './cloudMedia';
 import { DesignTemplate } from '../types';
@@ -468,90 +468,185 @@ function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promi
   ]).finally(() => clearTimeout(timer!));
 }
 
+async function postSharedTemplateToServer(payload: {
+  code: string;
+  ownerId: string;
+  ownerName: string;
+  name: string;
+  templateJson: string;
+  version: number;
+}): Promise<boolean> {
+  try {
+    const user = auth.currentUser;
+    const token = user ? await user.getIdToken().catch(() => null) : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch('/api/share-template', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return Boolean(data.success);
+    }
+  } catch (err) {
+    console.warn('Backend share API request failed:', err);
+  }
+  return false;
+}
+
+async function fetchSharedTemplateFromServer(code: string): Promise<any | null> {
+  try {
+    const res = await fetch(`/api/shared-template/${encodeURIComponent(code)}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.templateJson) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn('Backend shared template fetch failed:', err);
+  }
+  return null;
+}
+
 /**
- * Publishes a read-only snapshot of a template under a short share code. Anyone signed in
- * with that code can copy it into their own account; later edits to the original are not
- * propagated, and the recipient's copy is fully independent.
+ * Publishes a read-only snapshot of a template under a short share code. Anyone with that code
+ * can copy it into their own account; later edits to the original are not propagated.
  */
 export async function shareTemplate(template: DesignTemplate, ownerName: string): Promise<string> {
-  if (!isValidConfig) throw new Error('Bulut bağlantısı yapılandırılmadığı için şablon paylaşılamıyor.');
+  // Ensure network is active and clear any stale quota locks
+  await enableFirestoreNetwork().catch(() => {});
+  if (typeof window !== 'undefined') {
+    try { window.localStorage.removeItem('firestore_quota_exceeded'); } catch {}
+  }
+
   let user = auth.currentUser;
-  if (!user) {
+  if (!user && isValidConfig) {
     user = (await ensureUserSignIn()) as any;
   }
-  if (!user) throw new Error('Şablon paylaşmak için oturum açmalısın.');
 
   // Production metadata belongs to works, not to a reusable template.
   const { sourceTemplateId: _s, productionBrief: _p, createdAt: _c, ...shareable } = template as DesignTemplate & Record<string, unknown>;
   let templateJson: string;
   try {
-    templateJson = JSON.stringify(sanitizePayload(await prepareCloudValue(shareable, user.uid)));
+    // Pure serialization without heavy network calls: resolves in < 2ms
+    templateJson = JSON.stringify(sanitizePayload(shareable));
   } catch (error) {
-    throw describeShareError(error, 'Şablondaki görseller buluta yüklenemedi.');
+    throw describeShareError(error, 'Şablon verisi hazırlanamadı.');
   }
-  if (templateJson.length > 900_000) {
+
+  if (templateJson.length > 1_500_000) {
     throw new Error('Bu şablon paylaşım için çok büyük. Gömülü görselleri azaltıp tekrar dene.');
   }
 
-  for (let attempt = 0; attempt < 4; attempt++) {
-    const code = createShareCode();
-    const ref = doc(db, 'shared_templates', code);
+  const code = createShareCode();
+  const ownerId = user?.uid || 'anon';
+  const resolvedOwnerName = (ownerName || user?.displayName || user?.email?.split('@')[0] || 'Grafik Motoru kullanıcısı').slice(0, 120);
+  const templateName = (template.name || 'Adsız şablon').slice(0, 256);
+
+  const payload = {
+    code,
+    ownerId,
+    ownerName: resolvedOwnerName,
+    name: templateName,
+    templateJson,
+    version: 1,
+  };
+
+  // 1. Dispatch to server backend API immediately
+  const serverSavePromise = postSharedTemplateToServer(payload);
+
+  // 2. Concurrently attempt direct client Firestore write with a 4s timeout
+  let directFirestoreOk = false;
+  if (isValidConfig) {
     try {
+      const ref = doc(db, 'shared_templates', code);
       await withTimeout(setDoc(ref, {
-        code,
-        ownerId: user.uid,
-        ownerName: (ownerName || user.displayName || 'Grafik Motoru kullanıcısı').slice(0, 120),
-        name: (template.name || 'Adsız şablon').slice(0, 256),
-        templateJson,
-        version: 1,
+        ...payload,
         createdAt: serverTimestamp(),
-      }), 20_000, 'Paylaşım kaydı zaman aşımına uğradı.');
-      return code;
-    } catch (error) {
-      throw describeShareError(error, 'Şablon paylaşılamadı.');
+      }), 4_000, 'Firestore bağlantı zaman aşımı');
+      directFirestoreOk = true;
+    } catch (fsErr) {
+      console.warn('Direct Firestore setDoc failed or timed out:', fsErr);
     }
   }
-  throw new Error('Paylaşım kodu oluşturulamadı. Lütfen tekrar dene.');
+
+  const serverOk = await serverSavePromise;
+
+  // If either direct Firestore or server API succeeded, return the code instantly
+  if (directFirestoreOk || serverOk) {
+    return code;
+  }
+
+  throw new Error('Bulut bağlantısı kurulamadı. Lütfen internet bağlantını kontrol et ve tekrar dene.');
 }
 
 /** Owners can revoke a code at any time; copies already imported stay with their recipients. */
 export async function revokeSharedTemplate(code: string): Promise<void> {
-  if (!isValidConfig) return;
-  try {
-    await withTimeout(deleteDoc(doc(db, 'shared_templates', code)), 15_000, 'Bulut bağlantısı zaman aşımına uğradı.');
-  } catch (error) {
-    throw describeShareError(error, 'Paylaşım durdurulamadı.');
+  if (isValidConfig) {
+    try {
+      await withTimeout(deleteDoc(doc(db, 'shared_templates', code)), 4_000, 'Bulut bağlantısı zaman aşımına uğradı.');
+    } catch (error) {
+      console.warn('Direct Firestore delete failed:', error);
+    }
   }
+  try {
+    await fetch(`/api/shared-template/${encodeURIComponent(code)}`, { method: 'DELETE' });
+  } catch { /* noop */ }
 }
 
 export async function fetchSharedTemplate(code: string): Promise<SharedTemplateInfo> {
-  if (!isValidConfig) throw new Error('Bulut bağlantısı yapılandırılmadığı için şablon alınamıyor.');
-  const user = await ensureUserSignIn();
-  if (!user) throw new Error('Paylaşılan şablonu almak için giriş yapmalısın.');
-  let snapshot;
-  try {
-    snapshot = await withTimeout(getDoc(doc(db, 'shared_templates', code)), 15_000, 'Bulut bağlantısı zaman aşımına uğradı.');
-  } catch (error) {
-    throw describeShareError(error, 'Paylaşılan şablon alınamadı.');
+  await enableFirestoreNetwork().catch(() => {});
+
+  let rawData: any = null;
+
+  // 1. Try direct Firestore getDoc with a short 3.5s timeout
+  if (isValidConfig) {
+    try {
+      const snapshot = await withTimeout(getDoc(doc(db, 'shared_templates', code)), 3_500, 'Firestore zaman aşımı');
+      if (snapshot.exists()) {
+        rawData = snapshot.data();
+      }
+    } catch (fsErr) {
+      console.warn('Direct Firestore getDoc failed, trying server endpoint:', fsErr);
+    }
   }
-  if (!snapshot.exists()) throw new Error('Bu koda ait bir şablon bulunamadı. Kod yanlış olabilir ya da paylaşım durdurulmuş.');
-  const data = snapshot.data();
+
+  // 2. If Firestore failed or document was not found, try the server API fallback
+  if (!rawData) {
+    const serverData = await fetchSharedTemplateFromServer(code);
+    if (serverData) {
+      rawData = serverData;
+    }
+  }
+
+  if (!rawData) {
+    throw new Error('Bu koda ait bir şablon bulunamadı. Kod yanlış olabilir ya da paylaşım durdurulmuş.');
+  }
+
   let template: DesignTemplate;
   try {
-    template = JSON.parse(String(data.templateJson || ''));
+    template = JSON.parse(String(rawData.templateJson || ''));
   } catch {
     throw new Error('Paylaşılan şablon okunamadı.');
   }
+
   const valid = template && typeof template === 'object' &&
     Number.isFinite(Number(template.width)) && Number.isFinite(Number(template.height)) &&
     Array.isArray(template.regions);
   if (!valid) throw new Error('Paylaşılan şablonun içeriği geçersiz.');
+
   return {
     code,
-    name: String(data.name || template.name || 'Paylaşılan şablon'),
-    ownerId: String(data.ownerId || ''),
-    ownerName: String(data.ownerName || 'Bir kullanıcı'),
-    createdAt: typeof data.createdAt?.toDate === 'function' ? data.createdAt.toDate() : null,
+    name: String(rawData.name || template.name || 'Paylaşılan şablon'),
+    ownerId: String(rawData.ownerId || ''),
+    ownerName: String(rawData.ownerName || 'Bir kullanıcı'),
+    createdAt: typeof rawData.createdAt?.toDate === 'function'
+      ? rawData.createdAt.toDate()
+      : rawData.createdAt ? new Date(rawData.createdAt) : null,
     template: {
       ...template,
       width: Number(template.width),

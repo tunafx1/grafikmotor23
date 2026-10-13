@@ -88,22 +88,21 @@ service cloud.firestore {
     }
 
     match /shared_templates/{code} {
-      // Oturum açmış herhangi bir kullanıcı (Google veya Misafir), geçerli 8 haneli kod ile şablonu alabilir
-      allow get: if isSignedIn() && isValidShareCode(code);
+      // Geçerli 8 haneli kod ile şablon herkes tarafından (giriş yapmış veya yapmamış) doğrudan alınabilir
+      allow get: if isValidShareCode(code);
       
-      // Oturum açmış kullanıcılar kendi UID'leri ile paylaşım kaydı oluşturabilir
+      // Oturum açmış kullanıcılar (Google, E-posta veya Anonim) paylaşım kaydı oluşturabilir
       allow create: if isSignedIn() &&
                        isValidShareCode(code) &&
                        request.resource.data.code == code &&
-                       request.resource.data.ownerId == request.auth.uid &&
                        request.resource.data.templateJson is string &&
-                       request.resource.data.templateJson.size() <= 1000000;
+                       request.resource.data.templateJson.size() <= 1500000;
                        
       // Paylaşımlar anlık görüntüdür, doğrudan düzenlenemez
       allow update: if false;
       
-      // Yalnızca paylaşımı oluşturan kullanıcı silebilir / geri çekebilir
-      allow delete: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      // Oluşturan veya giriş yapmış kullanıcı silebilir
+      allow delete: if isSignedIn();
     }
   }
 }

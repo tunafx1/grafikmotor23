@@ -28,3 +28,60 @@ test('normalizeShareCode parses raw codes, hyphenated codes, and full URLs', () 
   assert.equal(normalizeShareCode('ABC01234'), null); // Contains 0 and 1 which are excluded from alphabet
   assert.equal(normalizeShareCode('INVALID-LONG-CODE'), null);
 });
+
+test('server API saves and retrieves shared template', async () => {
+  const { default: app } = await import('../api/index');
+  const server = app.listen(0);
+  const port = (server.address() as any).port;
+  const baseUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    const testCode = 'TEST9999';
+    const samplePayload = {
+      code: testCode,
+      ownerId: 'test-user-123',
+      ownerName: 'Test Designer',
+      name: 'Sample Template',
+      templateJson: JSON.stringify({
+        width: 1080,
+        height: 1080,
+        regions: [],
+        name: 'Sample Template'
+      }),
+      version: 1,
+    };
+
+    // POST /api/share-template
+    const postRes = await fetch(`${baseUrl}/api/share-template`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(samplePayload),
+    });
+    assert.equal(postRes.status, 200);
+    const postData = await postRes.json();
+    assert.equal(postData.success, true);
+    assert.equal(postData.code, testCode);
+
+    // GET /api/shared-template/:code
+    const getRes = await fetch(`${baseUrl}/api/shared-template/${testCode}`);
+    assert.equal(getRes.status, 200);
+    const getData = await getRes.json();
+    assert.equal(getData.success, true);
+    assert.equal(getData.code, testCode);
+    assert.equal(getData.name, 'Sample Template');
+    assert.equal(getData.ownerName, 'Test Designer');
+    assert.equal(JSON.parse(getData.templateJson).width, 1080);
+
+    // GET with hyphenated code should also work
+    const getHyphenRes = await fetch(`${baseUrl}/api/shared-template/TEST-9999`);
+    assert.equal(getHyphenRes.status, 200);
+    const getHyphenData = await getHyphenRes.json();
+    assert.equal(getHyphenData.code, testCode);
+
+    // Non-existent code returns 404
+    const notFoundRes = await fetch(`${baseUrl}/api/shared-template/ZZZZ9999`);
+    assert.equal(notFoundRes.status, 404);
+  } finally {
+    server.close();
+  }
+});

@@ -774,4 +774,165 @@ app.post(['/api/yt-download', '/yt-download'], async (req, res) => {
   }
 });
 
+/* ───────────────────────── Shared Templates API ───────────────────────── */
+
+type SharedTemplateRecord = {
+  code: string;
+  name: string;
+  ownerId: string;
+  ownerName: string;
+  templateJson: string;
+  version: number;
+  createdAt: string;
+};
+
+const sharedTemplatesCache = new Map<string, SharedTemplateRecord>();
+
+// Helper to interact with Firestore REST API
+async function saveToFirestoreRest(record: SharedTemplateRecord, authToken?: string | null): Promise<boolean> {
+  try {
+    const dbId = (firebaseAppletConfig as any).firestoreDatabaseId || 'ai-studio-grafikotomasyonm-5229ff0f-8304-405c-af2a-76613e388830';
+    const projectId = firebaseAppletConfig.projectId || 'grafik-motoru';
+    const apiKey = firebaseAppletConfig.apiKey || FIREBASE_WEB_API_KEY;
+    if (!apiKey) return false;
+
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${dbId}/documents/shared_templates/${record.code}?key=${encodeURIComponent(apiKey)}`;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (authToken) {
+      headers['Authorization'] = authToken.startsWith('Bearer ') ? authToken : `Bearer ${authToken}`;
+    }
+
+    const payload = {
+      fields: {
+        code: { stringValue: record.code },
+        ownerId: { stringValue: record.ownerId },
+        ownerName: { stringValue: record.ownerName },
+        name: { stringValue: record.name },
+        templateJson: { stringValue: record.templateJson },
+        version: { integerValue: String(record.version || 1) },
+        createdAt: { timestampValue: record.createdAt || new Date().toISOString() },
+      }
+    };
+
+    const res = await fetch(url, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify(payload)
+    });
+    return res.ok;
+  } catch (err) {
+    console.warn('Firestore REST write warning:', err);
+    return false;
+  }
+}
+
+async function getFromFirestoreRest(code: string): Promise<SharedTemplateRecord | null> {
+  try {
+    const dbId = (firebaseAppletConfig as any).firestoreDatabaseId || 'ai-studio-grafikotomasyonm-5229ff0f-8304-405c-af2a-76613e388830';
+    const projectId = firebaseAppletConfig.projectId || 'grafik-motoru';
+    const apiKey = firebaseAppletConfig.apiKey || FIREBASE_WEB_API_KEY;
+    if (!apiKey) return null;
+
+    const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/${dbId}/documents/shared_templates/${code}?key=${encodeURIComponent(apiKey)}`;
+    const res = await fetch(url);
+    if (!res.ok) return null;
+
+    const data = await res.json() as any;
+    const f = data.fields;
+    if (!f || !f.templateJson?.stringValue) return null;
+
+    return {
+      code: f.code?.stringValue || code,
+      ownerId: f.ownerId?.stringValue || '',
+      ownerName: f.ownerName?.stringValue || 'Grafik Motoru kullanıcısı',
+      name: f.name?.stringValue || 'Paylaşılan şablon',
+      templateJson: f.templateJson.stringValue,
+      version: Number(f.version?.integerValue || 1),
+      createdAt: f.createdAt?.timestampValue || new Date().toISOString(),
+    };
+  } catch (err) {
+    console.warn('Firestore REST read warning:', err);
+    return null;
+  }
+}
+
+// POST: Share template
+app.post(['/api/share-template', '/share-template'], async (req, res) => {
+  try {
+    const { code, ownerId, ownerName, name, templateJson, version } = req.body || {};
+    if (!code || typeof code !== 'string' || !/^[A-Z0-9]{8}$/i.test(code.trim())) {
+      return res.status(400).json({ success: false, error: 'Geçersiz paylaşım kodu.' });
+    }
+    if (!templateJson || typeof templateJson !== 'string' || templateJson.length > 1_500_000) {
+      return res.status(400).json({ success: false, error: 'Geçersiz veya çok büyük şablon verisi.' });
+    }
+
+    const normalizedCode = code.trim().toUpperCase();
+    const record: SharedTemplateRecord = {
+      code: normalizedCode,
+      ownerId: String(ownerId || 'anon').slice(0, 128),
+      ownerName: String(ownerName || 'Grafik Motoru kullanıcısı').slice(0, 120),
+      name: String(name || 'Paylaşılan şablon').slice(0, 256),
+      templateJson,
+      version: Number(version) || 1,
+      createdAt: new Date().toISOString(),
+    };
+
+    // Store in-memory cache immediately
+    sharedTemplatesCache.set(normalizedCode, record);
+
+    // Save asynchronously to Firestore REST using caller's auth header if present
+    const authHeader = req.get('authorization');
+    saveToFirestoreRest(record, authHeader).catch(err => {
+      console.warn('Async Firestore REST write error:', err);
+    });
+
+    return res.json({ success: true, code: normalizedCode });
+  } catch (err: any) {
+    console.error('Error in /api/share-template:', err);
+    return res.status(500).json({ success: false, error: 'Şablon paylaşılamadı: ' + err.message });
+  }
+});
+
+// GET: Fetch shared template
+app.get(['/api/shared-template/:code', '/shared-template/:code'], async (req, res) => {
+  try {
+    const rawCode = req.params.code || '';
+    const normalizedCode = rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!/^[A-Z0-9]{8}$/.test(normalizedCode)) {
+      return res.status(400).json({ success: false, error: 'Geçersiz paylaşım kodu biçimi.' });
+    }
+
+    // 1. Check in-memory cache
+    if (sharedTemplatesCache.has(normalizedCode)) {
+      const record = sharedTemplatesCache.get(normalizedCode)!;
+      return res.json({ success: true, ...record });
+    }
+
+    // 2. Fetch from Firestore REST API
+    const remoteRecord = await getFromFirestoreRest(normalizedCode);
+    if (remoteRecord) {
+      sharedTemplatesCache.set(normalizedCode, remoteRecord);
+      return res.json({ success: true, ...remoteRecord });
+    }
+
+    return res.status(404).json({ success: false, error: 'Bu koda ait bir şablon bulunamadı.' });
+  } catch (err: any) {
+    console.error('Error in /api/shared-template/:code:', err);
+    return res.status(500).json({ success: false, error: 'Şablon yüklenirken hata oluştu: ' + err.message });
+  }
+});
+
+// DELETE: Revoke shared template
+app.delete(['/api/shared-template/:code', '/shared-template/:code'], async (req, res) => {
+  try {
+    const rawCode = req.params.code || '';
+    const normalizedCode = rawCode.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+    sharedTemplatesCache.delete(normalizedCode);
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 export default app;
