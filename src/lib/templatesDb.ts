@@ -358,19 +358,20 @@ async function prepareCloudValue(value: any, userId: string): Promise<any> {
   if ((typeof Blob !== 'undefined' && value instanceof Blob) || (typeof File !== 'undefined' && value instanceof File)) return undefined;
   if (Array.isArray(value)) return Promise.all(value.map(item => prepareCloudValue(item, userId)));
 
-  const output: Record<string, any> = {};
-  for (const [key, child] of Object.entries(value)) {
-    if (key === 'file') continue;
+  // A project often contains a number of independent image layers. Preparing
+  // them serially can exceed the autosave timeout even on a healthy network.
+  // Keep the object shape while uploading independent media concurrently.
+  const entries = await Promise.all(Object.entries(value).map(async ([key, child]) => {
+    if (key === 'file') return null;
     if (key === 'videoUrl' && typeof child === 'string' && child.startsWith('blob:') && typeof value.mediaId === 'string') {
       const videoUrl = await uploadStoredVideo(userId, value.mediaId);
-      if (videoUrl) output[key] = videoUrl;
-      continue;
+      return videoUrl ? [key, videoUrl] as const : null;
     }
-    if (typeof child === 'string' && child.startsWith('blob:')) continue;
+    if (typeof child === 'string' && child.startsWith('blob:')) return null;
     const prepared = await prepareCloudValue(child, userId);
-    if (prepared !== undefined) output[key] = prepared;
-  }
-  return output;
+    return prepared === undefined ? null : [key, prepared] as const;
+  }));
+  return Object.fromEntries(entries.filter((entry): entry is readonly [string, any] => entry !== null));
 }
 
 /**

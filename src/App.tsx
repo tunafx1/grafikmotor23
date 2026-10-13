@@ -1818,7 +1818,7 @@ export default function App() {
         setCloudError(null);
         await Promise.race([
           saveUserGraphicProject(uid, id, data, allPages[id] || [], templatesToSave, allPages),
-          new Promise<never>((_, reject) => window.setTimeout(() => reject(Object.assign(new Error('Bulut kaydı zaman aşımına uğradı.'), {code:'sync/timeout'})), 30_000)),
+          new Promise<never>((_, reject) => window.setTimeout(() => reject(Object.assign(new Error('Bulut kaydı zaman aşımına uğradı.'), {code:'sync/timeout'})), 90_000)),
         ]);
         lastSavedRef.current = savedTemplates;
         lastSavedProjectRef.current = savedProject;
@@ -1835,6 +1835,8 @@ export default function App() {
       const detail = String(error?.code || error?.message || '');
       setCloudError(/storage\/|media\//i.test(detail)
         ? 'Medya yedeklemesi tamamlanamadı. Cloudinary bağlantısını ve dosya sınırını kontrol edin.'
+        : /sync\/timeout/i.test(detail)
+          ? 'Bulut yedeklemesi beklenenden uzun sürdü. Bağlantı kesilmediyse yeniden deneyin.'
         : /permission-denied/i.test(detail)
           ? 'Firestore erişimi reddedildi. Canlı güvenlik kurallarının yayımlandığını kontrol edin.'
           : 'Bulut kaydı tamamlanamadı. İnternet bağlantısını ve Firebase yapılandırmasını kontrol edin.');
