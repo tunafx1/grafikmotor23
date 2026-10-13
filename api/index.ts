@@ -2,7 +2,6 @@ import express from 'express';
 import path from 'path';
 import { readFileSync } from 'fs';
 import { extractVideoId as extractYouTubeVideoId, streamMedia } from '../downloader-service/media-stream.js';
-import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import { createSignedMediaUpload, readCloudinaryConfig } from './cloudinary-upload.js';
 
@@ -81,7 +80,7 @@ export function createTextGenerationHandler(options: {hasKey: () => boolean; gen
     try { input = parseTextRequest(req.body); }
     catch (error) { return res.status(400).json({success:false, error:(error as Error).message}); }
     if (!options.hasKey()) return res.status(503).json({success:false, reason:'missing_api_key',
-      error:'AI bağlantısı kurulmamış. Sunucudaki .env.local dosyasına GEMINI_API_KEY ekleyip sunucuyu yeniden başlatın. Metinleriniz değiştirilmedi.'});
+      error:'AI bağlantısı kurulmamış. Sunucudaki EVREN_API_KEY ayarını kontrol edip sunucuyu yeniden başlatın. Metinleriniz değiştirilmedi.'});
     try {
       const texts: Record<string, string> = Object.create(null);
       let pendingFields = input.fields;
@@ -97,13 +96,13 @@ export function createTextGenerationHandler(options: {hasKey: () => boolean; gen
       console.error('generate-text failed:', error?.status, message.slice(0, 500));
       const quota = /429|quota|Resource has been exhausted/i.test(message);
       const auth = /401|403|API.key|API_KEY_INVALID/i.test(message);
-      const model = error?.status === 404 || /404|NOT_FOUND|is not found|not supported for generateContent/i.test(message);
+      const model = error?.status === 404 || /404|NOT_FOUND|is not found|model/i.test(message);
       const incomplete = /metin alanı eksik|metin alanları eksik|geçerli bir metin/i.test(message);
       return res.status(quota ? 429 : 502).json({success:false,
         reason:quota ? 'quota_exceeded' : auth ? 'invalid_api_key' : model ? 'model_not_found' : 'generation_failed',
-        error:quota ? 'Gemini kullanım kotası dolu. Daha sonra tekrar deneyin; metinleriniz korundu.' :
-          auth ? 'Gemini anahtarı geçersiz veya bu modele erişim izni yok. Sunucu ayarlarını kontrol edin.' :
-          model ? 'Sunucudaki Gemini model adı bulunamadı. GEMINI_MODEL / GEMINI_FALLBACK_MODEL ayarını kontrol edin; mevcut metin korundu.' :
+        error:quota ? 'Evren kullanım kotası dolu. Daha sonra tekrar deneyin; metinleriniz korundu.' :
+          auth ? 'Evren API anahtarı geçersiz veya bu modele erişim izni yok. Sunucu ayarlarını kontrol edin.' :
+          model ? 'Sunucudaki Evren model adı bulunamadı. EVREN_MODEL ayarını kontrol edin; mevcut metin korundu.' :
           incomplete ? 'AI bazı metin kutularını boş bıraktı. Eksik alanlar otomatik olarak üç kez denendi; mevcut metinler korundu.' :
           'AI metni oluşturamadı. Bağlantıyı ve model ayarını kontrol edip tekrar deneyin; mevcut metin korundu.'});
     }
@@ -117,19 +116,57 @@ if (!process.env.VERCEL) {
   dotenv.config();
 }
 
-// Models and credentials are supplied by the host environment.
-// gemini-2.5-flash is the primary stable and fast model.
-const rawModel = process.env.GEMINI_MODEL?.trim();
-const DEFAULT_MODEL = (rawModel && rawModel !== 'gemini-3.6-flash') ? rawModel : 'gemini-2.5-flash';
-const rawFallback = process.env.GEMINI_FALLBACK_MODEL?.trim();
-const FALLBACK_MODEL = (rawFallback && rawFallback !== 'gemini-3.6-flash') ? rawFallback : 'gemini-2.5-flash';
-let aiClient: GoogleGenAI | null = null;
+// Evren exposes an OpenAI-compatible chat-completions API. Keep the provider
+// configuration server-side so its key is never sent to the browser.
+const EVREN_API_URL = process.env.EVREN_API_URL?.trim() || 'https://evren-llmapi.ssyz.org.tr/v1/chat/completions';
+const EVREN_MODEL = process.env.EVREN_MODEL?.trim() || 'deepseek-v4-flash';
 
-function getGeminiClient(): GoogleGenAI | null {
-  const key = process.env.GEMINI_API_KEY?.trim();
-  if (!key || key === 'MY_GEMINI_API_KEY') return null;
-  if (!aiClient) aiClient = new GoogleGenAI({apiKey: key});
-  return aiClient;
+function getEvrenKey(): string | null {
+  const key = process.env.EVREN_API_KEY?.trim();
+  return key && key !== 'MY_EVREN_API_KEY' ? key : null;
+}
+
+class EvrenApiError extends Error {
+  constructor(message: string, readonly status?: number) { super(message); }
+}
+
+function extractEvrenText(payload: any): string {
+  const content = payload?.choices?.[0]?.message?.content;
+  if (typeof content === 'string' && content.trim()) return content.trim();
+  throw new EvrenApiError('Evren geçerli bir metin yanıtı döndürmedi.');
+}
+
+async function generateContentWithRetry(_key: string, params: any, attempt = 1): Promise<{text: string}> {
+  const messages: Array<{role: 'system' | 'user'; content: string}> = [];
+  if (params.config?.systemInstruction) messages.push({role:'system', content:String(params.config.systemInstruction)});
+  const contents = Array.isArray(params.contents) ? params.contents : [];
+  const text = contents.map((part: any) => part?.text).filter((part: unknown): part is string => typeof part === 'string').join('\n');
+  if (contents.some((part: any) => part?.inlineData)) {
+    messages.push({role:'system', content:'Bu istek görsel içerik içeriyordu. Görsel verisi metin sağlayıcısına iletilmedi; yalnızca verilen metin bağlamına göre yanıt üret.'});
+  }
+  messages.push({role:'user', content:`${text}\n\nYanıtı yalnızca geçerli JSON olarak döndür; Markdown kod bloğu ve açıklama ekleme.`});
+
+  try {
+    const response = await fetch(EVREN_API_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json', 'X-API-Key': _key},
+      body: JSON.stringify({model: EVREN_MODEL, messages}),
+      signal: AbortSignal.timeout(25_000),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = typeof payload?.error?.message === 'string' ? payload.error.message : `Evren isteği ${response.status} durumuyla başarısız oldu.`;
+      throw new EvrenApiError(message, response.status);
+    }
+    return {text: extractEvrenText(payload)};
+  } catch (error: any) {
+    const retryable = error?.status === 429 || error?.status === 503 || error?.name === 'TimeoutError' || error?.name === 'AbortError';
+    if (retryable && attempt < 2) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return generateContentWithRetry(_key, params, attempt + 1);
+    }
+    throw error;
+  }
 }
 
 // Color and Text validation helpers
@@ -143,57 +180,6 @@ function isValidHexOrRgbaColor(color: any): boolean {
 function sanitizeAiText(text: any): string {
   if (!text || typeof text !== 'string') return '';
   return text.trim();
-}
-
-async function generateContentWithRetry(client: GoogleGenAI, params: any, attempt = 1): Promise<any> {
-  const currentModel = params.model || DEFAULT_MODEL;
-  params.model = currentModel;
-
-  try {
-    return await client.models.generateContent(params);
-  } catch (err: any) {
-    const errMsg = err?.message || String(err);
-    const isRateLimitOrUnavailable = errMsg.includes('503') || 
-                                     errMsg.includes('UNAVAILABLE') || 
-                                     errMsg.includes('Resource has been exhausted') || 
-                                     errMsg.includes('429') || 
-                                     errMsg.includes('high demand') ||
-                                     errMsg.includes('404') ||
-                                     errMsg.includes('DEADLINE_EXCEEDED') ||
-                                     errMsg.includes('timeout') ||
-                                     err?.status === 503 ||
-                                     err?.status === 429 ||
-                                     err?.status === 404;
-    
-    if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
-      console.log(`[API Notice] Attempt ${attempt} model ${currentModel} returned: ${isRateLimitOrUnavailable ? 'RETRYABLE_STATUS' : 'UNEXPECTED_STATUS'}`);
-    }
-
-    if (isRateLimitOrUnavailable && attempt < 2) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      
-      if (currentModel !== FALLBACK_MODEL) {
-        if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
-          console.log(`Switching model to ${FALLBACK_MODEL} for retry attempt...`);
-        }
-        params.model = FALLBACK_MODEL;
-      }
-
-      // If request has image and failed, retry text-only on attempt 2 to prevent timeout
-      if (Array.isArray(params.contents)) {
-        const textOnly = params.contents.filter((c: any) => !c?.inlineData);
-        if (textOnly.length > 0 && textOnly.length < params.contents.length) {
-          if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
-            console.log('Retrying text generation without inline image to prevent timeout...');
-          }
-          params.contents = textOnly;
-        }
-      }
-
-      return generateContentWithRetry(client, params, attempt + 1);
-    }
-    throw err;
-  }
 }
 
 const app = express();
@@ -213,20 +199,14 @@ app.use((req, _res, next) => {
 });
 
 app.post(['/api/generate-text', '/generate-text'], createTextGenerationHandler({
-  hasKey: () => Boolean(getGeminiClient()),
+  hasKey: () => Boolean(getEvrenKey()),
   generate: async input => {
     const contents: any[] = [{text: buildTextPrompt(input)}];
     if (input.image) {
       const [header, data] = input.image.split(',');
       contents.unshift({inlineData:{mimeType:header.slice(5, header.indexOf(';')), data}});
     }
-    const response = await generateContentWithRetry(getGeminiClient()!, {
-      model:DEFAULT_MODEL, contents,
-      config:{httpOptions:{timeout:25000}, responseMimeType:'application/json', responseSchema:{
-        type:Type.OBJECT, properties:{texts:{type:Type.ARRAY, items:{type:Type.OBJECT,
-          properties:{id:{type:Type.STRING},text:{type:Type.STRING}},required:['id','text']}}}, required:['texts'],
-      }},
-    });
+    const response = await generateContentWithRetry(getEvrenKey()!, {contents});
     return JSON.parse(response.text || '{}');
   },
 }));
@@ -319,16 +299,16 @@ app.post(['/api/generate-content', '/generate-content'], async (req, res) => {
   const styleDescription = styleType || 'modern ve minimalist';
   const selectedFallback = fallbackResponses[styleType] || fallbackResponses.minimalist;
 
-  const client = getGeminiClient();
-  if (!client) {
+  const evrenKey = getEvrenKey();
+  if (!evrenKey) {
     if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
-      console.warn('[AI Notice] GEMINI_API_KEY is not configured. Returning predefined fallback with reason.');
+      console.warn('[AI Notice] EVREN_API_KEY is not configured. Returning predefined fallback with reason.');
     }
     return res.json({ 
       success: true, 
       isFallback: true,
       reason: 'missing_api_key',
-      message: 'GEMINI_API_KEY ortam değişkeni tanımlanmamış. Varsayılan şablon yüklendi.',
+      message: 'EVREN_API_KEY ortam değişkeni tanımlanmamış. Varsayılan şablon yüklendi.',
       ...selectedFallback
     });
   }
@@ -390,32 +370,13 @@ Yanıtı kesinlikle şu JSON şemasında ver:
     }
     contents.push({ text: prompt });
 
-    const response = await generateContentWithRetry(client, {
-      model: DEFAULT_MODEL,
-      contents: contents,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            subtitle: { type: Type.STRING },
-            description: { type: Type.STRING },
-            primaryColor: { type: Type.STRING },
-            accentColor: { type: Type.STRING },
-            textColor: { type: Type.STRING },
-            bgColor: { type: Type.STRING }
-          },
-          required: ['title', 'subtitle', 'description', 'primaryColor', 'accentColor', 'textColor', 'bgColor']
-        }
-      }
-    });
+    const response = await generateContentWithRetry(evrenKey, {contents});
 
     let rawData: any = {};
     try {
       rawData = JSON.parse(response.text || '{}');
     } catch (parseErr) {
-      console.warn('Gemini response was not valid JSON:', response.text);
+      console.warn('Evren response was not valid JSON:', response.text);
       return res.json({
         success: true,
         isFallback: true,
@@ -443,11 +404,11 @@ Yanıtı kesinlikle şu JSON şemasında ver:
     });
 
   } catch (err: any) {
-    console.error('Error contacting Gemini API:', err?.message || err);
+    console.error('Error contacting Evren API:', err?.message || err);
     const errMsg = err?.message || String(err);
     const isQuota = errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Resource has been exhausted');
     const isAuth = errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API key') || errMsg.includes('API_KEY_INVALID');
-    const reason = isQuota ? 'quota_exceeded' : (isAuth ? 'invalid_api_key' : 'gemini_error');
+    const reason = isQuota ? 'quota_exceeded' : (isAuth ? 'invalid_api_key' : 'evren_error');
 
     return res.json({
       success: true,
@@ -474,16 +435,16 @@ app.post(['/api/analyze-collage', '/analyze-collage'], async (req, res) => {
     bgColor: "#1D1D1F"
   };
 
-  const client = getGeminiClient();
-  if (!client) {
+  const evrenKey = getEvrenKey();
+  if (!evrenKey) {
     if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
-      console.warn('[AI Notice] GEMINI_API_KEY is not configured. Returning collage fallback.');
+      console.warn('[AI Notice] EVREN_API_KEY is not configured. Returning collage fallback.');
     }
     return res.json({
       success: true,
       isFallback: true,
       reason: 'missing_api_key',
-      message: 'GEMINI_API_KEY ortam değişkeni tanımlanmamış. Varsayılan kolaj şablonu yüklendi.',
+      message: 'EVREN_API_KEY ortam değişkeni tanımlanmamış. Varsayılan kolaj şablonu yüklendi.',
       ...defaultCollageFallback
     });
   }
@@ -544,33 +505,13 @@ Metin kuralları:
 }`
     });
 
-    const response = await generateContentWithRetry(client, {
-      model: DEFAULT_MODEL,
-      contents: contents,
-      config: {
-        systemInstruction: systemInstruction,
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            title: { type: Type.STRING },
-            subtitle: { type: Type.STRING },
-            description: { type: Type.STRING },
-            primaryColor: { type: Type.STRING },
-            accentColor: { type: Type.STRING },
-            textColor: { type: Type.STRING },
-            bgColor: { type: Type.STRING }
-          },
-          required: ['title', 'subtitle', 'description', 'primaryColor', 'accentColor', 'textColor', 'bgColor']
-        }
-      }
-    });
+    const response = await generateContentWithRetry(evrenKey, {contents, config:{systemInstruction}});
 
     let rawData: any = {};
     try {
       rawData = JSON.parse(response.text || '{}');
     } catch (parseErr) {
-      console.warn('Collage Gemini response was not valid JSON:', response.text);
+      console.warn('Collage Evren response was not valid JSON:', response.text);
       return res.json({
         success: true,
         isFallback: true,
@@ -597,11 +538,11 @@ Metin kuralları:
     });
 
   } catch (err: any) {
-    console.error('Error analyzing image with Gemini:', err?.message || err);
+    console.error('Error analyzing image with Evren:', err?.message || err);
     const errMsg = err?.message || String(err);
     const isQuota = errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Resource has been exhausted');
     const isAuth = errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API key') || errMsg.includes('API_KEY_INVALID');
-    const reason = isQuota ? 'quota_exceeded' : (isAuth ? 'invalid_api_key' : 'gemini_error');
+    const reason = isQuota ? 'quota_exceeded' : (isAuth ? 'invalid_api_key' : 'evren_error');
 
     return res.json({
       success: true,
