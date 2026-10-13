@@ -1885,12 +1885,17 @@ export default function App() {
           : 'Bulut kaydı tamamlanamadı. İnternet bağlantısını ve Firebase yapılandırmasını kontrol edin.');
       setCloudStatus('error');
       setIsCloudSynced(false);
+      if (/sync\/timeout/i.test(detail)) {
+        setTimeout(() => {
+          setCloudError(null);
+        }, 8_000);
+      }
     } finally {
       saveInFlightRef.current = false;
     }
   };
   useEffect(() => {
-    if (!user?.uid || user.isAnonymous || !cloudInitialized || !isLoadedRef.current || firestoreQuotaExceeded || cloudStatus === 'error') return;
+    if (!user?.uid || user.isAnonymous || !cloudInitialized || !isLoadedRef.current || firestoreQuotaExceeded) return;
     const unchanged = JSON.stringify(templates) === lastSavedRef.current &&
       projectHash(graphicData, pagesByTemplate, currentTemplateId) === lastSavedProjectRef.current;
     setIsCloudSynced(unchanged);

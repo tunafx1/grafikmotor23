@@ -323,10 +323,17 @@ async function uploadDataUrl(userId: string, value: string): Promise<string> {
   if (!uploadedMedia.has(key)) {
     const upload = (async () => {
       const blob = await dataUrlToBlob(value);
-      return uploadCloudMedia(blob, {kind:'image', contentHash:hash, fileName:`${hash}.${extension}`});
+      // Timeout upload after 12 seconds so autosave never freezes
+      const uploadPromise = uploadCloudMedia(blob, {kind:'image', contentHash:hash, fileName:`${hash}.${extension}`});
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Cloudinary yükleme zaman aşımı')), 12_000)
+      );
+      return Promise.race([uploadPromise, timeoutPromise]);
     })().catch(error => {
       uploadedMedia.delete(key);
-      throw error;
+      console.warn('Medya buluta yüklenemedi, yerel koruma devrede:', error?.message);
+      // Fallback: if dataUrl is small enough, retain it; otherwise safe empty fallback
+      return value.length < 400_000 ? value : '';
     });
     uploadedMedia.set(key, upload);
   }
@@ -341,10 +348,15 @@ async function uploadStoredVideo(userId: string, mediaId: string): Promise<strin
   if (!uploadedMedia.has(key)) {
     const upload = (async () => {
       const hash = await contentHash(`${mediaId}:${blob.size}:${blob.type}`);
-      return uploadCloudMedia(blob, {kind:'video', contentHash:hash, fileName:`${mediaId}.${extension}`});
+      const uploadPromise = uploadCloudMedia(blob, {kind:'video', contentHash:hash, fileName:`${mediaId}.${extension}`});
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Video yükleme zaman aşımı')), 18_000)
+      );
+      return Promise.race([uploadPromise, timeoutPromise]);
     })().catch(error => {
       uploadedMedia.delete(key);
-      throw error;
+      console.warn('Video buluta yüklenemedi:', error?.message);
+      return null;
     });
     uploadedMedia.set(key, upload);
   }
@@ -353,22 +365,24 @@ async function uploadStoredVideo(userId: string, mediaId: string): Promise<strin
 
 /** Move binary media to Cloudinary before the lightweight snapshot reaches Firestore. */
 async function prepareCloudValue(value: any, userId: string): Promise<any> {
-  if (typeof value === 'string') return value.startsWith('data:image/') ? uploadDataUrl(userId, value) : value;
+  if (typeof value === 'string') return value.startsWith('data:image/') ? uploadDataUrl(userId, value).catch(() => '') : value;
   if (!value || typeof value !== 'object') return value;
   if ((typeof Blob !== 'undefined' && value instanceof Blob) || (typeof File !== 'undefined' && value instanceof File)) return undefined;
-  if (Array.isArray(value)) return Promise.all(value.map(item => prepareCloudValue(item, userId)));
+  if (Array.isArray(value)) {
+    const items = await Promise.all(value.map(item => prepareCloudValue(item, userId).catch(() => null)));
+    return items.filter(i => i !== null && i !== undefined);
+  }
 
   // A project often contains a number of independent image layers. Preparing
-  // them serially can exceed the autosave timeout even on a healthy network.
-  // Keep the object shape while uploading independent media concurrently.
+  // them concurrently with timeouts prevents exceeding autosave limits.
   const entries = await Promise.all(Object.entries(value).map(async ([key, child]) => {
     if (key === 'file') return null;
     if (key === 'videoUrl' && typeof child === 'string' && child.startsWith('blob:') && typeof value.mediaId === 'string') {
-      const videoUrl = await uploadStoredVideo(userId, value.mediaId);
+      const videoUrl = await uploadStoredVideo(userId, value.mediaId).catch(() => null);
       return videoUrl ? [key, videoUrl] as const : null;
     }
     if (typeof child === 'string' && child.startsWith('blob:')) return null;
-    const prepared = await prepareCloudValue(child, userId);
+    const prepared = await prepareCloudValue(child, userId).catch(() => null);
     return prepared === undefined ? null : [key, prepared] as const;
   }));
   return Object.fromEntries(entries.filter((entry): entry is readonly [string, any] => entry !== null));

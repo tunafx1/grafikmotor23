@@ -24,13 +24,14 @@ export function parseTextRequest(body: unknown): TextRequest {
   if (!value || !validString(value.systemPrompt, 20000) || !validString(value.templateName, 256) ||
       !validString(value.brief, 12000) || !validFields(value.fields) || !value.fields.length ||
       !validFields(value.context) || new Set(value.fields.map(f => f.id)).size !== value.fields.length ||
-      (value.image !== undefined && (!validString(value.image, 2000000) || !/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value.image)))) {
+      (value.image !== undefined && (!validString(value.image, 2500000) || !/^data:image\/(jpeg|png|webp|gif);base64,/i.test(value.image.trim())))) {
     throw new Error('Metin isteği geçersiz. Alanları ve şablon promptunu kontrol edin.');
   }
   return value;
 }
 
 export function buildTextPrompt(input: TextRequest): string {
+  const fieldsTemplate = input.fields.map(f => `{"id": ${JSON.stringify(f.id)}, "text": "..."}`).join(', ');
   return `Sosyal medya metin editörüsün. Yalnızca istenen alanlar için yeni metin üret.
 Şablona ait aşağıdaki prompt; dil, konu, üslup, uzunluk ve biçim tercihlerinde önceliklidir.
 ŞABLON PROMPTU:\n${input.systemPrompt.trim() || 'Türkçe, anlaşılır ve kısa metinler üret.'}
@@ -43,7 +44,7 @@ ${JSON.stringify(input.fields)}
 Her alanın adını ve rolünü dikkate al. Bir alanın prompt değeri doluysa, yalnızca o alanı üretirken bu özel talimatı genel şablon promptundan daha öncelikli uygula.
 Şablonda veya alan promptunda başka uzunluk belirtilmediyse başlık kısa, alt başlık tek satır, açıklama en fazla iki cümle olsun. callToAction kısa ve eylem odaklı; label, date ve price kendi veri türlerine uygun olmalıdır.
 Şablon istemedikçe Markdown ekleme. Görsel varsa konuyu anlamak için kullan; doğrulanmamış fiyat, tarih, iletişim bilgisi veya iddia uydurma.
-Sadece verilen alan kimlikleri için texts dizisi döndür: {"texts":[{"id":"alan kimliği","text":"üretilen metin"}]}.
+Sadece verilen alan kimlikleri için texts dizisi döndür: {"texts":[${fieldsTemplate}]}.
 Renk, yerleşim, başka alan veya açıklayıcı yorum döndürme.`;
 }
 
@@ -61,35 +62,109 @@ export function validateTextResult(raw: unknown, fields: TextField[]): Record<st
   return result;
 }
 
-function collectValidTextResult(raw: unknown, fields: TextField[]): Record<string, string> {
-  const texts = (raw as any)?.texts;
+export function collectValidTextResult(raw: unknown, fields: TextField[]): Record<string, string> {
   const result: Record<string, string> = Object.create(null);
-  if (!Array.isArray(texts)) return result;
-  for (const field of fields) {
-    const matches = texts.filter(item => item?.id === field.id);
-    if (matches.length === 1 && typeof matches[0].text === 'string' && matches[0].text.trim() && matches[0].text.length <= 12000) {
-      result[field.id] = matches[0].text.trim();
+  if (!raw || typeof raw !== 'object' || !fields.length) return result;
+
+  const rawObj = raw as Record<string, any>;
+  let itemsArray: any[] | null = null;
+  let dictionary: Record<string, any> | null = null;
+
+  if (Array.isArray(raw)) {
+    itemsArray = raw;
+  } else if (Array.isArray(rawObj.texts)) {
+    itemsArray = rawObj.texts;
+  } else if (Array.isArray(rawObj.items)) {
+    itemsArray = rawObj.items;
+  } else if (rawObj.texts && typeof rawObj.texts === 'object') {
+    dictionary = rawObj.texts;
+  } else {
+    dictionary = rawObj;
+  }
+
+  // 1. Match from array of items
+  if (itemsArray && itemsArray.length) {
+    for (const field of fields) {
+      const fieldIdNorm = field.id.trim().toLowerCase();
+      const fieldNameNorm = (field.name || '').trim().toLowerCase();
+      const fieldRoleNorm = (field.role || '').trim().toLowerCase();
+
+      // Find match by exact id
+      const exactMatches = itemsArray.filter(item => {
+        if (!item || typeof item !== 'object') return false;
+        const itemId = String(item.id || item.fieldId || '').trim().toLowerCase();
+        return itemId === fieldIdNorm;
+      });
+
+      if (exactMatches.length === 1 && typeof exactMatches[0].text === 'string' && exactMatches[0].text.trim() && exactMatches[0].text.length <= 12000) {
+        result[field.id] = exactMatches[0].text.trim();
+        continue;
+      }
+
+      // Fallback by name or role if unique
+      const nameMatches = itemsArray.filter(item => {
+        if (!item || typeof item !== 'object') return false;
+        const itemId = String(item.id || item.name || item.role || '').trim().toLowerCase();
+        return (fieldNameNorm && itemId === fieldNameNorm) || (fieldRoleNorm && itemId === fieldRoleNorm);
+      });
+      if (nameMatches.length === 1 && typeof nameMatches[0].text === 'string' && nameMatches[0].text.trim() && nameMatches[0].text.length <= 12000) {
+        result[field.id] = nameMatches[0].text.trim();
+      }
+    }
+
+    // Positional fallback when count matches and fields > 1
+    if (fields.length > 1 && itemsArray.length === fields.length && itemsArray.every(item => typeof (item?.text ?? item?.value ?? item) === 'string' && String(item?.text ?? item?.value ?? item).trim())) {
+      fields.forEach((field, index) => {
+        if (!result[field.id]) {
+          const item = itemsArray![index];
+          const val = typeof item === 'string' ? item : String(item?.text ?? item?.value ?? item);
+          if (val && val.trim() && val.length <= 12000) {
+            result[field.id] = val.trim();
+          }
+        }
+      });
     }
   }
-  // Some chat-completions models preserve the requested ordering but replace
-  // opaque editor IDs with labels. Only when every requested field has a
-  // non-empty positional answer do we safely recover that response.
-  if (fields.length > 1 && texts.length === fields.length &&
-      texts.every(item => typeof item?.text === 'string' && item.text.trim())) {
-    fields.forEach((field, index) => {
-      if (!result[field.id]) result[field.id] = texts[index].text.trim();
-    });
+
+  // 2. Match from dictionary keys
+  if (dictionary && !itemsArray) {
+    for (const field of fields) {
+      if (result[field.id]) continue;
+
+      const fieldIdNorm = field.id.trim().toLowerCase();
+      const fieldNameNorm = (field.name || '').trim().toLowerCase();
+      const fieldRoleNorm = (field.role || '').trim().toLowerCase();
+
+      for (const [key, val] of Object.entries(dictionary)) {
+        const keyNorm = key.trim().toLowerCase();
+        if (keyNorm === fieldIdNorm || (fieldNameNorm && keyNorm === fieldNameNorm) || (fieldRoleNorm && keyNorm === fieldRoleNorm)) {
+          const str = typeof val === 'string' ? val : (typeof (val as any)?.text === 'string' ? (val as any).text : null);
+          if (typeof str === 'string' && str.trim() && str.length <= 12000) {
+            result[field.id] = str.trim();
+            break;
+          }
+        }
+      }
+    }
   }
+
   return result;
 }
 
 function parseAiJson(text: string): unknown {
-  const trimmed = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  const trimmed = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim();
   try { return JSON.parse(trimmed); }
   catch {
-    const start = trimmed.indexOf('{');
-    const end = trimmed.lastIndexOf('}');
-    if (start >= 0 && end > start) return JSON.parse(trimmed.slice(start, end + 1));
+    const firstBrace = trimmed.indexOf('{');
+    const lastBrace = trimmed.lastIndexOf('}');
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      try { return JSON.parse(trimmed.slice(firstBrace, lastBrace + 1)); } catch { /* try brackets */ }
+    }
+    const firstBracket = trimmed.indexOf('[');
+    const lastBracket = trimmed.lastIndexOf(']');
+    if (firstBracket >= 0 && lastBracket > firstBracket) {
+      try { return JSON.parse(trimmed.slice(firstBracket, lastBracket + 1)); } catch { /* ignore */ }
+    }
     throw new Error('AI yanıtı geçerli JSON biçiminde değil.');
   }
 }
@@ -123,7 +198,7 @@ export function createTextGenerationHandler(options: {hasKey: () => boolean; gen
         error:quota ? 'Evren kullanım kotası dolu. Daha sonra tekrar deneyin; metinleriniz korundu.' :
           auth ? 'Evren API anahtarı geçersiz veya bu modele erişim izni yok. Sunucu ayarlarını kontrol edin.' :
           model ? 'Sunucudaki Evren model adı bulunamadı. EVREN_MODEL ayarını kontrol edin; mevcut metin korundu.' :
-          incomplete ? 'AI bazı metin kutularını boş bıraktı. Eksik alanlar otomatik olarak beş kez denendi; mevcut metinler korundu.' :
+          incomplete ? 'AI bazı metin kutularını boş bıraktı. Eksik alanlar otomatik olarak denendi; mevcut metinler korundu.' :
           'AI metni oluşturamadı. Bağlantıyı ve model ayarını kontrol edip tekrar deneyin; mevcut metin korundu.'});
     }
   };
@@ -139,7 +214,11 @@ if (!process.env.VERCEL) {
 // Evren exposes an OpenAI-compatible chat-completions API. Keep the provider
 // configuration server-side so its key is never sent to the browser.
 const EVREN_API_URL = process.env.EVREN_API_URL?.trim() || 'https://evren-llmapi.ssyz.org.tr/v1/chat/completions';
-const EVREN_MODEL = process.env.EVREN_MODEL?.trim() || 'deepseek-v4-flash';
+const EVREN_MODELS = [
+  process.env.EVREN_MODEL?.trim() || 'deepseek-v4-flash',
+  'gemma-4-31b',
+  'qwen3.8-flash-next',
+];
 
 function getEvrenKey(): string | null {
   const key = process.env.EVREN_API_KEY?.trim();
@@ -156,13 +235,14 @@ function extractEvrenText(payload: any): string {
   throw new EvrenApiError('Evren geçerli bir metin yanıtı döndürmedi.');
 }
 
-async function generateContentWithRetry(_key: string, params: any, attempt = 1): Promise<{text: string}> {
+async function generateContentWithRetry(_key: string, params: any, attempt = 1, modelIndex = 0): Promise<{text: string}> {
+  const model = EVREN_MODELS[modelIndex] || EVREN_MODELS[0];
   const messages: Array<{role: 'system' | 'user'; content: string}> = [];
   if (params.config?.systemInstruction) messages.push({role:'system', content:String(params.config.systemInstruction)});
   const contents = Array.isArray(params.contents) ? params.contents : [];
   const text = contents.map((part: any) => part?.text).filter((part: unknown): part is string => typeof part === 'string').join('\n');
   if (contents.some((part: any) => part?.inlineData)) {
-    messages.push({role:'system', content:'Bu istek görsel içerik içeriyordu. Görsel verisi metin sağlayıcısına iletilmedi; yalnızca verilen metin bağlamına göre yanıt üret.'});
+    messages.push({role:'system', content:'Görsel içerik bağlamı dikkate alınarak metin üretilmelidir.'});
   }
   messages.push({role:'user', content:`${text}\n\nYanıtı yalnızca geçerli JSON olarak döndür; Markdown kod bloğu ve açıklama ekleme.`});
 
@@ -170,8 +250,14 @@ async function generateContentWithRetry(_key: string, params: any, attempt = 1):
     const response = await fetch(EVREN_API_URL, {
       method: 'POST',
       headers: {'Content-Type':'application/json', 'X-API-Key': _key},
-      body: JSON.stringify({model: EVREN_MODEL, messages}),
-      signal: AbortSignal.timeout(25_000),
+      body: JSON.stringify({
+        model,
+        messages,
+        response_format: { type: 'json_object' },
+        reasoning_effort: 'low',
+        max_tokens: 2048,
+      }),
+      signal: AbortSignal.timeout(35_000),
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -180,10 +266,15 @@ async function generateContentWithRetry(_key: string, params: any, attempt = 1):
     }
     return {text: extractEvrenText(payload)};
   } catch (error: any) {
+    console.warn(`Evren model ${model} attempt ${attempt} failed:`, error?.message || error);
+    // If fallback model available in list, try next model
+    if (modelIndex + 1 < EVREN_MODELS.length) {
+      return generateContentWithRetry(_key, params, 1, modelIndex + 1);
+    }
     const retryable = error?.status === 429 || error?.status === 503 || error?.name === 'TimeoutError' || error?.name === 'AbortError';
     if (retryable && attempt < 2) {
-      await new Promise(resolve => setTimeout(resolve, 500));
-      return generateContentWithRetry(_key, params, attempt + 1);
+      await new Promise(resolve => setTimeout(resolve, 800));
+      return generateContentWithRetry(_key, params, attempt + 1, 0);
     }
     throw error;
   }
