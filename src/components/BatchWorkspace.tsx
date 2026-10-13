@@ -180,9 +180,13 @@ export function BatchWorkspace(p: {
   const [workQuery, setWorkQuery] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const loadingRef = useRef(false);
+  const cancelGenerationButton = useRef<HTMLButtonElement>(null);
   const sourceTemplates = p.templates.filter(t => !t.sourceTemplateId);
   const source = sourceTemplates.find(t => t.id === p.current.sourceTemplateId) || sourceTemplates.find(t => t.id === p.current.id) || sourceTemplates[0];
   const disabled = p.busy || loading;
+  useEffect(() => {
+    if (p.busy && p.screen === 'create') cancelGenerationButton.current?.focus();
+  }, [p.busy, p.screen]);
   const archivedWorksUnordered = p.templates.filter(template => !!p.projects[template.id]?.length);
   const failedPages = (p.projects[p.current.id] || []).filter(page => page.productionError);
   useEffect(() => { if (p.screen !== 'works') setSelectedWorks(new Set()); }, [p.screen]);
@@ -329,6 +333,23 @@ export function BatchWorkspace(p: {
   const move = (index: number, direction: number) => setPhotos(old => { const next = [...old]; [next[index], next[index + direction]] = [next[index + direction], next[index]]; return next; });
   const pages = p.projects[p.current.id] || [];
   return <section className="batch-workspace" data-screen={p.screen} hidden={p.screen === 'editor'}>
+    {p.screen === 'create' && p.busy && <div className="production-loading-screen" role="dialog" aria-modal="true" aria-labelledby="production-loading-title" aria-describedby="production-loading-progress" onKeyDown={event => {
+      if (event.key === 'Tab') { event.preventDefault(); cancelGenerationButton.current?.focus(); }
+      if (event.key === 'Escape') p.onCancel();
+    }}>
+      <div className="production-loading-content">
+        <div className="production-loading-emblem" aria-hidden="true">
+          <span className="production-loading-ring" />
+          <img src="/brand/mark.svg" alt="" />
+        </div>
+        <span className="production-loading-eyebrow">GRAFİK MOTORU</span>
+        <h2 id="production-loading-title">Tasarımların hazırlanıyor</h2>
+        <p id="production-loading-progress" className="production-loading-progress" role="status" aria-live="polite">{p.progress || 'Sayfalar hazırlanıyor…'}</p>
+        <div className="production-loading-track" aria-hidden="true"><span /></div>
+        <p className="production-loading-note">Fotoğrafların ve komutun bu ekranda korunuyor.</p>
+        <button ref={cancelGenerationButton} type="button" className="production-loading-cancel" onClick={p.onCancel}>Üretimi iptal et</button>
+      </div>
+    </div>}
     {p.screen === 'create' && <div className="production-container production-create-container">
       <div className="production-heading">
         <span className="production-eyebrow">YENİ ÜRETİM</span>

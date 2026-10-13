@@ -4781,6 +4781,9 @@ export default function App() {
     batchController.current = controller;
     setBatchBusy(true); setBatchError(null); setBatchProgress('Sayfalar hazırlanıyor…');
     try {
+      // Let React paint the loading screen before cloning and arranging pages.
+      await new Promise<void>(resolve => window.setTimeout(resolve, 0));
+      if (controller.signal.aborted) return;
       const snapshot = structuredClone(ensureMultiPageSupport(source));
       const draft = buildBatchPages(snapshot, media);
       const pages = await generateBatchTexts(snapshot, draft, brief, {
