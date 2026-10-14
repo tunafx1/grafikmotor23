@@ -239,6 +239,70 @@ function getEvrenKey(): string | null {
   return key && key !== 'MY_EVREN_API_KEY' ? key : null;
 }
 
+function getGeminiKey(): string | null {
+  const key = process.env.GEMINI_API_KEY?.trim();
+  return key && key !== 'MY_GEMINI_API_KEY' ? key : null;
+}
+
+function hasAiProvider(): boolean {
+  return Boolean(getEvrenKey() || getGeminiKey());
+}
+
+async function generateGeminiContent(
+  key: string,
+  prompt: string,
+  imageInput?: { mimeType: string; data: string } | Array<{ mimeType: string; data: string }>
+): Promise<{ text: string }> {
+  const parts: any[] = [];
+  if (Array.isArray(imageInput)) {
+    for (const img of imageInput) {
+      if (img?.mimeType && img?.data) {
+        parts.push({
+          inlineData: {
+            mimeType: img.mimeType,
+            data: img.data,
+          }
+        });
+      }
+    }
+  } else if (imageInput?.mimeType && imageInput?.data) {
+    parts.push({
+      inlineData: {
+        mimeType: imageInput.mimeType,
+        data: imageInput.data,
+      }
+    });
+  }
+  parts.push({ text: prompt });
+
+  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts }],
+      generationConfig: {
+        responseMimeType: 'application/json',
+      },
+    }),
+    signal: AbortSignal.timeout(30_000),
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => '');
+    throw new Error(`Gemini isteği ${res.status} durumuyla başarısız oldu: ${errorText.slice(0, 200)}`);
+  }
+
+  const data = await res.json() as any;
+  const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (typeof content === 'string' && content.trim()) {
+    return { text: content.trim() };
+  }
+  throw new Error('Gemini geçerli bir metin yanıtı döndürmedi.');
+}
+
 class EvrenApiError extends Error {
   constructor(message: string, readonly status?: number) { super(message); }
 }
@@ -367,16 +431,36 @@ async function getFirebaseUserId(authorization: string | undefined): Promise<str
 }
 
 app.post(['/api/generate-text', '/generate-text'], createTextGenerationHandler({
-  hasKey: () => Boolean(getEvrenKey()),
+  hasKey: () => hasAiProvider(),
   authenticate: req => getFirebaseUserId(req.get('authorization')),
   generate: async input => {
-    const contents: any[] = [{text: buildTextPrompt(input)}];
+    const prompt = buildTextPrompt(input);
+    let imagePart: { mimeType: string; data: string } | undefined;
     if (input.image) {
       const [header, data] = input.image.split(',');
-      contents.unshift({inlineData:{mimeType:header.slice(5, header.indexOf(';')), data}});
+      imagePart = { mimeType: header.slice(5, header.indexOf(';')), data };
     }
-    const response = await generateContentWithRetry(getEvrenKey()!, {contents});
-    return parseAiJson(response.text || '{}');
+
+    const evrenKey = getEvrenKey();
+    if (evrenKey) {
+      try {
+        const contents: any[] = [{ text: prompt }];
+        if (imagePart) contents.unshift({ inlineData: imagePart });
+        const response = await generateContentWithRetry(evrenKey, { contents });
+        return parseAiJson(response.text || '{}');
+      } catch (evrenErr: any) {
+        console.warn('Evren provider failed, falling back to Gemini:', evrenErr?.message || evrenErr);
+        if (!getGeminiKey()) throw evrenErr;
+      }
+    }
+
+    const geminiKey = getGeminiKey();
+    if (geminiKey) {
+      const response = await generateGeminiContent(geminiKey, prompt, imagePart);
+      return parseAiJson(response.text || '{}');
+    }
+
+    throw new Error('Hiçbir AI sağlayıcısı yapılandırılmamış.');
   },
 }));
 
@@ -464,16 +548,15 @@ app.post(['/api/generate-content', '/generate-content'], async (req, res) => {
   const styleDescription = styleType || 'modern ve minimalist';
   const selectedFallback = fallbackResponses[styleType] || fallbackResponses.minimalist;
 
-  const evrenKey = getEvrenKey();
-  if (!evrenKey) {
+  if (!hasAiProvider()) {
     if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
-      console.warn('[AI Notice] EVREN_API_KEY is not configured. Returning predefined fallback with reason.');
+      console.warn('[AI Notice] AI API key is not configured. Returning predefined fallback with reason.');
     }
     return res.json({ 
       success: true, 
       isFallback: true,
       reason: 'missing_api_key',
-      message: 'EVREN_API_KEY ortam değişkeni tanımlanmamış. Varsayılan şablon yüklendi.',
+      message: 'Yapay zeka anahtarı tanımlanmamış. Varsayılan şablon yüklendi.',
       ...selectedFallback
     });
   }
@@ -535,7 +618,19 @@ Yanıtı kesinlikle şu JSON şemasında ver:
     }
     contents.push({ text: prompt });
 
-    const response = await generateContentWithRetry(evrenKey, {contents});
+    let response: { text: string };
+    const evrenKey = getEvrenKey();
+    if (evrenKey) {
+      try {
+        response = await generateContentWithRetry(evrenKey, { contents });
+      } catch (evrenErr) {
+        console.warn('Evren failed in generate-content, falling back to Gemini:', evrenErr);
+        if (!getGeminiKey()) throw evrenErr;
+        response = await generateGeminiContent(getGeminiKey()!, prompt, imagePart?.inlineData);
+      }
+    } else {
+      response = await generateGeminiContent(getGeminiKey()!, prompt, imagePart?.inlineData);
+    }
 
     let rawData: any = {};
     try {
@@ -609,16 +704,15 @@ app.post(['/api/analyze-collage', '/analyze-collage'], async (req, res) => {
     bgColor: "#1D1D1F"
   };
 
-  const evrenKey = getEvrenKey();
-  if (!evrenKey) {
+  if (!hasAiProvider()) {
     if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
-      console.warn('[AI Notice] EVREN_API_KEY is not configured. Returning collage fallback.');
+      console.warn('[AI Notice] No AI provider key (EVREN_API_KEY or GEMINI_API_KEY) is configured. Returning collage fallback.');
     }
     return res.json({
       success: true,
       isFallback: true,
       reason: 'missing_api_key',
-      message: 'EVREN_API_KEY ortam değişkeni tanımlanmamış. Varsayılan kolaj şablonu yüklendi.',
+      message: 'AI API anahtarı tanımlanmamış. Varsayılan kolaj şablonu yüklendi.',
       ...defaultCollageFallback
     });
   }
@@ -665,9 +759,7 @@ Metin kuralları:
 3. Açıklamada (description) bazı kelimeleri *eğik* formatta (*kelime*) yaz. Başlıktan daha detaylı olsun, maksimum 2 cümle olsun.
 4. Görsele ve kurumsal renklere en çok uyum sağlayacak 4 renkli estetik bir palet (primaryColor, accentColor, textColor, bgColor) öner.`;
 
-    const contents: any[] = [...imageParts];
-    contents.push({
-      text: `${hasImage ? 'Görsel(ler)i analiz et, ' : ''}kurumsal dil kurallarına ve kullanıcı notlarına tam olarak uyarak şu JSON formatında yanıt dön:
+    const collagePrompt = `${systemInstruction}\n\n${hasImage ? 'Görsel(ler)i analiz et, ' : ''}kurumsal dil kurallarına ve kullanıcı notlarına tam olarak uyarak şu JSON formatında yanıt dön:
 {
   "title": "string (Kapak başlığı, en önemli kelimeler **kalın** olmalı)",
   "subtitle": "string (Kapak alt başlığı / rozet, bazı kelimeler *eğik* olmalı)",
@@ -676,10 +768,32 @@ Metin kuralları:
   "accentColor": "string (Hex renk kodu)",
   "textColor": "string (Hex renk kodu)",
   "bgColor": "string (Hex renk kodu)"
-}`
-    });
+}`;
 
-    const response = await generateContentWithRetry(evrenKey, {contents, config:{systemInstruction}});
+    const contents: any[] = [...imageParts];
+    contents.push({ text: collagePrompt });
+
+    let response: { text: string };
+    const evrenKey = getEvrenKey();
+    if (evrenKey) {
+      try {
+        response = await generateContentWithRetry(evrenKey, { contents, config: { systemInstruction } });
+      } catch (evrenErr) {
+        console.warn('Evren failed in analyze-collage, falling back to Gemini:', evrenErr);
+        if (!getGeminiKey()) throw evrenErr;
+        const geminiImages = imageParts.map(p => ({
+          mimeType: p.inlineData.mimeType,
+          data: p.inlineData.data
+        }));
+        response = await generateGeminiContent(getGeminiKey()!, collagePrompt, geminiImages);
+      }
+    } else {
+      const geminiImages = imageParts.map(p => ({
+        mimeType: p.inlineData.mimeType,
+        data: p.inlineData.data
+      }));
+      response = await generateGeminiContent(getGeminiKey()!, collagePrompt, geminiImages);
+    }
 
     let rawData: any = {};
     try {
