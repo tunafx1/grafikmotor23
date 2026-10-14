@@ -1,4 +1,5 @@
 import type { Region } from '../types';
+import { auth } from '../lib/firebase';
 
 export function getAiTextFields(regions: Pick<Region, 'id' | 'name' | 'type' | 'textRole' | 'aiPrompt' | 'placeholderText' | 'isDynamic' | 'hidden'>[], texts: Record<string, string>) {
   return regions.filter(r => r.type === 'text' && r.isDynamic !== false && !r.hidden).map(r => ({
@@ -11,10 +12,22 @@ export function getAiTextFields(regions: Pick<Region, 'id' | 'name' | 'type' | '
 }
 
 export async function requestAiText(payload: {fields:{id:string}[]; [key:string]:unknown}, signal: AbortSignal, fetcher: typeof fetch = fetch): Promise<Record<string,string>> {
+  let token: string | undefined;
+  try {
+    if (typeof auth !== 'undefined' && auth?.currentUser) {
+      token = await auth.currentUser.getIdToken();
+    }
+  } catch { /* ignore in non-browser or test environments */ }
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   let response: Response;
   try {
     response = await fetcher('/api/generate-text', {
-      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload), signal,
+      method:'POST', headers, body:JSON.stringify(payload), signal,
     });
   } catch (err: any) {
     if (signal?.aborted || /timed?\s*out|aborted/i.test(err?.message || '')) {
@@ -31,6 +44,9 @@ export async function requestAiText(payload: {fields:{id:string}[]; [key:string]
     throw new Error('AI sunucusu geçerli bir yanıt vermedi. Sunucuyu yeniden başlatıp tekrar deneyin.');
   }
   if (!response.ok || !data.success || data.isFallback) {
+    if (response.status === 401 || data?.reason === 'auth_required' || data?.reason === 'invalid_auth_token') {
+      throw new Error(data?.error || 'Yapay zeka özelliklerini kullanmak için lütfen oturum açın.');
+    }
     throw new Error(data.error || 'AI metni üretemedi. Mevcut içerik korundu.');
   }
   const result: Record<string,string> = {};

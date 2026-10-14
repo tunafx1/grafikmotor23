@@ -169,13 +169,27 @@ function parseAiJson(text: string): unknown {
   }
 }
 
-export function createTextGenerationHandler(options: {hasKey: () => boolean; generate: (input: TextRequest) => Promise<unknown>}) {
+export function createTextGenerationHandler(options: {
+  hasKey: () => boolean;
+  generate: (input: TextRequest) => Promise<unknown>;
+  authenticate?: (req: express.Request) => Promise<string | null>;
+}) {
   return async (req: express.Request, res: express.Response) => {
     let input: TextRequest;
     try { input = parseTextRequest(req.body); }
     catch (error) { return res.status(400).json({success:false, error:(error as Error).message}); }
     if (!options.hasKey()) return res.status(503).json({success:false, reason:'missing_api_key',
       error:'AI bağlantısı kurulmamış. Sunucudaki EVREN_API_KEY ayarını kontrol edip sunucuyu yeniden başlatın. Metinleriniz değiştirilmedi.'});
+    if (options.authenticate) {
+      const userId = await options.authenticate(req);
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          reason: 'auth_required',
+          error: 'Yapay zeka özelliklerini kullanmak için lütfen oturum açın.'
+        });
+      }
+    }
     try {
       const texts: Record<string, string> = Object.create(null);
       let pendingFields = input.fields;
@@ -213,15 +227,15 @@ if (!process.env.VERCEL) {
 
 // Evren exposes an OpenAI-compatible chat-completions API. Keep the provider
 // configuration server-side so its key is never sent to the browser.
-const EVREN_API_URL = process.env.EVREN_API_URL?.trim() || 'https://evren-llmapi.ssyz.org.tr/v1/chat/completions';
+const EVREN_API_URL = process.env.EVREN_API_URL?.trim() || process.env.EVREN_LLM_BASE_URL?.trim() || 'https://evren-llmapi.ssyz.org.tr/v1/chat/completions';
 const EVREN_MODELS = [
-  process.env.EVREN_MODEL?.trim() || 'deepseek-v4-flash',
+  process.env.EVREN_MODEL?.trim() || process.env.EVREN_LLM_MODEL?.trim() || 'deepseek-v4-flash',
   'gemma-4-31b',
   'qwen3.8-flash-next',
 ];
 
 function getEvrenKey(): string | null {
-  const key = process.env.EVREN_API_KEY?.trim();
+  const key = (process.env.EVREN_API_KEY || process.env.EVREN_LLM_API_KEY)?.trim();
   return key && key !== 'MY_EVREN_API_KEY' ? key : null;
 }
 
@@ -309,8 +323,52 @@ app.use((req, _res, next) => {
   next();
 });
 
+const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY || firebaseAppletConfig.apiKey;
+
+const authTokenCache = new Map<string, { userId: string; expiresAt: number }>();
+
+async function getFirebaseUserId(authorization: string | undefined): Promise<string | null> {
+  const match = authorization?.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  const token = match[1].trim();
+  if (!token) return null;
+
+  const cached = authTokenCache.get(token);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.userId;
+  }
+
+  if (!FIREBASE_WEB_API_KEY) return null;
+
+  try {
+    const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(FIREBASE_WEB_API_KEY)}`, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({idToken:token}),
+      signal: AbortSignal.timeout(6000),
+    });
+    if (!response.ok) return null;
+    const data = await response.json() as {users?: Array<{localId?: string}>};
+    const userId = data.users?.[0]?.localId || null;
+    if (userId) {
+      authTokenCache.set(token, { userId, expiresAt: Date.now() + 10 * 60 * 1000 });
+      if (authTokenCache.size > 1000) {
+        const now = Date.now();
+        for (const [k, v] of authTokenCache.entries()) {
+          if (v.expiresAt <= now) authTokenCache.delete(k);
+        }
+      }
+    }
+    return userId;
+  } catch (err) {
+    console.warn('Firebase token verification failed:', err);
+    return null;
+  }
+}
+
 app.post(['/api/generate-text', '/generate-text'], createTextGenerationHandler({
   hasKey: () => Boolean(getEvrenKey()),
+  authenticate: req => getFirebaseUserId(req.get('authorization')),
   generate: async input => {
     const contents: any[] = [{text: buildTextPrompt(input)}];
     if (input.image) {
@@ -321,19 +379,6 @@ app.post(['/api/generate-text', '/generate-text'], createTextGenerationHandler({
     return parseAiJson(response.text || '{}');
   },
 }));
-
-const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY || firebaseAppletConfig.apiKey;
-
-async function getFirebaseUserId(authorization: string | undefined): Promise<string | null> {
-  const match = authorization?.match(/^Bearer\s+(.+)$/i);
-  if (!match) return null;
-  const response = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${encodeURIComponent(FIREBASE_WEB_API_KEY)}`, {
-    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({idToken:match[1]}),
-  });
-  if (!response.ok) return null;
-  const data = await response.json() as {users?: Array<{localId?: string}>};
-  return data.users?.[0]?.localId || null;
-}
 
 app.post(['/api/media-upload-signature', '/media-upload-signature'], async (req, res) => {
   const config = readCloudinaryConfig();
@@ -404,6 +449,15 @@ const fallbackResponses: Record<string, any> = {
 
 // API Route: AI Powered content & palette generator with Template AI Prompt integration
 app.post(['/api/generate-content', '/generate-content'], async (req, res) => {
+  const userId = await getFirebaseUserId(req.get('authorization'));
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      reason: 'auth_required',
+      error: 'Yapay zeka özelliklerini kullanmak için lütfen oturum açın.'
+    });
+  }
+
   const { niche, styleType, systemPrompt, templateName, targetBrief, image } = req.body;
   
   const nicheText = niche || 'Genel Girişim';
@@ -533,6 +587,15 @@ Yanıtı kesinlikle şu JSON şemasında ver:
 
 // API Route: AI Powered Image Analysis & Collage Auto-Generator
 app.post(['/api/analyze-collage', '/analyze-collage'], async (req, res) => {
+  const userId = await getFirebaseUserId(req.get('authorization'));
+  if (!userId) {
+    return res.status(401).json({
+      success: false,
+      reason: 'auth_required',
+      error: 'Yapay zeka özelliklerini kullanmak için lütfen oturum açın.'
+    });
+  }
+
   const { images, systemPrompt, userPrompt, templateName } = req.body;
 
   const topic = userPrompt && userPrompt.trim() !== '' ? userPrompt.trim() : 'Özel Tasarım';

@@ -114,3 +114,24 @@ test('client applies only requested field IDs and rejects fallback, HTTP, and in
     [{success:true,texts:{body:'Yanlış alan'}},200],
   ] as const) await assert.rejects(requestAiText(payload,signal,fetcher(data,status)));
 });
+
+test('AI endpoint enforces user authentication when authenticate option is configured', async () => {
+  const handler = createTextGenerationHandler({
+    hasKey: () => true,
+    authenticate: async (req: any) => req.headers?.authorization === 'Bearer valid-user' ? 'user-123' : null,
+    generate: async () => ({ texts: [{ id: 'headline', text: 'Yetkili Başlık' }] }),
+  });
+
+  const unauthRes = responseRecorder();
+  await handler({ body: payload, headers: {} } as any, unauthRes as any);
+  assert.equal(unauthRes.code, 401);
+  assert.equal(unauthRes.body.success, false);
+  assert.equal(unauthRes.body.reason, 'auth_required');
+
+  const authRes = responseRecorder();
+  await handler({ body: payload, headers: { authorization: 'Bearer valid-user' } } as any, authRes as any);
+  assert.equal(authRes.code, 200);
+  assert.equal(authRes.body.success, true);
+  assert.deepEqual({ ...authRes.body.texts }, { headline: 'Yetkili Başlık' });
+});
+
