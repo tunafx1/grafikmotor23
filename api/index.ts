@@ -179,7 +179,7 @@ export function createTextGenerationHandler(options: {
     try { input = parseTextRequest(req.body); }
     catch (error) { return res.status(400).json({success:false, error:(error as Error).message}); }
     if (!options.hasKey()) return res.status(503).json({success:false, reason:'missing_api_key',
-      error:'AI bağlantısı kurulmamış. Sunucudaki EVREN_API_KEY ayarını kontrol edip sunucuyu yeniden başlatın. Metinleriniz değiştirilmedi.'});
+      error:'AI bağlantısı kurulmamış. Sunucudaki GEMINI_API_KEY veya EVREN_API_KEY ayarını kontrol edip sunucuyu yeniden başlatın. Metinleriniz değiştirilmedi.'});
     if (options.authenticate) {
       const userId = await options.authenticate(req);
       if (!userId) {
@@ -209,9 +209,9 @@ export function createTextGenerationHandler(options: {
       const incomplete = /metin alanı eksik|metin alanları eksik|geçerli bir metin/i.test(message);
       return res.status(quota ? 429 : 502).json({success:false,
         reason:quota ? 'quota_exceeded' : auth ? 'invalid_api_key' : model ? 'model_not_found' : 'generation_failed',
-        error:quota ? 'Evren kullanım kotası dolu. Daha sonra tekrar deneyin; metinleriniz korundu.' :
-          auth ? 'Evren API anahtarı geçersiz veya bu modele erişim izni yok. Sunucu ayarlarını kontrol edin.' :
-          model ? 'Sunucudaki Evren model adı bulunamadı. EVREN_MODEL ayarını kontrol edin; mevcut metin korundu.' :
+        error:quota ? 'AI kullanım kotası dolu. Daha sonra tekrar deneyin; metinleriniz korundu.' :
+          auth ? 'Yapay zeka API anahtarı geçersiz veya bu modele erişim izni yok. Sunucu veya Vercel ayarlarındaki GEMINI_API_KEY / EVREN_API_KEY anahtarını kontrol edin.' :
+          model ? 'Sunucudaki AI model adı bulunamadı. Model ayarını kontrol edin; mevcut metin korundu.' :
           incomplete ? 'AI bazı metin kutularını boş bıraktı. Eksik alanlar otomatik olarak denendi; mevcut metinler korundu.' :
           'AI metni oluşturamadı. Bağlantıyı ve model ayarını kontrol edip tekrar deneyin; mevcut metin korundu.'});
     }
@@ -345,6 +345,10 @@ async function generateContentWithRetry(_key: string, params: any, attempt = 1, 
     return {text: extractEvrenText(payload)};
   } catch (error: any) {
     console.warn(`Evren model ${model} attempt ${attempt} failed:`, error?.message || error);
+    // If the key is invalid or unauthorized (401/403), trying other models with the same key will only fail
+    if (error?.status === 401 || error?.status === 403) {
+      throw error;
+    }
     // If fallback model available in list, try next model
     if (modelIndex + 1 < EVREN_MODELS.length) {
       return generateContentWithRetry(_key, params, 1, modelIndex + 1);
