@@ -203,8 +203,8 @@ export function createTextGenerationHandler(options: {
     } catch (error: any) {
       const message = String(error?.message || error);
       console.error('generate-text failed:', error?.status, message.slice(0, 500));
-      const quota = /429|quota|Resource has been exhausted/i.test(message);
-      const auth = /401|403|API.key|API_KEY_INVALID/i.test(message);
+      const quota = error?.status === 429 || /429|quota|Resource has been exhausted/i.test(message);
+      const auth = error?.status === 401 || error?.status === 403 || /401|403|API.key|API_KEY_INVALID/i.test(message);
       const model = error?.status === 404 || /404|NOT_FOUND|is not found|model/i.test(message);
       const incomplete = /metin alanı eksik|metin alanları eksik|geçerli bir metin/i.test(message);
       return res.status(quota ? 429 : 502).json({success:false,
@@ -228,9 +228,15 @@ if (!process.env.VERCEL) {
 // Evren exposes an OpenAI-compatible chat-completions API. Keep the provider
 // configuration server-side so its key is never sent to the browser.
 const EVREN_API_URL = process.env.EVREN_API_URL?.trim() || process.env.EVREN_LLM_BASE_URL?.trim() || 'https://evren-llmapi.ssyz.org.tr/v1/chat/completions';
+// Note: 'gemma-4-31b' was previously in this fallback list but is not a viable
+// fallback: it rejects the 'reasoning_effort' parameter outright (HTTP 400),
+// and even without that parameter it has been observed to reason for 90+
+// seconds without producing output (exceeding the request timeout) or to
+// return a null message.content when cut off by max_tokens. Both confirmed
+// models below (deepseek-v4-flash, qwen3.8-flash-next) return valid,
+// parseable JSON for the real production prompts.
 const EVREN_MODELS = [
   process.env.EVREN_MODEL?.trim() || process.env.EVREN_LLM_MODEL?.trim() || 'deepseek-v4-flash',
-  'gemma-4-31b',
   'qwen3.8-flash-next',
 ];
 
@@ -593,10 +599,10 @@ Yanıtı kesinlikle şu JSON şemasında ver:
     });
 
   } catch (err: any) {
-    console.error('Error contacting Evren API:', err?.message || err);
+    console.error('Error contacting Evren API:', err?.status, err?.message || err);
     const errMsg = err?.message || String(err);
-    const isQuota = errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Resource has been exhausted');
-    const isAuth = errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API key') || errMsg.includes('API_KEY_INVALID');
+    const isQuota = err?.status === 429 || errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Resource has been exhausted');
+    const isAuth = err?.status === 401 || err?.status === 403 || errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API key') || errMsg.includes('API_KEY_INVALID');
     const reason = isQuota ? 'quota_exceeded' : (isAuth ? 'invalid_api_key' : 'evren_error');
 
     return res.json({
@@ -736,10 +742,10 @@ Metin kuralları:
     });
 
   } catch (err: any) {
-    console.error('Error analyzing image with Evren:', err?.message || err);
+    console.error('Error analyzing image with Evren:', err?.status, err?.message || err);
     const errMsg = err?.message || String(err);
-    const isQuota = errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Resource has been exhausted');
-    const isAuth = errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API key') || errMsg.includes('API_KEY_INVALID');
+    const isQuota = err?.status === 429 || errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('Resource has been exhausted');
+    const isAuth = err?.status === 401 || err?.status === 403 || errMsg.includes('401') || errMsg.includes('403') || errMsg.includes('API key') || errMsg.includes('API_KEY_INVALID');
     const reason = isQuota ? 'quota_exceeded' : (isAuth ? 'invalid_api_key' : 'evren_error');
 
     return res.json({
