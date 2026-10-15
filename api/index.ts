@@ -179,7 +179,7 @@ export function createTextGenerationHandler(options: {
     try { input = parseTextRequest(req.body); }
     catch (error) { return res.status(400).json({success:false, error:(error as Error).message}); }
     if (!options.hasKey()) return res.status(503).json({success:false, reason:'missing_api_key',
-      error:'AI bağlantısı kurulmamış. Sunucudaki GEMINI_API_KEY veya EVREN_API_KEY ayarını kontrol edip sunucuyu yeniden başlatın. Metinleriniz değiştirilmedi.'});
+      error:'AI bağlantısı kurulmamış. Sunucudaki EVREN_API_KEY ayarını kontrol edip sunucuyu yeniden başlatın. Metinleriniz değiştirilmedi.'});
     if (options.authenticate) {
       const userId = await options.authenticate(req);
       if (!userId) {
@@ -209,9 +209,9 @@ export function createTextGenerationHandler(options: {
       const incomplete = /metin alanı eksik|metin alanları eksik|geçerli bir metin/i.test(message);
       return res.status(quota ? 429 : 502).json({success:false,
         reason:quota ? 'quota_exceeded' : auth ? 'invalid_api_key' : model ? 'model_not_found' : 'generation_failed',
-        error:quota ? 'AI kullanım kotası dolu. Daha sonra tekrar deneyin; metinleriniz korundu.' :
-          auth ? 'Yapay zeka API anahtarı geçersiz veya bu modele erişim izni yok. Sunucu veya Vercel ayarlarındaki GEMINI_API_KEY / EVREN_API_KEY anahtarını kontrol edin.' :
-          model ? 'Sunucudaki AI model adı bulunamadı. Model ayarını kontrol edin; mevcut metin korundu.' :
+        error:quota ? 'Evren kullanım kotası dolu. Daha sonra tekrar deneyin; metinleriniz korundu.' :
+          auth ? 'Evren API anahtarı geçersiz veya bu modele erişim izni yok. Sunucu ayarlarını kontrol edin.' :
+          model ? 'Sunucudaki Evren model adı bulunamadı. EVREN_MODEL ayarını kontrol edin; mevcut metin korundu.' :
           incomplete ? 'AI bazı metin kutularını boş bıraktı. Eksik alanlar otomatik olarak denendi; mevcut metinler korundu.' :
           'AI metni oluşturamadı. Bağlantıyı ve model ayarını kontrol edip tekrar deneyin; mevcut metin korundu.'});
     }
@@ -239,68 +239,8 @@ function getEvrenKey(): string | null {
   return key && key !== 'MY_EVREN_API_KEY' ? key : null;
 }
 
-function getGeminiKey(): string | null {
-  const key = process.env.GEMINI_API_KEY?.trim();
-  return key && key !== 'MY_GEMINI_API_KEY' ? key : null;
-}
-
 function hasAiProvider(): boolean {
-  return Boolean(getEvrenKey() || getGeminiKey());
-}
-
-async function generateGeminiContent(
-  key: string,
-  prompt: string,
-  imageInput?: { mimeType: string; data: string } | Array<{ mimeType: string; data: string }>
-): Promise<{ text: string }> {
-  const parts: any[] = [];
-  if (Array.isArray(imageInput)) {
-    for (const img of imageInput) {
-      if (img?.mimeType && img?.data) {
-        parts.push({
-          inlineData: {
-            mimeType: img.mimeType,
-            data: img.data,
-          }
-        });
-      }
-    }
-  } else if (imageInput?.mimeType && imageInput?.data) {
-    parts.push({
-      inlineData: {
-        mimeType: imageInput.mimeType,
-        data: imageInput.data,
-      }
-    });
-  }
-  parts.push({ text: prompt });
-
-  const model = process.env.GEMINI_MODEL?.trim() || 'gemini-2.5-flash';
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      contents: [{ parts }],
-      generationConfig: {
-        responseMimeType: 'application/json',
-      },
-    }),
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  if (!res.ok) {
-    const errorText = await res.text().catch(() => '');
-    throw new Error(`Gemini isteği ${res.status} durumuyla başarısız oldu: ${errorText.slice(0, 200)}`);
-  }
-
-  const data = await res.json() as any;
-  const content = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  if (typeof content === 'string' && content.trim()) {
-    return { text: content.trim() };
-  }
-  throw new Error('Gemini geçerli bir metin yanıtı döndürmedi.');
+  return Boolean(getEvrenKey());
 }
 
 class EvrenApiError extends Error {
@@ -435,36 +375,19 @@ async function getFirebaseUserId(authorization: string | undefined): Promise<str
 }
 
 app.post(['/api/generate-text', '/generate-text'], createTextGenerationHandler({
-  hasKey: () => hasAiProvider(),
+  hasKey: () => Boolean(getEvrenKey()),
   authenticate: req => getFirebaseUserId(req.get('authorization')),
   generate: async input => {
+    const key = getEvrenKey();
+    if (!key) throw new Error('Evren API anahtarı yapılandırılmamış.');
     const prompt = buildTextPrompt(input);
-    let imagePart: { mimeType: string; data: string } | undefined;
+    const contents: any[] = [{ text: prompt }];
     if (input.image) {
       const [header, data] = input.image.split(',');
-      imagePart = { mimeType: header.slice(5, header.indexOf(';')), data };
+      contents.unshift({ inlineData: { mimeType: header.slice(5, header.indexOf(';')), data } });
     }
-
-    const evrenKey = getEvrenKey();
-    if (evrenKey) {
-      try {
-        const contents: any[] = [{ text: prompt }];
-        if (imagePart) contents.unshift({ inlineData: imagePart });
-        const response = await generateContentWithRetry(evrenKey, { contents });
-        return parseAiJson(response.text || '{}');
-      } catch (evrenErr: any) {
-        console.warn('Evren provider failed, falling back to Gemini:', evrenErr?.message || evrenErr);
-        if (!getGeminiKey()) throw evrenErr;
-      }
-    }
-
-    const geminiKey = getGeminiKey();
-    if (geminiKey) {
-      const response = await generateGeminiContent(geminiKey, prompt, imagePart);
-      return parseAiJson(response.text || '{}');
-    }
-
-    throw new Error('Hiçbir AI sağlayıcısı yapılandırılmamış.');
+    const response = await generateContentWithRetry(key, { contents });
+    return parseAiJson(response.text || '{}');
   },
 }));
 
@@ -622,19 +545,21 @@ Yanıtı kesinlikle şu JSON şemasında ver:
     }
     contents.push({ text: prompt });
 
-    let response: { text: string };
     const evrenKey = getEvrenKey();
-    if (evrenKey) {
-      try {
-        response = await generateContentWithRetry(evrenKey, { contents });
-      } catch (evrenErr) {
-        console.warn('Evren failed in generate-content, falling back to Gemini:', evrenErr);
-        if (!getGeminiKey()) throw evrenErr;
-        response = await generateGeminiContent(getGeminiKey()!, prompt, imagePart?.inlineData);
+    if (!evrenKey) {
+      if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
+        console.warn('[AI Notice] EVREN_API_KEY is not configured. Returning predefined fallback with reason.');
       }
-    } else {
-      response = await generateGeminiContent(getGeminiKey()!, prompt, imagePart?.inlineData);
+      return res.json({ 
+        success: true, 
+        isFallback: true,
+        reason: 'missing_api_key',
+        message: 'EVREN_API_KEY ortam değişkeni tanımlanmamış. Varsayılan şablon yüklendi.',
+        ...selectedFallback
+      });
     }
+
+    const response = await generateContentWithRetry(evrenKey, { contents });
 
     let rawData: any = {};
     try {
@@ -710,7 +635,7 @@ app.post(['/api/analyze-collage', '/analyze-collage'], async (req, res) => {
 
   if (!hasAiProvider()) {
     if (process.env.NODE_ENV !== 'production' || process.env.DEBUG) {
-      console.warn('[AI Notice] No AI provider key (EVREN_API_KEY or GEMINI_API_KEY) is configured. Returning collage fallback.');
+      console.warn('[AI Notice] EVREN_API_KEY is not configured. Returning collage fallback.');
     }
     return res.json({
       success: true,
@@ -777,27 +702,8 @@ Metin kuralları:
     const contents: any[] = [...imageParts];
     contents.push({ text: collagePrompt });
 
-    let response: { text: string };
     const evrenKey = getEvrenKey();
-    if (evrenKey) {
-      try {
-        response = await generateContentWithRetry(evrenKey, { contents, config: { systemInstruction } });
-      } catch (evrenErr) {
-        console.warn('Evren failed in analyze-collage, falling back to Gemini:', evrenErr);
-        if (!getGeminiKey()) throw evrenErr;
-        const geminiImages = imageParts.map(p => ({
-          mimeType: p.inlineData.mimeType,
-          data: p.inlineData.data
-        }));
-        response = await generateGeminiContent(getGeminiKey()!, collagePrompt, geminiImages);
-      }
-    } else {
-      const geminiImages = imageParts.map(p => ({
-        mimeType: p.inlineData.mimeType,
-        data: p.inlineData.data
-      }));
-      response = await generateGeminiContent(getGeminiKey()!, collagePrompt, geminiImages);
-    }
+    const response = await generateContentWithRetry(evrenKey!, { contents, config: { systemInstruction } });
 
     let rawData: any = {};
     try {

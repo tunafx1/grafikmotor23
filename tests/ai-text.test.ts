@@ -76,7 +76,7 @@ test('missing credentials, quota, and malformed model output return errors rathe
   }
 });
 
-test('invalid or duplicate fields are rejected before calling Gemini', async () => {
+test('invalid or duplicate fields are rejected before calling AI provider', async () => {
   const handler = createTextGenerationHandler({hasKey:()=>true,generate:async()=>assert.fail('Invalid request must not reach provider')});
   for (const body of [{...payload,fields:[]},{...payload,fields:[fields[0],fields[0]]},{...payload,systemPrompt:123}]) {
     const res=responseRecorder(); await handler({body} as any,res as any); assert.equal(res.code,400);
