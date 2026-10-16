@@ -756,6 +756,9 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
       className="workspace-inspector w-full lg:w-[340px] bg-[#252528] border-l border-[rgba(255,255,255,0.08)] flex flex-col z-20 shrink-0 overflow-hidden select-none transition-all duration-300"
       aria-label="Öğe ayarları paneli"
     >
+      {/* Mobile Drag Handle */}
+      <div className="w-12 h-1 bg-white/20 rounded-full mx-auto my-2 sm:hidden shrink-0" />
+
       {/* Hidden File Input for direct image replacement */}
       <input 
         type="file" 
@@ -780,9 +783,9 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
       />
 
       {/* Panel Header */}
-      <div className="h-14 px-4 border-b border-[rgba(255,255,255,0.08)] flex items-center justify-between shrink-0 bg-[#252528]">
-        <div className="flex items-center space-x-2 truncate">
-          <span className={`w-2 h-2 rounded-full ${selectedRegion ? (selectedRegion.type === 'text' ? 'bg-[#FF6B1A]' : 'bg-[#34C759]') : selectedFixed ? 'bg-[#FF9F0A]' : 'bg-[rgba(255,255,255,0.4)]'}`} />
+      <div className="h-12 sm:h-14 px-4 border-b border-[rgba(255,255,255,0.08)] flex items-center justify-between shrink-0 bg-[#252528]">
+        <div className="flex items-center space-x-2 truncate min-w-0">
+          <span className={`w-2 h-2 rounded-full shrink-0 ${selectedRegion ? (selectedRegion.type === 'text' ? 'bg-[#FF6B1A]' : 'bg-[#34C759]') : selectedFixed ? 'bg-[#FF9F0A]' : 'bg-[rgba(255,255,255,0.4)]'}`} />
           <span className="text-xs font-bold uppercase tracking-wider text-[rgba(255,255,255,0.95)] truncate">
             {selectedRegion 
               ? selectedRegion.name 
@@ -797,30 +800,33 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
             <button
               type="button"
               onClick={() => onDuplicate(selectedNodeId)}
-              className="p-1.5 rounded-lg text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-white/10 transition cursor-pointer"
+              className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-white/10 transition cursor-pointer"
               title="Öğeyi Çoğalt"
+              aria-label="Öğeyi Çoğalt"
             >
-              <Copy size={13} />
+              <Copy size={14} />
             </button>
           )}
           {selectedNodeId && onDelete && (
             <button
               type="button"
               onClick={() => onDelete(selectedNodeId)}
-              className="p-1.5 rounded-lg text-[rgba(255,255,255,0.5)] hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
+              className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl text-[rgba(255,255,255,0.5)] hover:text-red-400 hover:bg-red-500/10 transition cursor-pointer"
               title="Öğeyi Sil"
+              aria-label="Öğeyi Sil"
             >
-              <Trash2 size={13} />
+              <Trash2 size={14} />
             </button>
           )}
           {selectedNodeId && onClose && (
             <button
               type="button"
               onClick={onClose}
-              className="p-1.5 rounded-lg text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-white/10 transition cursor-pointer ml-1"
+              className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl text-[rgba(255,255,255,0.7)] hover:text-white bg-white/5 hover:bg-white/10 transition cursor-pointer ml-1"
               title="Seçimi Kapat"
+              aria-label="Seçimi Kapat"
             >
-              <X size={14} />
+              <X size={16} />
             </button>
           )}
         </div>

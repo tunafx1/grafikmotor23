@@ -72,21 +72,22 @@ export function WorkspaceHeader(p: Props) {
           <span>grafik<span className="brand-light">motoru</span><small>TASARIM STÜDYOSU</small></span>
         </div>
 
-        {p.editorMode && <div className="workspace-breadcrumb">
+        {p.editorMode && <div className="workspace-breadcrumb min-w-0 flex items-center gap-1.5 overflow-hidden">
           <button
             type="button"
             onClick={p.onOpenTemplates}
-            className="workspace-breadcrumb-root hover:text-[#FF6B1A] transition flex items-center gap-1 cursor-pointer bg-transparent border-0 p-0"
+            className="workspace-breadcrumb-root hover:text-[#FF6B1A] transition flex items-center gap-1 cursor-pointer bg-transparent border-0 p-0 shrink-0 text-xs text-[rgba(255,255,255,0.7)]"
             title="Şablonlarım & Çalışmalarım Menüsünü Aç"
           >
-            <span>Çalışmalarım</span>
+            <span className="hidden sm:inline">Çalışmalarım</span>
+            <span className="sm:hidden font-bold text-[#FF6B1A]">← Menü</span>
           </button>
-          <ChevronRight size={13} className="opacity-40" />
+          <ChevronRight size={13} className="opacity-40 shrink-0" />
           {isEditing ? (
             <input
               ref={inputRef}
               type="text"
-              className="workspace-title-inline-input"
+              className="workspace-title-inline-input text-xs max-w-[130px] sm:max-w-[200px]"
               value={tempName}
               onChange={e => setTempName(e.target.value)}
               onKeyDown={e => {
@@ -102,12 +103,12 @@ export function WorkspaceHeader(p: Props) {
           ) : (
             <button
               type="button"
-              className="workspace-title-btn"
+              className="workspace-title-btn truncate max-w-[140px] sm:max-w-[220px]"
               onClick={() => p.onRename && setIsEditing(true)}
               title={p.onRename ? 'Tasarım adını düzenlemek için tıklayın' : p.templateName}
             >
-              <strong title={p.templateName}>{p.templateName}</strong>
-              {p.onRename && <Pencil size={11} className="workspace-title-pencil" />}
+              <strong title={p.templateName} className="truncate block">{p.templateName}</strong>
+              {p.onRename && <Pencil size={11} className="workspace-title-pencil shrink-0" />}
             </button>
           )}
         </div>}
@@ -290,6 +291,11 @@ export function WorkspaceHeader(p: Props) {
               <ListChecks size={16}/> Yapılacaklar
               {todos.pendingCount > 0 && <span className="ws-more-count">{todos.pendingCount > 9 ? '9+' : todos.pendingCount}</span>}
             </button>
+            {p.onExport && (
+              <button type="button" role="menuitem" className="text-[#FF6B1A] font-semibold" onClick={() => { setIsMoreOpen(false); p.onExport?.(); }}>
+                <Download size={16} className="text-[#FF6B1A]"/> Tasarımı İndir
+              </button>
+            )}
           </div>
         </>
       )}

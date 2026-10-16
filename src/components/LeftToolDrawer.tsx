@@ -389,14 +389,17 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
       </nav>
 
       {/* ═══════════════════════════════════════════════
-          SLIDE-OUT DRAWER (320px)
+          SLIDE-OUT DRAWER (320px / Bottom Sheet on mobile)
          ═══════════════════════════════════════════════ */}
       {activeTab && (
         <aside className="workspace-tool-drawer w-80 bg-[#252528] border-r border-[rgba(255,255,255,0.08)] flex flex-col z-10 shrink-0 overflow-hidden shadow-2xl animate-fade-in">
+          {/* Mobile Drag Handle */}
+          <div className="w-12 h-1 bg-white/20 rounded-full mx-auto my-2 sm:hidden shrink-0" />
           
           {/* Drawer Header */}
-          <div className="h-14 px-4 border-b border-[rgba(255,255,255,0.08)] flex items-center justify-between shrink-0">
-            <h3 className="text-sm font-semibold text-white">
+          <div className="h-12 sm:h-14 px-4 border-b border-[rgba(255,255,255,0.08)] flex items-center justify-between shrink-0">
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#FF6B1A]" />
               {activeTab === 'templates' && 'Şablonlar'}
               {activeTab === 'size' && 'Şablon ayarları'}
               {activeTab === 'add' && 'Öğe ekle'}
@@ -407,10 +410,11 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
             <button
               type="button"
               onClick={() => changeTab && changeTab(null)}
-              className="p-1 rounded-lg text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-white/10 transition cursor-pointer"
+              className="p-2 rounded-xl text-white/60 hover:text-white bg-white/5 hover:bg-white/10 transition cursor-pointer flex items-center justify-center min-w-[36px] min-h-[36px]"
               title="Çekmeceyi Kapat"
+              aria-label="Çekmeceyi Kapat"
             >
-              <X size={15} />
+              <X size={16} />
             </button>
           </div>
 

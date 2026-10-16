@@ -69,15 +69,109 @@
   #graphics-engine-app .workspace-header[data-mode="editor"] .ws-collapse { display: none !important; }
   #graphics-engine-app .workspace-header[data-mode="editor"] .ws-more-btn { display: inline-flex; }
   #graphics-engine-app .workspace-header[data-mode="editor"] .workspace-header-actions { margin-left: auto; }
-  #graphics-engine-app .workspace-header[data-mode="editor"] .ws-save-btn span { display: none; }
+  #graphics-engine-app .workspace-header .ws-save-btn span { display: none; }
+  #graphics-engine-app .workspace-header .ws-export-btn span { display: none; }
+  #graphics-engine-app .workspace-header .workspace-brand > span { display: none !important; }
+  #graphics-engine-app .workspace-header { height: 54px !important; padding: 0 10px !important; }
+}
+
+/* ─── Global Mobile Reset & Touch Target Helpers ─── */
+@media (max-width: 1023px) {
+  html, body, #root, #graphics-engine-app {
+    max-width: 100vw;
+    overflow-x: hidden !important;
+  }
+
+  /* Right inspector: when no item selected, hide completely so canvas is 100% visible */
+  #graphics-engine-app .workspace-inspector[data-selected="false"],
+  #graphics-engine-app .workspace-inspector:not([data-selected="true"]) {
+    display: none !important;
+  }
+
+  /* Right inspector: when item selected, float as an elegant bottom sheet */
+  #graphics-engine-app .workspace-inspector[data-selected="true"] {
+    display: flex !important;
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    top: auto !important;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    max-height: min(65vh, 540px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    z-index: 55 !important;
+    border-left: 0 !important;
+    border-top: 1px solid var(--studio-border) !important;
+    border-radius: 20px 20px 0 0 !important;
+    box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.75) !important;
+  }
+
+  /* Work Quick Editor in non-template mode: acts as bottom sheet */
+  #graphics-engine-app .work-quick-editor {
+    position: fixed !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px)) !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    max-height: min(65vh, 520px) !important;
+    z-index: 55 !important;
+    border-top: 1px solid var(--studio-border) !important;
+    border-radius: 20px 20px 0 0 !important;
+    box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.8) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.2s ease, visibility 0.28s !important;
+  }
+
+  #graphics-engine-app .work-quick-editor[data-open="false"],
+  #graphics-engine-app .work-quick-editor:not([data-open="true"]) {
+    display: none !important;
+    transform: translateY(110%) !important;
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+
+  #graphics-engine-app .work-quick-editor[data-open="true"] {
+    display: flex !important;
+    transform: translateY(0) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    pointer-events: auto !important;
+  }
+
+  /* Production Navigation (Top Tabs) on mobile */
+  .production-nav {
+    padding: 6px 12px !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .production-nav-left {
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    gap: 8px !important;
+    width: 100% !important;
+    scrollbar-width: none;
+  }
+  .production-nav-left::-webkit-scrollbar {
+    display: none;
+  }
+  .production-nav-btn {
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    padding: 8px 14px !important;
+    font-size: 12px !important;
+    border-radius: 9999px !important;
+    min-height: 40px !important;
+  }
 }
 
 /* ─── Editor on phones ─── */
 @media (max-width: 767px) {
-  /* While editing a template the tool rail becomes the bottom tab bar,
-     so the generic Araçlar/Önizleme/İndir bar would only duplicate it. */
-  #graphics-engine-app[data-template-editing="true"] #mobile-nav-bar { display: none !important; }
-  #graphics-engine-app[data-template-editing="true"] main {
+  #graphics-engine-app main {
     padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px));
   }
 
@@ -89,7 +183,7 @@
     left: 0;
     right: 0;
     bottom: 0;
-    width: auto;
+    width: 100% !important;
     height: calc(64px + env(safe-area-inset-bottom, 0px));
     flex-direction: row;
     justify-content: space-around;
@@ -98,43 +192,72 @@
     border-right: 0;
     border-top: 1px solid var(--studio-border);
     background: #15161a;
+    z-index: 60;
   }
   #graphics-engine-app .workspace-tool-rail > * { margin: 0 !important; }
   #graphics-engine-app .workspace-tool-rail button {
     flex: 1;
-    max-width: 76px;
+    max-width: 72px;
     width: auto;
-    height: 50px;
+    height: 52px;
     gap: 2px;
+    min-height: 44px;
   }
   #graphics-engine-app .workspace-tool-rail button span { font-size: 10px; }
 
-  /* Tool panels open as a bottom sheet so the canvas stays visible above. */
+  /* Tool panels open as an elegant bottom sheet so the canvas stays visible above. */
   #graphics-engine-app .workspace-tool-drawer,
   #graphics-engine-app[data-workspace-screen="editor"] main .workspace-tool-drawer {
-    position: fixed;
-    top: auto;
-    left: 0;
-    right: 0;
-    bottom: calc(64px + env(safe-area-inset-bottom, 0px));
-    width: 100%;
-    height: min(56vh, 520px);
-    max-width: none;
-    border-right: 0;
-    border-top: 1px solid var(--studio-border);
-    border-radius: 18px 18px 0 0;
-    box-shadow: 0 -18px 50px rgba(0, 0, 0, 0.6);
+    position: fixed !important;
+    top: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    width: 100% !important;
+    max-width: 100vw !important;
+    height: min(65vh, 540px) !important;
+    border-right: 0 !important;
+    border-top: 1px solid var(--studio-border) !important;
+    border-radius: 20px 20px 0 0 !important;
+    box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.75) !important;
+    z-index: 55 !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Smaller zoom pill tucked in the corner. */
   #graphics-engine-app .workspace-canvas-zoom {
-    right: 10px;
-    bottom: 10px;
-    padding: 3px;
+    right: 12px;
+    bottom: 12px;
+    padding: 4px;
+    z-index: 40;
   }
-  #graphics-engine-app .workspace-canvas-zoom > span { min-width: 38px; font-size: 10px; }
-  #graphics-engine-app .workspace-canvas-zoom button { padding: 5px; }
+  #graphics-engine-app .workspace-canvas-zoom > span { min-width: 36px; font-size: 10px; }
+  #graphics-engine-app .workspace-canvas-zoom button { padding: 6px; min-width: 32px; min-height: 32px; }
 
   /* "Şablon düzenleniyor" hint is noise on a phone; keep back button + name. */
-  #graphics-engine-app .production-editor-actions { padding: 6px 12px; }
+  #graphics-engine-app .production-editor-actions { padding: 6px 12px; min-height: 42px; }
 }
+
+/* ─── Mobile Modals & Dialogs Responsiveness ─── */
+@media (max-width: 640px) {
+  #graphics-engine-app #canvas-stage {
+    padding: 0 !important;
+  }
+  #graphics-engine-app #canvas-viewport {
+    padding: 8px 6px !important;
+  }
+  .ws-profile-dialog,
+  .workspace-export-dialog,
+  .production-dialog,
+  .ap-dialog-card {
+    max-height: calc(100dvh - 28px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 20px !important;
+    padding: 18px !important;
+    width: 95vw !important;
+    max-width: 95vw !important;
+  }
+}
+

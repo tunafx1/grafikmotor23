@@ -78,7 +78,8 @@ import {
   Copy,
   Play,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft
 } from 'lucide-react';
 
 // JSZip is dynamically imported when needed for better performance
@@ -5099,19 +5100,22 @@ export default function App() {
         onClearInitialShareCode={() => setInitialShareCode(null)}
       />
       {workspaceScreen === 'editor' && (
-        <div className="production-editor-actions bg-[#222225] border-b border-white/10 px-4 sm:px-6 py-2 flex items-center justify-between gap-3 text-xs shrink-0">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className="production-editor-actions bg-[#222225] border-b border-white/10 px-3 sm:px-6 py-1.5 sm:py-2 flex items-center justify-between gap-2 sm:gap-3 text-xs shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={() => { setTemplateEditing(false); setWorkspaceScreen(templateEditing ? 'templates' : 'results'); }}
-              className="px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition font-medium cursor-pointer"
+              className="px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-white/80 hover:text-white transition font-medium cursor-pointer text-[11px] sm:text-xs shrink-0"
             >
               {templateEditing ? '← Şablonlarım' : '← Tüm sonuçlar'}
             </button>
-            <strong className="truncate text-white/80">{currentTemplate.name}</strong>
+            <strong className="truncate text-white/80 text-[11px] sm:text-xs">{currentTemplate.name}</strong>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-white/60 text-[11px]">
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="text-white/60 text-[11px] hidden sm:inline">
               {templateEditing ? 'Şablon düzenleniyor' : 'Yalnızca bu çalışma düzenleniyor · Ana şablon korunur'}
+            </span>
+            <span className="text-[#FF6B1A] bg-[#FF6B1A]/10 border border-[#FF6B1A]/20 px-2 py-0.5 rounded text-[10px] font-semibold sm:hidden">
+              {templateEditing ? 'Şablon' : 'Bu Çalışma'}
             </span>
           </div>
         </div>
@@ -5462,7 +5466,7 @@ export default function App() {
           onExportClick={() => setIsExportModalOpen(true)}
         /> : <WorkQuickEditor
           template={currentTemplate}
-          regions={editingTemplate.regions || []}
+          regions={(activePageData?.regions && activePageData.regions.length > 0) ? activePageData.regions : (editingTemplate.regions || [])}
           activePageData={activePageData}
           selectedNodeId={selectedNodeId}
           onSelectNode={setSelectedNodeId}
@@ -5481,6 +5485,15 @@ export default function App() {
             setZoomMode('fit');
             setPanOffset({ x: 0, y: 0 });
             setSelectedNodeId(null);
+          }}
+          pageCount={generatedPages.length > 0 ? generatedPages.length : (currentTemplate.pages?.length || 1)}
+          activePageIndex={generatedPages.length > 0 ? activeGeneratedPageIndex : activePageIndex}
+          onSelectPage={(index) => {
+            if (generatedPages.length > 0) {
+              setActiveGeneratedPageIndex(index);
+            } else {
+              setActivePageIndex(index);
+            }
           }}
         />}
 
@@ -5520,37 +5533,67 @@ export default function App() {
       </section></div>}
 
       {/* MOBILE BOTTOM NAVIGATION BAR */}
-      <div id="mobile-nav-bar" style={{display: workspaceScreen === 'editor' ? undefined : 'none'}} className="lg:hidden bg-[#1D1D1F] border-t border-[rgba(255,255,255,0.08)] flex items-center justify-around pt-2.5 pb-[calc(10px+env(safe-area-inset-bottom,0px))] px-2 z-30 shrink-0 select-none">
+      <div id="mobile-nav-bar" style={{display: (workspaceScreen === 'editor' && !templateEditing) ? undefined : 'none'}} className="lg:hidden bg-[#15161A] border-t border-[rgba(255,255,255,0.08)] flex items-center justify-around h-[calc(60px+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] px-2 z-40 shrink-0 select-none">
         <button
-          onClick={() => { setMobileView('editor'); if (!leftDrawerTab) setLeftDrawerTab('add'); }}
-          className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
-            mobileView === 'editor' ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
+          type="button"
+          onClick={() => {
+            const currentRegions = (activePageData?.regions && activePageData.regions.length > 0) ? activePageData.regions : (editingTemplate.regions || []);
+            const firstEditable = currentRegions.find(r => r.type === 'text' || r.type === 'image');
+            if (selectedNodeId) {
+              setSelectedNodeId(null);
+            } else if (firstEditable) {
+              setSelectedNodeId(firstEditable.id);
+            }
+          }}
+          className={`flex flex-col items-center justify-center space-y-1 text-xs transition cursor-pointer min-h-[44px] flex-1 max-w-[80px] rounded-xl ${
+            selectedNodeId ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-white'
           }`}
+          title="İçerikleri Düzenle"
         >
-          <Sliders className="w-4 h-4" />
-          <span className="text-[10px]">Araçlar</span>
+          <Pencil className="w-4 h-4" />
+          <span className="text-[10px]">Düzenle</span>
         </button>
 
         <button
-          onClick={() => { setMobileView('canvas'); setLeftDrawerTab(null); }}
-          className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
-            mobileView === 'canvas' ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
-          }`}
+          type="button"
+          onClick={() => {
+            setSelectedNodeId(null);
+            setWorkspaceScreen('results');
+          }}
+          className="flex flex-col items-center justify-center space-y-1 text-xs transition cursor-pointer min-h-[44px] flex-1 max-w-[80px] rounded-xl text-[rgba(255,255,255,0.72)] hover:text-white"
+          title="Sonuçlara Geri Dön"
         >
-          <Sparkles className="w-4 h-4" />
+          <ArrowLeft className="w-4 h-4" />
+          <span className="text-[10px]">Sonuçlar</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setSelectedNodeId(null);
+            setZoomMode('fit');
+            setPanOffset({ x: 0, y: 0 });
+          }}
+          className={`flex flex-col items-center justify-center space-y-1 text-xs transition cursor-pointer min-h-[44px] flex-1 max-w-[80px] rounded-xl ${
+            !selectedNodeId ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-white'
+          }`}
+          title="Tam Tuval Önizleme"
+        >
+          <Eye className="w-4 h-4" />
           <span className="text-[10px]">Önizleme</span>
         </button>
 
         <button
+          type="button"
           onClick={() => setIsExportModalOpen(true)}
-          className={`flex flex-col items-center space-y-1 text-xs transition cursor-pointer px-3 py-1 rounded-lg ${
-            isExportModalOpen ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-[rgba(255,255,255,0.95)]'
+          className={`flex flex-col items-center justify-center space-y-1 text-xs transition cursor-pointer min-h-[44px] flex-1 max-w-[80px] rounded-xl ${
+            isExportModalOpen ? 'text-[#FF6B1A] font-bold bg-[#FF6B1A]/10' : 'text-[rgba(255,255,255,0.72)] hover:text-white'
           }`}
+          title="Tasarımı İndir"
         >
           <Download className="w-4 h-4" />
           <span className="text-[10px]">İndir</span>
         </button>
-
       </div>
 
       {/* CUSTOM CONFIRM DIALOG MODAL */}

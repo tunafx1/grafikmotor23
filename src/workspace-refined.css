@@ -159,32 +159,42 @@
      canvas instead of covering it. Pull both out of flow as fixed overlays (same
      pattern .work-quick-editor already uses below) so the canvas stays full-size
      underneath and the panel floats above it instead. */
-  #graphics-engine-app .workspace-inspector {
+  #graphics-engine-app .workspace-inspector[data-selected="false"],
+  #graphics-engine-app .workspace-inspector:not([data-selected="true"]) {
+    display: none !important;
+  }
+  #graphics-engine-app .workspace-inspector[data-selected="true"] {
     position: fixed;
     left: 0;
     right: 0;
     bottom: calc(64px + env(safe-area-inset-bottom, 0px));
     top: auto;
     width: 100%;
-    max-height: 70vh;
+    max-height: 65vh;
     overflow-y: auto;
-    z-index: 45;
+    z-index: 55;
     border-left: 0;
     border-top: 1px solid var(--studio-border);
-    border-radius: 18px 18px 0 0;
-    box-shadow: 0 -18px 50px #0007;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.75);
   }
   #graphics-engine-app .workspace-tool-drawer {
     position: fixed;
-    top: 64px;
+    top: auto;
     left: 0;
+    right: 0;
     bottom: calc(64px + env(safe-area-inset-bottom, 0px));
     width: 100%;
     max-width: none;
-    z-index: 50;
-    box-shadow: 0 18px 50px #000a;
+    height: min(65vh, 540px);
+    z-index: 55;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -20px 50px rgba(0, 0, 0, 0.75);
   }
-  #graphics-engine-app .work-quick-editor { position: absolute; right: 0; bottom: 0; z-index: 40; width: min(100%, 340px); max-height: 58vh; border-top: 1px solid var(--studio-border); box-shadow: 0 -18px 50px #0007; }
+  #graphics-engine-app .work-quick-editor[data-open="false"],
+  #graphics-engine-app .work-quick-editor:not([data-open="true"]) { 
+    display: none !important; 
+  }
 }
 
 /* Touch devices have no hover state — reveal the to-do row actions permanently

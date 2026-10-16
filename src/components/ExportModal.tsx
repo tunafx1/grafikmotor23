@@ -68,7 +68,8 @@ export function ExportModal({
             type="button"
             onClick={onClose}
             disabled={isBusy}
-            className="p-1 rounded-lg text-[rgba(255,255,255,0.5)] hover:text-white hover:bg-white/10 transition cursor-pointer"
+            className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-xl text-[rgba(255,255,255,0.6)] hover:text-white bg-white/5 hover:bg-white/10 transition cursor-pointer"
+            aria-label="Kapat"
           >
             <X size={18} />
           </button>
