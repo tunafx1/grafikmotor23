@@ -129,15 +129,6 @@ export function WorkQuickEditor(props: {
 
   return (
     <>
-      {/* Mobile Backdrop: Tapping outside the sheet closes it cleanly */}
-      {isOpen && (
-        <div
-          className="lg:hidden fixed inset-0 bg-black/50 backdrop-blur-[2px] z-50 transition-opacity select-none"
-          onClick={() => props.onSelectNode(null)}
-          aria-hidden="true"
-        />
-      )}
-
       <aside
         data-open={isOpen}
         className="work-quick-editor"

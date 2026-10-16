@@ -5207,7 +5207,10 @@ export default function App() {
 
       {workspaceScreen === 'editor' && aiError && <div role="alert" className="workspace-warning">{aiError}</div>}
       {/* WORKSPACE AREA: 3-COLUMN MODERN CANVAS LAYOUT */}
-      <main className={`${workspaceScreen !== 'editor' ? 'workspace-editor-hidden' : ''} flex-1 flex flex-row overflow-hidden bg-[#18181A] transition-colors duration-300 relative`}>
+      <main
+        data-work-editor-open={!!selectedNodeId && !templateEditing && workspaceScreen === 'editor'}
+        className={`${workspaceScreen !== 'editor' ? 'workspace-editor-hidden' : ''} flex-1 flex flex-row overflow-hidden bg-[#18181A] transition-colors duration-300 relative`}
+      >
         
         {/* 1. LEFT TOOL DRAWER (56px rail + 320px collapsible drawer) */}
         {templateEditing && <LeftToolDrawer
