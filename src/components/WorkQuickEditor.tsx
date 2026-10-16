@@ -2,7 +2,8 @@ import React, { useRef, useState } from 'react';
 import {
   AlignCenter, AlignLeft, AlignRight, AlignHorizontalJustifyCenter, AlignHorizontalJustifyEnd, AlignHorizontalJustifyStart,
   AlignVerticalJustifyCenter, AlignVerticalJustifyEnd, AlignVerticalJustifyStart,
-  Bold, ChevronLeft, ChevronRight, Image as ImageIcon, Minus, Move, Plus, Ratio, Type, Upload, X, ChevronDown, ChevronUp
+  Bold, ChevronLeft, ChevronRight, Image as ImageIcon, Minus, Move, Plus, Ratio, Type, Upload, X, ChevronDown, ChevronUp,
+  ArrowUp, ArrowDown, ArrowLeft as ArrowLeftIcon, ArrowRight as ArrowRightIcon, Crop
 } from 'lucide-react';
 import type { DesignTemplate, Region } from '../types';
 
@@ -30,6 +31,7 @@ export function WorkQuickEditor(props: {
   onRegionChange: (id: string, updates: Partial<Region>) => void;
   onCenter: (id: string) => void;
   onAlign: (id: string, alignment: WorkAlignment) => void;
+  onOpenCrop?: (id: string) => void;
   imageData: Record<string, WorkImageData>;
   onUpdateImageProp: (id: string, prop: keyof WorkImageData, value: any) => void;
   onResizeWork: (width: number, height: number) => void;
@@ -42,6 +44,7 @@ export function WorkQuickEditor(props: {
 
   const [activeTab, setActiveTab] = useState<'content' | 'ratio'>('content');
   const [showCoords, setShowCoords] = useState(false);
+  const [nudgeStep, setNudgeStep] = useState<1 | 10>(10);
 
   const editable = props.regions.filter(region => region.type === 'text' || region.type === 'image');
   const selected = (props.selectedNodeId ? editable.find(region => region.id === props.selectedNodeId) : null) || editable[0];
@@ -437,6 +440,17 @@ export function WorkQuickEditor(props: {
                     <span>Yeni Görsel Yükle</span>
                   </button>
 
+                  {props.onOpenCrop && (
+                    <button
+                      type="button"
+                      onClick={() => props.onOpenCrop?.(selected.id)}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#1E3A28] to-[#172E20] hover:from-[#264A33] hover:to-[#1E3B29] border border-[#34C759]/40 text-[#34C759] hover:text-white font-bold text-xs transition cursor-pointer shadow-md min-h-[42px] active:scale-[0.98]"
+                    >
+                      <Crop size={15} className="shrink-0" />
+                      <span>Çerçeve İçi Görseli Konumlandır ve Kırp</span>
+                    </button>
+                  )}
+
                   <div className="p-3 rounded-xl border border-white/10 bg-[#1D1D1F] space-y-3">
                     <div className="space-y-1">
                       <div className="flex justify-between text-[11px] text-white/70">
@@ -475,21 +489,89 @@ export function WorkQuickEditor(props: {
                 </div>
               )}
 
-              {/* Alignment & Centering Row */}
-              <div className="space-y-2 pt-2 border-t border-white/10">
-                <label className="text-[11px] font-bold uppercase tracking-wider text-[rgba(255,255,255,0.7)] flex items-center justify-between">
-                  <span>Tuval Hizalama</span>
-                  <button
-                    type="button"
-                    onClick={() => props.onCenter(selected.id)}
-                    className="text-[#FF6B1A] hover:underline flex items-center gap-1 text-[11px] normal-case cursor-pointer"
-                  >
-                    <AlignCenter size={13} />
-                    <span>Tuvalin Ortasına Al</span>
-                  </button>
-                </label>
+              {/* Alignment & Position Section */}
+              <div className="space-y-3 pt-2 border-t border-white/10">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-[rgba(255,255,255,0.7)]">
+                    Konum & Hizalama
+                  </label>
+                  <div className="flex items-center gap-1 bg-black/40 p-0.5 rounded-lg border border-white/10 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setNudgeStep(1)}
+                      className={`px-2 py-0.5 rounded font-mono font-bold cursor-pointer transition ${nudgeStep === 1 ? 'bg-[#FF6B1A] text-white' : 'text-white/50 hover:text-white'}`}
+                      title="1 piksel hassas kaydırma"
+                    >
+                      1 px
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNudgeStep(10)}
+                      className={`px-2 py-0.5 rounded font-mono font-bold cursor-pointer transition ${nudgeStep === 10 ? 'bg-[#FF6B1A] text-white' : 'text-white/50 hover:text-white'}`}
+                      title="10 piksel hızlı kaydırma"
+                    >
+                      10 px
+                    </button>
+                  </div>
+                </div>
 
-                <div className="grid grid-cols-6 gap-1.5">
+                {/* Tactile Nudge Control Pad */}
+                <div className="bg-[#171719] p-3 rounded-2xl border border-white/5 flex flex-col items-center">
+                  <div className="grid grid-cols-3 gap-1.5 w-full max-w-[210px]">
+                    <div />
+                    <button
+                      type="button"
+                      onClick={() => props.onRegionChange(selected.id, { y: Math.round(selected.y - nudgeStep) })}
+                      className="p-2.5 rounded-xl border border-white/10 bg-[#222225] hover:bg-[#2C2C30] active:bg-[#FF6B1A] active:text-white text-white flex items-center justify-center transition cursor-pointer min-h-[40px] shadow-sm"
+                      title="Yukarı Kaydır"
+                    >
+                      <ArrowUp size={16} />
+                    </button>
+                    <div />
+
+                    <button
+                      type="button"
+                      onClick={() => props.onRegionChange(selected.id, { x: Math.round(selected.x - nudgeStep) })}
+                      className="p-2.5 rounded-xl border border-white/10 bg-[#222225] hover:bg-[#2C2C30] active:bg-[#FF6B1A] active:text-white text-white flex items-center justify-center transition cursor-pointer min-h-[40px] shadow-sm"
+                      title="Sola Kaydır"
+                    >
+                      <ArrowLeftIcon size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => props.onCenter(selected.id)}
+                      className="p-1 rounded-xl border border-[#FF6B1A]/40 bg-[#FF6B1A]/10 hover:bg-[#FF6B1A]/20 text-[#FF6B1A] flex flex-col items-center justify-center text-[10px] font-bold transition active:scale-95 cursor-pointer min-h-[40px]"
+                      title="Tuvalin Tam Ortasına Al"
+                    >
+                      <AlignCenter size={14} />
+                      <span className="text-[9px] mt-0.5">Ortala</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => props.onRegionChange(selected.id, { x: Math.round(selected.x + nudgeStep) })}
+                      className="p-2.5 rounded-xl border border-white/10 bg-[#222225] hover:bg-[#2C2C30] active:bg-[#FF6B1A] active:text-white text-white flex items-center justify-center transition cursor-pointer min-h-[40px] shadow-sm"
+                      title="Sağa Kaydır"
+                    >
+                      <ArrowRightIcon size={16} />
+                    </button>
+
+                    <div />
+                    <button
+                      type="button"
+                      onClick={() => props.onRegionChange(selected.id, { y: Math.round(selected.y + nudgeStep) })}
+                      className="p-2.5 rounded-xl border border-white/10 bg-[#222225] hover:bg-[#2C2C30] active:bg-[#FF6B1A] active:text-white text-white flex items-center justify-center transition cursor-pointer min-h-[40px] shadow-sm"
+                      title="Aşağı Kaydır"
+                    >
+                      <ArrowDown size={16} />
+                    </button>
+                    <div />
+                  </div>
+                </div>
+
+                {/* 6 Quick Canvas Alignment Buttons */}
+                <div className="grid grid-cols-6 gap-1.5 pt-1">
                   <button
                     type="button"
                     onClick={() => props.onAlign(selected.id, 'left')}

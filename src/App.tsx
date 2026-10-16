@@ -79,7 +79,8 @@ import {
   Play,
   CheckCircle2,
   AlertCircle,
-  ArrowLeft
+  ArrowLeft,
+  Crop
 } from 'lucide-react';
 
 // JSZip is dynamically imported when needed for better performance
@@ -4082,13 +4083,34 @@ export default function App() {
     }
   };
 
+  // Canvas touch & gesture refs
+  const hasMovedRef = useRef<boolean>(false);
+  const touchStartClientRef = useRef<{ clientX: number; clientY: number } | null>(null);
+  const pinchCropRef = useRef<{ startDist: number; startScale: number } | null>(null);
+
   // Pointer/Touch interactions on Canvas for repositioning layers and resizing them
   const handleCanvasPointerDown = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    // Capture the state snapshot BEFORE dragging begins so we can revert to it on Undo
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+    const isSingleWorkMode = !templateEditing && workspaceScreen === 'editor';
+    const isWorkPreviewMode = isMobile && isSingleWorkMode && !selectedNodeId && !editingImageRegionId;
 
+    hasMovedRef.current = false;
+
+    // Two-finger pinch-to-zoom tracking in frame crop mode on touch devices
+    if ('touches' in e && e.touches.length === 2 && editingImageRegionId) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      const curImg = activePageData.dynamicImages?.[editingImageRegionId] || { scale: 1.0 };
+      pinchCropRef.current = {
+        startDist: dist,
+        startScale: curImg.scale ?? 1.0
+      };
+      return;
+    }
 
     const rect = canvas.getBoundingClientRect();
     let clientX = 0;
@@ -4103,6 +4125,8 @@ export default function App() {
       clientY = e.clientY;
     }
 
+    touchStartClientRef.current = { clientX, clientY };
+
     const relativeX = clientX - rect.left;
     const relativeY = clientY - rect.top;
 
@@ -4112,7 +4136,7 @@ export default function App() {
     const x = relativeX * scaleX;
     const y = relativeY * scaleY;
 
-    // If mouse image positioning is active, drag the image content instead of the frame
+    // If in-frame image positioning/crop is active, drag the image content inside the frame
     if (editingImageRegionId) {
       const activeReg = (editingTemplate.regions || []).find(r => r.id === editingImageRegionId);
       if (activeReg && !activeReg.locked) {
@@ -4134,13 +4158,14 @@ export default function App() {
           };
           setIsDragging(true);
           return;
-        } else {
-          // Clicked outside active crop zone, exit crop mode
+        } else if (!isMobile) {
+          // On desktop, clicking outside active crop zone exits crop mode
           setEditingImageRegionId(null);
         }
       } else {
         setEditingImageRegionId(null);
       }
+      return;
     }
 
     // First check if user clicked on any resize handles of the currently selected node
@@ -4164,9 +4189,6 @@ export default function App() {
 
       // Only allow resizing if the element is NOT locked
       if (selectedEl && !selectedEl.locked) {
-        // 22px on-screen comfortable hit-target radius (close to the 44px touch-target
-        // guideline); uses the larger of the two axis scales so the hit-circle stays
-        // symmetric even when the canvas is scaled non-uniformly on screen.
         const hitRadius = 22 * Math.max(scaleX, scaleY);
         const corners = [
           { handle: 'TL', cx: selectedEl.x, cy: selectedEl.y },
@@ -4212,32 +4234,45 @@ export default function App() {
     );
 
     if (hitTarget) {
-      setSelectedNodeId(hitTarget.id);
-      const activeEl = hitTarget.item;
-      if (activeEl && !activeEl.locked) {
-        dragStartRef.current = {
-          elementId: hitTarget.id,
-          elementType: hitTarget.type,
-          startX: activeEl.x,
-          startY: activeEl.y,
-          mouseStartX: x,
-          mouseStartY: y,
-          mode: 'drag'
-        };
-        setIsDragging(true);
+      // In mobile work preview mode, do NOT select element on single pointer down!
+      // This keeps the preview clean and lets the user preview without bottom sheet popup.
+      if (!isWorkPreviewMode) {
+        setSelectedNodeId(hitTarget.id);
+        const activeEl = hitTarget.item;
+        if (activeEl && !activeEl.locked) {
+          dragStartRef.current = {
+            elementId: hitTarget.id,
+            elementType: hitTarget.type,
+            startX: activeEl.x,
+            startY: activeEl.y,
+            mouseStartX: x,
+            mouseStartY: y,
+            mode: 'drag'
+          };
+          setIsDragging(true);
+        }
       }
     } else {
-      setSelectedNodeId(null);
+      if (!isWorkPreviewMode) {
+        setSelectedNodeId(null);
+      }
     }
   };
 
   const handleCanvasPointerMove = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDragging || !dragStartRef.current) return;
+    // Two-finger pinch-to-zoom in crop mode
+    if ('touches' in e && e.touches.length === 2 && editingImageRegionId && pinchCropRef.current) {
+      const t1 = e.touches[0];
+      const t2 = e.touches[1];
+      const dist = Math.hypot(t1.clientX - t2.clientX, t1.clientY - t2.clientY);
+      if (pinchCropRef.current.startDist > 10) {
+        const factor = dist / pinchCropRef.current.startDist;
+        const newScale = Math.max(0.2, Math.min(6.0, parseFloat((pinchCropRef.current.startScale * factor).toFixed(2))));
+        updateActiveImageProp(editingImageRegionId, 'scale', newScale);
+      }
+      return;
+    }
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
     let clientX = 0;
     let clientY = 0;
 
@@ -4250,6 +4285,20 @@ export default function App() {
       clientY = e.clientY;
     }
 
+    // Detect actual drag movement (beyond 8px) to distinguish tap from drag
+    if (touchStartClientRef.current) {
+      const moveDist = Math.hypot(clientX - touchStartClientRef.current.clientX, clientY - touchStartClientRef.current.clientY);
+      if (moveDist > 8) {
+        hasMovedRef.current = true;
+      }
+    }
+
+    if (!isDragging || !dragStartRef.current) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
     const relativeX = clientX - rect.left;
     const relativeY = clientY - rect.top;
 
@@ -4440,22 +4489,57 @@ export default function App() {
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
   const handleCanvasPointerUp = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    const wasDragging = !!dragStartRef.current;
+    const wasMoved = hasMovedRef.current;
+    hasMovedRef.current = false;
+    touchStartClientRef.current = null;
+    if (pinchCropRef.current) {
+      pinchCropRef.current = null;
+    }
     dragStartRef.current = null;
     setIsDragging(false);
 
+    const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
+    const isSingleWorkMode = !templateEditing && workspaceScreen === 'editor';
+    const isWorkPreviewMode = isMobile && isSingleWorkMode && !selectedNodeId && !editingImageRegionId;
+
     if (e && 'changedTouches' in e) {
       const touch = e.changedTouches[0];
-      if (touch && !wasDragging) {
+      if (touch && !wasMoved) {
         const now = Date.now();
         const last = lastTapRef.current;
-        const isDoubleTap = !!last && now - last.time < 300 &&
-          Math.hypot(touch.clientX - last.x, touch.clientY - last.y) < 25;
+        const isDoubleTap = !!last && now - last.time < 350 &&
+          Math.hypot(touch.clientX - last.x, touch.clientY - last.y) < 30;
         if (isDoubleTap) {
           lastTapRef.current = null;
           handleActivateEditAt(touch.clientX, touch.clientY);
         } else {
           lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+
+          // On mobile in Single Work mode:
+          if (isMobile && isSingleWorkMode) {
+            if (isWorkPreviewMode) {
+              // IN PREVIEW MODE: Single tap does NOT select or open the quick editor bottom sheet!
+              // The preview canvas stays clean and unobstructed.
+            } else if (selectedNodeId && !editingImageRegionId) {
+              // IN EDIT MODE: Single tap on another element selects it, tap empty background unselects and returns to preview
+              const canvas = canvasRef.current;
+              if (canvas) {
+                const rect = canvas.getBoundingClientRect();
+                const relX = touch.clientX - rect.left;
+                const relY = touch.clientY - rect.top;
+                const scaleX = currentTemplate.width / rect.width;
+                const scaleY = currentTemplate.height / rect.height;
+                const x = relX * scaleX;
+                const y = relY * scaleY;
+                const hit = findTopmostUnlockedElement(editingTemplate, x, y, activeGraphicData.hiddenElements || []);
+                if (hit) {
+                  setSelectedNodeId(hit.id);
+                } else {
+                  setSelectedNodeId(null);
+                }
+              }
+            }
+          }
         }
       }
     }
@@ -5273,19 +5357,108 @@ export default function App() {
             {/* Canvas Background Grid */}
             <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] [background-size:24px_24px] pointer-events-none" />
 
-            {/* Interactive image pan/zoom helper banner */}
+            {/* Interactive in-frame image pan & zoom floating toolbar */}
             {editingImageRegionId && (
-              <div className="absolute top-4 z-30 bg-[#34C759] text-white text-[11px] font-bold px-4 py-2 rounded-xl shadow-lg flex items-center space-x-3 border border-[#34C759]">
-                <MousePointer className="w-3.5 h-3.5 animate-bounce" />
-                <span>Görseli mouse ile sürükleyip kaydırın, tekerlek ile yakınlaştırın</span>
-                <button
-                  type="button"
-                  onClick={() => setEditingImageRegionId(null)}
-                  className="bg-black/30 hover:bg-black/50 text-white px-2 py-0.5 rounded text-[10px] font-extrabold uppercase transition cursor-pointer"
-                >
-                  Uygula
-                </button>
-                <button type="button" onClick={cancelCrop} className="underline">Vazgeç</button>
+              <div className="absolute top-2 sm:top-4 z-40 bg-[#161719]/95 backdrop-blur-md border border-[#34C759]/60 text-white rounded-2xl shadow-2xl p-2.5 sm:p-3 flex flex-col sm:flex-row items-center gap-2 max-w-[95vw] sm:max-w-2xl mx-auto animate-fade-in">
+                <div className="flex items-center justify-between w-full sm:w-auto gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="p-1 bg-[#34C759]/20 text-[#34C759] rounded-lg shrink-0">
+                      <Crop className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="text-[11px] font-bold text-white truncate">Çerçeve İçi Görsel</span>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:hidden">
+                    <button
+                      type="button"
+                      onClick={() => setEditingImageRegionId(null)}
+                      className="bg-[#34C759] hover:bg-[#2FB350] text-black px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition cursor-pointer flex items-center gap-1 shadow-sm active:scale-95"
+                    >
+                      <Check className="w-3 h-3 stroke-[3]" />
+                      <span>Uygula</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelCrop}
+                      className="bg-white/10 hover:bg-white/20 text-white/80 px-2 py-1 rounded-lg text-[10px] font-bold transition cursor-pointer active:scale-95"
+                    >
+                      Vazgeç
+                    </button>
+                  </div>
+                </div>
+
+                {/* Touch Zoom Buttons & Slider Controls */}
+                <div className="flex items-center gap-1.5 bg-black/50 px-2 py-1 rounded-xl border border-white/10 w-full sm:w-auto justify-between sm:justify-start">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = activePageData.dynamicImages?.[editingImageRegionId]?.scale || 1.0;
+                      const next = Math.max(0.2, parseFloat((cur - 0.1).toFixed(2)));
+                      updateActiveImageProp(editingImageRegionId, 'scale', next);
+                    }}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white active:scale-95 cursor-pointer"
+                    title="Görseli Küçült"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <span className="text-[11px] font-mono font-bold text-[#34C759] min-w-[42px] text-center">
+                    {Math.round(((activePageData.dynamicImages?.[editingImageRegionId]?.scale) || 1.0) * 100)}%
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cur = activePageData.dynamicImages?.[editingImageRegionId]?.scale || 1.0;
+                      const next = Math.min(6.0, parseFloat((cur + 0.1).toFixed(2)));
+                      updateActiveImageProp(editingImageRegionId, 'scale', next);
+                    }}
+                    className="w-7 h-7 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white active:scale-95 cursor-pointer"
+                    title="Görseli Büyüt"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+
+                  <input
+                    type="range"
+                    min={0.2}
+                    max={4.0}
+                    step={0.05}
+                    value={activePageData.dynamicImages?.[editingImageRegionId]?.scale || 1.0}
+                    onChange={(e) => updateActiveImageProp(editingImageRegionId, 'scale', parseFloat(e.target.value))}
+                    className="w-20 sm:w-28 accent-[#34C759] cursor-pointer"
+                    title="Ölçek Kaydırıcı"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      updateActiveImageProp(editingImageRegionId, 'scale', 1.0);
+                      updateActiveImageProp(editingImageRegionId, 'offsetX', 0);
+                      updateActiveImageProp(editingImageRegionId, 'offsetY', 0);
+                    }}
+                    className="p-1 text-white/50 hover:text-white rounded hover:bg-white/10 cursor-pointer"
+                    title="Merkeze Sıfırla"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                  </button>
+                </div>
+
+                <div className="hidden sm:flex items-center gap-2 ml-auto">
+                  <span className="text-[10px] text-white/50">Sürükleyin / tekerlek veya +/- ile yakınlaştırın</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditingImageRegionId(null)}
+                    className="bg-[#34C759] hover:bg-[#2FB350] text-black px-3 py-1.5 rounded-lg text-[11px] font-black uppercase transition cursor-pointer flex items-center gap-1 shadow-sm active:scale-95"
+                  >
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    <span>Uygula</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelCrop}
+                    className="bg-white/10 hover:bg-white/20 text-white/80 px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition cursor-pointer active:scale-95"
+                  >
+                    Vazgeç
+                  </button>
+                </div>
               </div>
             )}
 
@@ -5468,13 +5641,14 @@ export default function App() {
           template={currentTemplate}
           regions={(activePageData?.regions && activePageData.regions.length > 0) ? activePageData.regions : (editingTemplate.regions || [])}
           activePageData={activePageData}
-          selectedNodeId={selectedNodeId}
+          selectedNodeId={editingImageRegionId ? null : selectedNodeId}
           onSelectNode={setSelectedNodeId}
           onTextChange={updateActiveText}
           onImageUpload={(regionId, file) => handleDynamicImageUpload(regionId, file)}
           onRegionChange={handleWorkRegionChange}
           onCenter={(regionId) => handleWorkAlignElement(regionId, 'center-both')}
           onAlign={handleWorkAlignElement}
+          onOpenCrop={handleCropPanTrigger}
           imageData={activePageData.dynamicImages || {}}
           onUpdateImageProp={updateActiveImageProp}
           onResizeWork={(width, height) => {
