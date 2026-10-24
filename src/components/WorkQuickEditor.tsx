@@ -6,6 +6,7 @@ import {
   ArrowUp, ArrowDown, ArrowLeft as ArrowLeftIcon, ArrowRight as ArrowRightIcon, Crop
 } from 'lucide-react';
 import type { DesignTemplate, Region } from '../types';
+import { IMAGE_ACCEPT } from '../utils/heicUtils';
 
 type WorkAlignment = 'left' | 'center-x' | 'right' | 'top' | 'center-y' | 'bottom' | 'center-both';
 type WorkImageData = { url: string; scale: number; offsetX: number; offsetY: number; rotation: number };
@@ -413,7 +414,7 @@ export function WorkQuickEditor(props: {
                   <input
                     ref={fileInput}
                     type="file"
-                    accept="image/*"
+                    accept={IMAGE_ACCEPT}
                     hidden
                     onChange={event => {
                       const file = event.target.files?.[0];

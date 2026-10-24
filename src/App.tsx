@@ -89,6 +89,7 @@ import { DesignTemplate, TextStyle, Region, FixedElement, GraphicData, TemplateP
 import { TEMPLATE_PRESETS } from './presets';
 import { renderTemplateToCanvas } from './canvasRenderer';
 import { isMediaVideo, extractVideoSnapshot, createSequenceMediaItem } from './utils/mediaUtils';
+import { isImageFile, normalizeImageFile } from './utils/heicUtils';
 import { WorkspaceHeader } from './components/WorkspaceHeader';
 import { TemplateThumbnail } from './components/TemplateThumbnail';
 import { useProjectPages } from './hooks/useProjectPages';
@@ -2286,8 +2287,15 @@ export default function App() {
   };
 
   const handleTemplateBackgroundUpload = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
+    if (!isImageFile(file)) {
       window.alert('Lütfen geçerli bir görsel dosyası seçin.');
+      return;
+    }
+    try {
+      file = await normalizeImageFile(file);
+    } catch (err) {
+      console.warn('HEIC dönüştürülemedi:', err);
+      window.alert('HEIC fotoğrafı dönüştürülemedi. Lütfen JPG veya PNG olarak deneyin.');
       return;
     }
 
@@ -2561,7 +2569,7 @@ export default function App() {
 
   const handleMultiMediaFiles = async (files: FileList | File[]) => {
     if (isAiLoading) return;
-    let fileList = Array.from(files).filter(f => f.type.startsWith('image/') || isMediaVideo(f));
+    let fileList = Array.from(files).filter(f => isImageFile(f) || isMediaVideo(f));
     if (fileList.length === 0) {
       alert('Lütfen resim veya MP4 video dosyaları seçin!');
       return;
@@ -2576,7 +2584,7 @@ export default function App() {
     try {
       const mediaItems: SequenceMediaItem[] = [];
       for (const file of fileList) {
-        const item = await createSequenceMediaItem(file);
+        const item = await createSequenceMediaItem(await normalizeImageFile(file));
         mediaItems.push(item);
       }
 
@@ -3698,8 +3706,15 @@ export default function App() {
 
   // Add new image layer from uploaded PNG/image file
   const addImageRegionFromFile = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
+    if (!isImageFile(file)) {
       alert('Lütfen yalnızca bir resim dosyası seçin!');
+      return;
+    }
+    try {
+      file = await normalizeImageFile(file);
+    } catch (err) {
+      console.warn('HEIC dönüştürülemedi:', err);
+      alert('HEIC fotoğrafı dönüştürülemedi. Lütfen JPG veya PNG olarak deneyin.');
       return;
     }
 
@@ -4714,8 +4729,15 @@ export default function App() {
       }
       return;
     }
-    if (!file.type.startsWith('image/')) {
+    if (!isImageFile(file)) {
       alert('Lütfen bir resim veya MP4 video dosyası seçin!');
+      return;
+    }
+    try {
+      file = await normalizeImageFile(file);
+    } catch (err) {
+      console.warn('HEIC dönüştürülemedi:', err);
+      alert('HEIC fotoğrafı dönüştürülemedi. Lütfen JPG veya PNG olarak deneyin.');
       return;
     }
 

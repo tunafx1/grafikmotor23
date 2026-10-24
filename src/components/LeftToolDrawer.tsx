@@ -30,6 +30,7 @@ import {
   ArrowUpToLine
 } from 'lucide-react';
 import { DesignTemplate, Region, FixedElement, TextRole } from '../types';
+import { IMAGE_ACCEPT } from '../utils/heicUtils';
 
 const TEXT_ROLE_OPTIONS: {value: TextRole; label: string}[] = [
   {value: 'title', label: 'Başlık'},
@@ -749,7 +750,7 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
                     type="file"
                     ref={backgroundInputRef}
                     onChange={handleBackgroundFileChange}
-                    accept="image/*"
+                    accept={IMAGE_ACCEPT}
                     className="hidden"
                   />
                   <div className="flex gap-2">
@@ -779,7 +780,7 @@ export function LeftToolDrawer(props: LeftToolDrawerProps) {
                   type="file" 
                   ref={fileInputRef} 
                   onChange={handleFileChange} 
-                  accept="image/*" 
+                  accept={IMAGE_ACCEPT} 
                   className="hidden" 
                 />
                 <button

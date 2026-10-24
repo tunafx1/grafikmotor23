@@ -14,6 +14,7 @@ import './BatchWorkspace.simple.css';
 import './BatchCreate.css';
 import './BatchSelection.css';
 import './TemplateShare.css';
+import { IMAGE_ACCEPT, isImageFile, normalizeImageFile } from '../utils/heicUtils';
 
 /** Rectangle-intersection test used by marquee (mouse box) selection. Ids come from
  * a data attribute on each selectable card so this stays generic across grids. */
@@ -330,7 +331,7 @@ export function BatchWorkspace(p: {
     if (loadingRef.current || p.busy) return;
     loadingRef.current = true; setLoading(true); setFileError('');
     const errors: string[] = [];
-    const valid = files.filter(f => f.type.startsWith('image/'));
+    const valid = files.filter(isImageFile);
     if (valid.length !== files.length) errors.push('Bu üretim ekranında yalnızca fotoğraflar kullanılabilir.');
     const remaining = Math.max(0, 25 - photos.length);
     if (valid.length > remaining) errors.push('Bir üretimde en fazla 25 fotoğraf seçebilirsiniz.');
@@ -339,7 +340,7 @@ export function BatchWorkspace(p: {
       try {
         if (file.size > 25 * 1024 * 1024) throw new Error('Dosya 25 MB sınırını aşıyor');
         let timer: ReturnType<typeof setTimeout>;
-        const item = await Promise.race([createSequenceMediaItem(file), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Dosya hazırlanamadı')), 20000); })]).finally(() => clearTimeout(timer!));
+        const item = await Promise.race([normalizeImageFile(file).then(createSequenceMediaItem), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Dosya hazırlanamadı')), 20000); })]).finally(() => clearTimeout(timer!));
         // Decode before admitting the photo to production; corrupt files must not create blank pages.
         await new Promise<void>((resolve, reject) => { const img = new Image(); const timer = setTimeout(() => reject(new Error('Görsel açılamadı')), 10000); img.onload = () => { clearTimeout(timer); resolve(); }; img.onerror = () => { clearTimeout(timer); reject(new Error('Görsel açılamadı')); }; img.src = item.thumbnailUrl; });
         next.push({ ...item, file: undefined, originalName: file.name });
@@ -413,7 +414,7 @@ export function BatchWorkspace(p: {
             </div>
           )}
           <h2><span>1</span> Fotoğraflar <small>{photos.length} / 25</small></h2>
-          <input ref={fileInput} type="file" multiple accept="image/*" aria-label="Toplu fotoğraf seç" hidden onChange={e => { void addFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
+          <input ref={fileInput} type="file" multiple accept={IMAGE_ACCEPT} aria-label="Toplu fotoğraf seç" hidden onChange={e => { void addFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
           <button className={`production-drop ${dragging ? 'dragging' : ''}`} disabled={disabled} onClick={() => fileInput.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); void addFiles(Array.from(e.dataTransfer.files)); }}>
             <Upload size={30}/><strong>{loading ? 'Fotoğraflar hazırlanıyor…' : 'Fotoğrafları seç veya buraya bırak'}</strong><span>Masaüstünden sürükleyip bırakabilir veya tıkla · En fazla 25 MB</span>
           </button>

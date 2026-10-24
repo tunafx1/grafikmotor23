@@ -42,6 +42,7 @@ import {
   MoveHorizontal
 } from 'lucide-react';
 import { DesignTemplate, Region, FixedElement, TextStyle, TextRole } from '../types';
+import { IMAGE_ACCEPT, normalizeImageFile } from '../utils/heicUtils';
 
 const TEXT_ROLE_OPTIONS: {value: TextRole; label: string}[] = [
   {value: 'title', label: 'Başlık'},
@@ -764,20 +765,23 @@ export function RightInspectorPanel(props: RightInspectorPanelProps) {
         type="file" 
         ref={fileInputRef} 
         onChange={handleImageFilePicked} 
-        accept="image/*" 
+        accept={IMAGE_ACCEPT} 
         className="hidden" 
       />
       <input
         type="file"
         ref={logoInputRef}
-        accept="image/*"
+        accept={IMAGE_ACCEPT}
         className="hidden"
         onChange={event => {
           const file = event.target.files?.[0];
           if (!file || !selectedFixed || selectedFixed.type !== 'logo') return;
-          const reader = new FileReader();
-          reader.onload = () => onFixedProp(selectedFixed.id, 'content', String(reader.result || ''));
-          reader.readAsDataURL(file);
+          const fixedId = selectedFixed.id;
+          void normalizeImageFile(file).then(image => {
+            const reader = new FileReader();
+            reader.onload = () => onFixedProp(fixedId, 'content', String(reader.result || ''));
+            reader.readAsDataURL(image);
+          }).catch(err => console.warn('HEIC dönüştürülemedi:', err));
           event.target.value = '';
         }}
       />
