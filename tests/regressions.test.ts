@@ -4,6 +4,8 @@ import { isMediaVideo, extractVideoSnapshot } from '../src/utils/mediaUtils';
 import { storage } from '../src/lib/storage';
 import { drawFormattedText, renderTemplateToCanvas, usesFittedTextBackground } from '../src/canvasRenderer';
 import type { DesignTemplate } from '../src/types';
+import { resolveExportTemplate, type ExportPage } from '../src/utils/exportAssets';
+import { isWorkOverlayFrameRegion } from '../src/components/WorkQuickEditor';
 
 test('blob URLs are not assumed to be videos; MIME type identifies files', () => {
   assert.equal(isMediaVideo('blob:http://localhost/photo'), false);
@@ -338,4 +340,71 @@ test('canvas ready-made alignment presets calculate correctly and protect locked
   const lockedRect = { ...rect, locked: true };
   assert.deepEqual(calculateAlignment(lockedRect, 'center-both'), lockedRect);
   assert.deepEqual(calculateAlignment(lockedRect, 'left'), lockedRect);
+});
+
+
+test('work-only frame removal clears backgroundImageUrl without mutating master template and identifies overlay frames', () => {
+  const masterTemplate: DesignTemplate = {
+    id: 'master-1',
+    name: 'Ana Şablon',
+    width: 1080,
+    height: 1080,
+    backgroundColor: '#111111',
+    backgroundImageUrl: 'data:image/png;base64,masterbg',
+    regions: [
+      {
+        id: 'photo-1',
+        name: 'Görsel Alanı',
+        type: 'image',
+        x: 0,
+        y: 0,
+        width: 1080,
+        height: 1080,
+        backgroundColor: 'transparent',
+        opacity: 1,
+        borderColor: 'transparent',
+        borderWidth: 0,
+        borderRadius: 0,
+        zIndex: 1,
+        isDynamic: true,
+      },
+      {
+        id: 'work-overlay-frame-1',
+        name: 'Şablon Üst Çerçevesi',
+        type: 'image',
+        x: 0,
+        y: 0,
+        width: 1080,
+        height: 1080,
+        backgroundColor: 'transparent',
+        opacity: 1,
+        borderColor: 'transparent',
+        borderWidth: 0,
+        borderRadius: 0,
+        zIndex: 90,
+        isDynamic: false,
+        locked: true,
+        placeholderImage: 'data:image/png;base64,overlay',
+      },
+    ],
+    fixedElements: [],
+    palette: { primary: '#ffffff', accent: '#ff0000', text: '#ffffff', bg: '#111111' },
+  };
+
+  assert.equal(isWorkOverlayFrameRegion(masterTemplate.regions[0]), false);
+  assert.equal(isWorkOverlayFrameRegion(masterTemplate.regions[1]), true);
+
+  const pageWithClearedBg: ExportPage = {
+    name: 'page-1',
+    backgroundImageUrl: '',
+    regions: [masterTemplate.regions[0]],
+    dynamicTexts: {},
+    dynamicImages: {},
+  };
+
+  const resolved = resolveExportTemplate(masterTemplate, pageWithClearedBg);
+  assert.equal(resolved.backgroundImageUrl, undefined);
+  assert.equal(resolved.regions.length, 1);
+  assert.equal(masterTemplate.backgroundImageUrl, 'data:image/png;base64,masterbg');
+  assert.equal(masterTemplate.regions.length, 2);
 });

@@ -880,7 +880,8 @@ async function renderTemplateFrame(
       }
 
       // Draw Region Border (only if not fitting to text)
-      const shouldDrawOuterBorder = reg.hasBorder !== false && reg.borderWidth > 0 && reg.borderColor && reg.borderColor !== 'transparent' && !fitTextBackground;
+      const hasFittedTextBg = fitTextBackground && reg.hasBackground !== false && !!reg.backgroundColor && reg.backgroundColor !== 'transparent';
+      const shouldDrawOuterBorder = reg.hasBorder !== false && reg.borderWidth > 0 && reg.borderColor && reg.borderColor !== 'transparent' && !hasFittedTextBg;
       if (shouldDrawOuterBorder) {
         ctx.strokeStyle = (reg.borderColor === '#6C5CE7' || reg.borderColor === '#6C5CE7') ? primaryColor : ((reg.borderColor === '#FF9F0A' || reg.borderColor === '#FF9F0A') ? accentColor : reg.borderColor);
         ctx.lineWidth = reg.borderWidth;

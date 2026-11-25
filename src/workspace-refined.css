@@ -211,7 +211,7 @@
   #graphics-engine-app .workspace-header[data-mode="editor"] .workspace-brand > span { display: none; }
   #graphics-engine-app .workspace-header[data-mode="editor"] .workspace-button:not(.workspace-primary) span { display: none; }
   #graphics-engine-app .production-editor-actions { min-height: 44px; padding: 6px 10px; }
-  #graphics-engine-app .production-editor-actions > div:last-child { display: none; }
+  #graphics-engine-app .production-editor-actions > div:last-child { display: flex; }
   #graphics-engine-app #canvas-viewport { padding: 16px 10px; }
   #graphics-engine-app .workspace-filmstrip { height: 74px; padding: 0 10px; }
   #graphics-engine-app .workspace-filmstrip > div { gap: 6px; }

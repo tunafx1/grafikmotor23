@@ -1287,13 +1287,14 @@ export default function App() {
     const pageFixed = (activePageData as any)?.fixedElements ?? activeTemplatePage.fixedElements ?? currentTemplate.fixedElements ?? [];
     return {
       ...currentTemplate,
-      backgroundImageUrl: (activePageData as any)?.backgroundImageUrl ?? activeTemplatePage.backgroundImageUrl ?? currentTemplate.backgroundImageUrl,
+      backgroundImageUrl: ((activePageData as any)?.backgroundImageUrl !== undefined ? (activePageData as any).backgroundImageUrl : (activeTemplatePage.backgroundImageUrl ?? currentTemplate.backgroundImageUrl)) || undefined,
       regions: pageRegions,
       fixedElements: pageFixed,
     };
   }, [currentTemplate, activeTemplatePage, activePageData]);
 
   const [showGrid, setShowGrid] = useState<boolean>(false);
+  const [workQuickEditorTab, setWorkQuickEditorTab] = useState<'content' | 'ratio' | null>(null);
   const [showSafeMargins, setShowSafeMargins] = useState<boolean>(false);
   const [exportFormat, setExportFormat] = useState<'png' | 'jpeg' | 'webp'>('png');
   const [exportScale, setExportScale] = useState<number>(1.5); // 1.5x, 2x, 4x for Ultra-HD
@@ -2691,6 +2692,10 @@ export default function App() {
   };
 
   const handleRegionPropertyChange = (regionId: string, prop: keyof Region, value: any) => {
+    if (!templateEditing) {
+      handleWorkRegionChange(regionId, { [prop]: value } as Partial<Region>);
+      return;
+    }
     if (generatedPages.length > 0) {
       setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
         ...page,
@@ -2725,10 +2730,14 @@ export default function App() {
   };
 
   const handleRegionPropertiesChange = (regionId: string, updates: Partial<Region>) => {
+    if (!templateEditing) {
+      handleWorkRegionChange(regionId, updates);
+      return;
+    }
     if (generatedPages.length > 0) {
       setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
         ...page,
-        regions: (page.regions ?? editingTemplate.regions).map(node => node.id === regionId ? {...node, ...updates} : node)
+        regions: (page.regions ?? editingTemplate.regions)
       } : page));
     }
     setTemplates(prev => {
@@ -2760,10 +2769,243 @@ export default function App() {
 
   // Used by the "Mevcut tasarımı düzenle" quick editor (a single generated work), which
   // must never touch the shared template — unlike handleRegionPropertiesChange above.
+  const updateWorkPages = (
+    updater: (page: any, index: number) => any,
+    scope: 'active' | 'all' = 'active'
+  ) => {
+    setGeneratedPages(prev => {
+      const basePages = prev.length > 0
+        ? prev
+        : (ensureMultiPageSupport(currentTemplate).pages || []).map((pageDef, idx) => ({
+            id: `work-page-${pageDef.id}-${idx}-${Date.now()}`,
+            templatePageId: pageDef.id,
+            name: pageDef.name || `${idx + 1}. Sayfa`,
+            regions: structuredClone(pageDef.regions || []),
+            fixedElements: structuredClone(pageDef.fixedElements || []),
+            backgroundImageUrl: pageDef.backgroundImageUrl ?? currentTemplate.backgroundImageUrl,
+            dynamicTexts: { ...(activeGraphicData.dynamicTexts || {}) },
+            dynamicImages: { ...(activeGraphicData.dynamicImages || {}) },
+            hiddenElements: [...(activeGraphicData.hiddenElements || [])],
+          }));
+
+      return basePages.map((page, idx) => {
+        if (scope === 'active' && idx !== activeGeneratedPageIndex) return page;
+        const pageLayout = (currentTemplate.pages || []).find(p => p.id === page.templatePageId) || activeTemplatePage;
+        const materializedPage = {
+          ...page,
+          regions: page.regions ? [...page.regions] : structuredClone(pageLayout?.regions || editingTemplate.regions || []),
+          fixedElements: page.fixedElements ? [...page.fixedElements] : structuredClone(pageLayout?.fixedElements || editingTemplate.fixedElements || []),
+          dynamicTexts: { ...(page.dynamicTexts || {}) },
+          dynamicImages: { ...(page.dynamicImages || {}) },
+          hiddenElements: [...(page.hiddenElements || [])],
+        };
+        return updater(materializedPage, idx);
+      });
+    });
+  };
+
   const handleWorkRegionChange = (regionId: string, updates: Partial<Region>) => {
+    updateWorkPages(page => ({
+      ...page,
+      regions: page.regions.map((node: Region) => node.id === regionId ? { ...node, ...updates } : node)
+    }), 'active');
+  };
+
+  const handleWorkAddRegion = (type: 'image' | 'text') => {
+    const id = `work-region-${type}-${Date.now()}`;
+    const canvasW = currentTemplate.width || 1080;
+    const canvasH = currentTemplate.height || 1080;
+    const existingRegions = editingTemplate.regions || [];
+    const maxZ = Math.max(0, ...existingRegions.filter(r => r.isDynamic !== false).map(r => r.zIndex ?? 0));
+
+    const newReg: Region = type === 'image'
+      ? {
+          id,
+          name: `Görsel Çerçevesi ${existingRegions.filter(r => r.type === 'image' && r.isDynamic !== false).length + 1}`,
+          type: 'image',
+          x: Math.round(canvasW * 0.2),
+          y: Math.round(canvasH * 0.2),
+          width: Math.round(canvasW * 0.6),
+          height: Math.round(canvasH * 0.5),
+          backgroundColor: 'rgba(255,255,255,0.08)',
+          opacity: 1,
+          borderColor: '#FF6B1A',
+          borderWidth: 4,
+          borderRadius: 16,
+          hasBorder: true,
+          isDynamic: true,
+          zIndex: maxZ + 1,
+          placeholderImage: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80',
+          clipImage: true,
+          objectFit: 'cover'
+        }
+      : {
+          id,
+          name: `Metin Çerçevesi ${existingRegions.filter(r => r.type === 'text').length + 1}`,
+          type: 'text',
+          x: Math.round(canvasW * 0.15),
+          y: Math.round(canvasH * 0.4),
+          width: Math.round(canvasW * 0.7),
+          height: Math.round(canvasH * 0.16),
+          backgroundColor: 'transparent',
+          opacity: 1,
+          borderColor: 'transparent',
+          borderWidth: 0,
+          borderRadius: 12,
+          isDynamic: true,
+          zIndex: maxZ + 1,
+          textRole: 'normal',
+          placeholderText: 'Metninizi buraya yazın',
+          textStyle: {
+            fontFamily: 'Inter',
+            fontSize: 32,
+            color: '#FFFFFF',
+            fontWeight: 'bold',
+            lineHeight: 1.25,
+            align: 'center'
+          }
+        };
+
+    updateWorkPages(page => ({
+      ...page,
+      regions: [...page.regions, newReg],
+      dynamicTexts: type === 'text'
+        ? { ...page.dynamicTexts, [id]: newReg.placeholderText || '' }
+        : page.dynamicTexts,
+    }), 'active');
+
+    setSelectedNodeId(id);
+  };
+
+  const handleWorkDeleteRegion = (nodeId: string) => {
+    const remainingEditable = (editingTemplate.regions || []).filter(
+      r => r.id !== nodeId && (r.type === 'text' || r.type === 'image') && r.isDynamic !== false && !isStaticImageLayer(r)
+    );
+    updateWorkPages(page => {
+      const { [nodeId]: _removedText, ...restTexts } = page.dynamicTexts || {};
+      const { [nodeId]: _removedImg, ...restImages } = page.dynamicImages || {};
+      return {
+        ...page,
+        regions: page.regions.filter((r: Region) => r.id !== nodeId),
+        fixedElements: page.fixedElements.filter((el: FixedElement) => el.id !== nodeId),
+        dynamicTexts: restTexts,
+        dynamicImages: restImages,
+      };
+    }, 'active');
+
+    if (selectedNodeId === nodeId) {
+      setSelectedNodeId(remainingEditable[0]?.id || null);
+    }
+  };
+
+  const handleWorkUploadTemplateFrame = async (
+    file: File,
+    mode: 'overlay' | 'background',
+    scope: 'active' | 'all' = 'active'
+  ) => {
+    if (!isImageFile(file)) {
+      window.alert('Lütfen geçerli bir görsel dosyası seçin.');
+      return;
+    }
+    try {
+      file = await normalizeImageFile(file);
+    } catch (err) {
+      console.warn('HEIC dönüştürülemedi:', err);
+      window.alert('HEIC fotoğrafı dönüştürülemedi. Lütfen JPG veya PNG olarak deneyin.');
+      return;
+    }
+
+    let assetUrl = '';
+    try {
+      const stored = await storeVideo(file);
+      assetUrl = stored.url;
+    } catch {
+      assetUrl = await compressImage(file, 3840, 3840, 0.98);
+    }
+    if (!assetUrl) {
+      window.alert('Çerçeve görseli hazırlanamadı.');
+      return;
+    }
+
+    if (mode === 'background') {
+      updateWorkPages(page => ({
+        ...page,
+        backgroundImageUrl: assetUrl,
+      }), scope);
+      return;
+    }
+
+    const cleanName = file.name.replace(/\.[^/.]+$/, '') || 'PNG Çerçeve';
+    updateWorkPages((page, idx) => {
+      const frameId = `work-overlay-frame-${Date.now()}-${idx}`;
+      const frameRegion: Region = {
+        id: frameId,
+        name: `Şablon Çerçevesi (${cleanName})`,
+        type: 'image',
+        x: 0,
+        y: 0,
+        width: currentTemplate.width || 1080,
+        height: currentTemplate.height || 1080,
+        backgroundColor: 'transparent',
+        opacity: 1,
+        borderColor: 'transparent',
+        borderWidth: 0,
+        borderRadius: 0,
+        isDynamic: false,
+        locked: true,
+        zIndex: 90,
+        placeholderImage: assetUrl,
+        clipImage: true,
+        objectFit: 'fill'
+      };
+      return {
+        ...page,
+        regions: [...page.regions, frameRegion],
+        dynamicImages: {
+          ...page.dynamicImages,
+          [frameId]: { url: assetUrl, scale: 1, offsetX: 0, offsetY: 0, rotation: 0 },
+        },
+      };
+    }, scope);
+  };
+
+  const handleWorkRemoveTemplateFrame = (
+    targetIdOrType: 'overlay' | 'background' | 'all' | string,
+    scope: 'active' | 'all' = 'active'
+  ) => {
+    updateWorkPages(page => {
+      if (targetIdOrType === 'background') {
+        return {
+          ...page,
+          backgroundImageUrl: '',
+        };
+      }
+      if (targetIdOrType === 'overlay' || targetIdOrType === 'all') {
+        const nextRegions = page.regions.filter(
+          (r: Region) => !(r.type === 'image' && (r.isDynamic === false || r.id.startsWith('work-overlay-frame-') || isStaticImageLayer(r)))
+        );
+        return {
+          ...page,
+          regions: nextRegions,
+          ...(targetIdOrType === 'all' ? { backgroundImageUrl: '' } : {}),
+        };
+      }
+      const { [targetIdOrType]: _removedImg, ...restImages } = page.dynamicImages || {};
+      return {
+        ...page,
+        regions: page.regions.filter((r: Region) => r.id !== targetIdOrType),
+        dynamicImages: restImages,
+      };
+    }, scope);
+
+    if (selectedNodeId === targetIdOrType) {
+      setSelectedNodeId(null);
+    }
+  };
+  const _unusedHandleWorkRegionChangeEnd = () => {
     setGeneratedPages(prev => prev.map((page, idx) => idx === activeGeneratedPageIndex ? {
       ...page,
-      regions: (page.regions ?? editingTemplate.regions).map(node => node.id === regionId ? {...node, ...updates} : node)
+      regions: (page.regions ?? editingTemplate.regions)
     } : page));
   };
 
@@ -3999,6 +4241,10 @@ export default function App() {
 
   // Delete element from current template
   const deleteElement = (id: string) => {
+    if (!templateEditing) {
+      handleWorkDeleteRegion(id);
+      return;
+    }
     if (generatedPages.length > 0) {
       setGeneratedPages(prev => prev.map((p, idx) => idx === activeGeneratedPageIndex ? {
         ...p,
@@ -5220,6 +5466,17 @@ export default function App() {
             <span className="text-white/60 text-[11px] hidden sm:inline">
               {templateEditing ? 'Şablon düzenleniyor' : 'Yalnızca bu çalışma düzenleniyor · Ana şablon korunur'}
             </span>
+            {!templateEditing && (
+              <button
+                type="button"
+                onClick={() => setWorkQuickEditorTab('ratio')}
+                className="px-2.5 py-1 rounded-lg bg-[#FF6B1A]/15 hover:bg-[#FF6B1A]/25 border border-[#FF6B1A]/30 text-[#FF6B1A] font-bold text-[11px] transition cursor-pointer flex items-center gap-1"
+                title="Bu çalışma için şablon ve çerçeve ayarlarını aç"
+              >
+                <Sliders className="w-3.5 h-3.5" />
+                <span>Şablon Ayarları</span>
+              </button>
+            )}
             <span className="text-[#FF6B1A] bg-[#FF6B1A]/10 border border-[#FF6B1A]/20 px-2 py-0.5 rounded text-[10px] font-semibold sm:hidden">
               {templateEditing ? 'Şablon' : 'Bu Çalışma'}
             </span>
@@ -5230,7 +5487,7 @@ export default function App() {
       {workspaceScreen === 'editor' && aiError && <div role="alert" className="workspace-warning">{aiError}</div>}
       {/* WORKSPACE AREA: 3-COLUMN MODERN CANVAS LAYOUT */}
       <main
-        data-work-editor-open={!!selectedNodeId && !templateEditing && workspaceScreen === 'editor'}
+        data-work-editor-open={(!!selectedNodeId || !!workQuickEditorTab) && !templateEditing && workspaceScreen === 'editor'}
         className={`${workspaceScreen !== 'editor' ? 'workspace-editor-hidden' : ''} flex-1 flex flex-row overflow-hidden bg-[#18181A] transition-colors duration-300 relative`}
       >
         
@@ -5664,7 +5921,14 @@ export default function App() {
           onExportClick={() => setIsExportModalOpen(true)}
         /> : <WorkQuickEditor
           template={currentTemplate}
-          regions={(activePageData?.regions && activePageData.regions.length > 0) ? activePageData.regions : (editingTemplate.regions || [])}
+          regions={(activePageData as any)?.regions ?? (editingTemplate.regions || [])}
+          onAddRegion={handleWorkAddRegion}
+          onDeleteRegion={handleWorkDeleteRegion}
+          onUploadTemplateFrame={handleWorkUploadTemplateFrame}
+          onRemoveTemplateFrame={handleWorkRemoveTemplateFrame}
+          activeBackgroundImageUrl={editingTemplate.backgroundImageUrl}
+          forceOpenTab={editingImageRegionId ? null : workQuickEditorTab}
+          onClearForceOpenTab={() => setWorkQuickEditorTab(null)}
           activePageData={activePageData}
           selectedNodeId={editingImageRegionId ? null : selectedNodeId}
           onSelectNode={setSelectedNodeId}
@@ -5736,12 +6000,20 @@ export default function App() {
         <button
           type="button"
           onClick={() => {
-            const currentRegions = (activePageData?.regions && activePageData.regions.length > 0) ? activePageData.regions : (editingTemplate.regions || []);
+            const currentRegions = (activePageData as any)?.regions ?? (editingTemplate.regions || []);
+            if (selectedNodeId || workQuickEditorTab) {
+              setSelectedNodeId(null);
+              setWorkQuickEditorTab(null);
+              return;
+            }
+            // Let the existing firstEditable check below handle it or open ratio tab if none:
             const firstEditable = currentRegions.find(r => r.type === 'text' || r.type === 'image');
             if (selectedNodeId) {
               setSelectedNodeId(null);
             } else if (firstEditable) {
               setSelectedNodeId(firstEditable.id);
+            } else {
+              setWorkQuickEditorTab('ratio');
             }
           }}
           className={`flex flex-col items-center justify-center space-y-1 text-xs transition cursor-pointer min-h-[44px] flex-1 max-w-[80px] rounded-xl ${

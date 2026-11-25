@@ -12,7 +12,7 @@ export function resolveExportTemplate(template: DesignTemplate, page: ExportPage
   return {...template,
     regions: page.regions ?? layout?.regions ?? template.regions,
     fixedElements: page.fixedElements ?? layout?.fixedElements ?? template.fixedElements,
-    backgroundImageUrl: page.backgroundImageUrl ?? layout?.backgroundImageUrl ?? template.backgroundImageUrl,
+    backgroundImageUrl: (page.backgroundImageUrl !== undefined ? page.backgroundImageUrl : (layout?.backgroundImageUrl ?? template.backgroundImageUrl)) || undefined,
   };
 }
 export function safeFileName(name: string) {
