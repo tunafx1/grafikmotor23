@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { markdownToHtml, htmlToMarkdown, type RichNode } from '../src/utils/richText';
+import { markdownToHtml, htmlToMarkdown, stripMarkerChars, type RichNode } from '../src/utils/richText';
+import { parseMarkdownText } from '../src/canvasRenderer';
 
 // Minimal DOM-like tree builders so the converter is tested without a browser.
 const t = (text: string): RichNode => ({ nodeType: 3, nodeName: '#text', textContent: text, childNodes: [] });
@@ -58,4 +59,26 @@ test('adjacent bold pieces merge and empty bold pieces are dropped', () => {
 test('spans with heavy font-weight count as bold', () => {
   assert.equal(htmlToMarkdown(el('DIV', [t('a '), el('SPAN', [t('kalın')], { fontWeight: '700' })])), 'a **kalın**');
   assert.equal(htmlToMarkdown(el('DIV', [el('SPAN', [t('ince')], { fontWeight: '400' })])), 'ince');
+});
+
+// Re-parse the stored text with the renderer's own parser to compare formatting, not marker spelling.
+const spansOf = (text: string) => parseMarkdownText(text).filter(s => s.text !== '\n').map(s => `${s.text}|${s.isBold ? 'B' : ''}${s.isItalic ? 'I' : ''}`);
+
+test('bold inside italic keeps both formats when re-parsed by the renderer', () => {
+  const cases: [RichNode, string[]][] = [
+    [el('DIV', [el('EM', [t('a'), el('STRONG', [t('b')]), t('c')])]), ['a|I', 'b|BI', 'c|I']],
+    [el('DIV', [el('EM', [t('a'), el('STRONG', [t('b')])])]), ['a|I', 'b|BI']],
+    [el('DIV', [el('EM', [el('STRONG', [t('a')]), t('b')])]), ['a|BI', 'b|I']],
+    [el('DIV', [el('B', [t('a')]), t(' '), el('I', [t('b')])]), ['a|B', ' |', 'b|I']],
+  ];
+  for (const [root, expected] of cases) assert.deepEqual(spansOf(htmlToMarkdown(root)), expected);
+});
+
+test('explicit normal weight or style inside bold/italic removes the format', () => {
+  assert.equal(htmlToMarkdown(el('DIV', [el('STRONG', [t('a'), el('SPAN', [t('b')], { fontWeight: 'normal' }), t('c')])])), '**a**b**c**');
+  assert.equal(htmlToMarkdown(el('DIV', [el('EM', [t('a'), el('SPAN', [t('b')], { fontStyle: 'normal' })])])), '*a*b');
+});
+
+test('stripMarkerChars removes asterisks the renderer would treat as formatting', () => {
+  assert.equal(stripMarkerChars('5*3 = 15 **'), '53 = 15 ');
 });

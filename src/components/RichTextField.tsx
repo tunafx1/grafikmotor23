@@ -1,5 +1,5 @@
 import React, { useLayoutEffect, useRef } from 'react';
-import { htmlToMarkdown, markdownToHtml } from '../utils/richText';
+import { htmlToMarkdown, markdownToHtml, stripMarkerChars } from '../utils/richText';
 
 /**
  * A multi-line text box that shows **bold** and *italic* as real formatting
@@ -51,6 +51,14 @@ export function RichTextField(props: {
         suppressContentEditableWarning
         spellCheck
         onInput={emit}
+        onBeforeInput={event => {
+          // `*` is a formatting marker for the renderer; typing it would silently change formatting.
+          const data = (event.nativeEvent as InputEvent).data;
+          if (!data || !data.includes('*')) return;
+          event.preventDefault();
+          const clean = stripMarkerChars(data);
+          if (clean) { document.execCommand('insertText', false, clean); emit(); }
+        }}
         onKeyDown={event => {
           if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
             event.preventDefault();
@@ -61,7 +69,7 @@ export function RichTextField(props: {
         onPaste={event => {
           // Pasted styles (colour, font, links) must never leak into the stored text.
           event.preventDefault();
-          document.execCommand('insertText', false, event.clipboardData.getData('text/plain'));
+          document.execCommand('insertText', false, stripMarkerChars(event.clipboardData.getData('text/plain')));
           emit();
         }}
       />

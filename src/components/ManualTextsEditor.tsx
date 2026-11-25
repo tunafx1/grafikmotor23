@@ -12,6 +12,7 @@ export function ManualTextsEditor(props: {
   texts: ManualTexts;
   onChange: (pageId: string, fieldId: string, value: string) => void;
   onClose: () => void;
+  disabled?: boolean;
 }) {
   const { open, onClose } = props;
   useEffect(() => {
@@ -34,6 +35,7 @@ export function ManualTextsEditor(props: {
           className="manual-editor-bold"
           // Keep the text selection: a normal click would move focus off the field first.
           onMouseDown={event => event.preventDefault()}
+          onPointerDown={event => event.preventDefault()}
           onClick={() => {
             document.execCommand('bold');
             (document.activeElement as HTMLElement | null)?.dispatchEvent(new Event('input', { bubbles: true }));
@@ -61,6 +63,7 @@ export function ManualTextsEditor(props: {
                   value={props.texts[group.pageId]?.[field.id] ?? ''}
                   onChange={value => props.onChange(group.pageId, field.id, value)}
                   autoFocus={autoFocus}
+                  disabled={props.disabled}
                 />
               );
             })}

@@ -513,7 +513,7 @@ export function BatchWorkspace(p: {
                 return <p key={field.id}><span>{field.name}</span>{preview || <em>Boş</em>}</p>;
               })}</div>)}</div> : <p className="production-hint">Bu şablonda metin alanı yok.</p>}
             {manualGroups.length > 0 && <button type="button" className="production-manual-open" disabled={disabled} onClick={() => setManualEditorOpen(true)}><Maximize2 size={15}/>Metinleri düzenle</button>}
-            <ManualTextsEditor open={manualEditorOpen} groups={manualGroups} texts={effectiveManualTexts} onChange={setManualText} onClose={closeManualEditor}/>
+            <ManualTextsEditor open={manualEditorOpen} groups={manualGroups} texts={effectiveManualTexts} onChange={setManualText} onClose={closeManualEditor} disabled={disabled}/>
             <p className="production-hint">Metinler, aynı sayfa düzeninden üretilen tüm sayfalara uygulanır. Sonradan her sayfayı ayrı düzenleyebilirsin.</p></>}
           </section>
         </div>
