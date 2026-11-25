@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { BatchWorkspace, ProductionNavigation, type WorkspaceScreen } from './components/BatchWorkspace';
-import { buildBatchPages, generateBatchTexts, isStaticImageLayer } from './utils/batchProduction';
+import { buildBatchPages, generateBatchTexts, isStaticImageLayer, applyManualTexts, summarizeBatchFailure, type ManualTexts, type BatchGenerateResult } from './utils/batchProduction';
 import { describeGoogleLoginError } from './lib/authErrors';
 import { getAiTextFields, requestAiText } from './utils/aiText';
 import { resizePageLayout, resizeTemplate } from './utils/templateResize';
@@ -5181,7 +5181,7 @@ export default function App() {
   };
   const exportHighResZip = () => exportPages(generatedPages.length ? generatedPages : [activePageData], true);
 
-  const runBatch = async (source: DesignTemplate, media: SequenceMediaItem[], brief: string) => {
+  const runBatch = async (source: DesignTemplate, media: SequenceMediaItem[], brief: string, manualTexts?: ManualTexts): Promise<BatchGenerateResult> => {
     if (batchController.current) return;
     const controller = new AbortController();
     batchController.current = controller;
@@ -5192,11 +5192,18 @@ export default function App() {
       if (controller.signal.aborted) return;
       const snapshot = structuredClone(ensureMultiPageSupport(source));
       const draft = buildBatchPages(snapshot, media);
-      const pages = await generateBatchTexts(snapshot, draft, brief, {
+      // AI off: the user's typed texts go straight onto every page; no AI request is made.
+      const pages = manualTexts ? applyManualTexts(draft, manualTexts) : await generateBatchTexts(snapshot, draft, brief, {
         signal: controller.signal, onProgress: (n, total) => setBatchProgress(`Metinler oluşturuluyor · ${n}/${total}`),
         prepareImage: source => compressDataUrl(source, 360, 360, 0.6),
       });
       if (controller.signal.aborted) return;
+      // AI failed on any page: save nothing and hand the successful texts back for manual entry.
+      const failure = manualTexts ? null : summarizeBatchFailure(pages);
+      if (failure) {
+        setBatchError(`${failure.reason} Metinleri kontrol edip 'Tasarımları oluştur'a basın.`);
+        return { aiFailed: true, templateId: source.id, texts: failure.texts };
+      }
       const id = `work-${crypto.randomUUID()}`;
       const work = { ...snapshot, id, sourceTemplateId: source.id, productionBrief: brief,
         createdAt: new Date().toISOString(), name: `${source.name} · ${new Date().toLocaleString('tr-TR')}` };

@@ -4,7 +4,7 @@ import { Upload, Sparkles, ArrowRight, X, ArrowLeft, Plus, Images, Download, Fol
 import type { DesignTemplate, SequenceMediaItem } from '../types';
 import { TemplateThumbnail } from './TemplateThumbnail';
 import { resolveExportTemplate } from '../utils/exportAssets';
-import { buildBatchPages } from '../utils/batchProduction';
+import { buildBatchPages, type ManualTexts, type BatchGenerateResult } from '../utils/batchProduction';
 import { createSequenceMediaItem } from '../utils/mediaUtils';
 import { ProductionLoadingMotion } from './ProductionLoadingMotion';
 import { ShareTemplateDialog, ImportTemplateDialog } from './TemplateShareDialogs';
@@ -169,7 +169,7 @@ export function BatchWorkspace(p: {
   screen: WorkspaceScreen; templates: DesignTemplate[]; current: DesignTemplate; projects: Record<string, any[]>;
   busy: boolean; progress: string; error: string | null;
   mediaLibrary: string[];
-  onGenerate: (template: DesignTemplate, media: SequenceMediaItem[], brief: string) => Promise<void>;
+  onGenerate: (template: DesignTemplate, media: SequenceMediaItem[], brief: string, manualTexts?: ManualTexts) => Promise<BatchGenerateResult>;
   onOpen: (id: string, page?: number) => void; onSelectTemplate: (id: string) => void;
   onNewTemplate: () => void; onEditTemplate: (id: string) => void; onDeleteTemplate: (id: string) => void;
   onDeleteWorks: (ids: string[]) => void; onDownloadWorks: (ids: string[]) => Promise<void>;
