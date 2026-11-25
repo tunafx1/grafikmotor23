@@ -1,15 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Sparkles, ArrowRight, X, Plus, Images, Download, FolderOpen, LayoutTemplate, Check, Trash2, Pencil, Share2, Bold } from 'lucide-react';
+import { Sparkles, ArrowRight, X, Plus, Images, Download, FolderOpen, LayoutTemplate, Trash2, Pencil, Share2 } from 'lucide-react';
 import type { DesignTemplate, SequenceMediaItem } from '../types';
 import { TemplateThumbnail } from './TemplateThumbnail';
 import { resolveExportTemplate } from '../utils/exportAssets';
-import { buildBatchPages, getManualTextGroups, defaultManualTexts, mergeManualTexts, type ManualTexts, type BatchGenerateResult } from '../utils/batchProduction';
-import { storage } from '../lib/storage';
-import { usePhotoDrag } from './usePhotoDrag';
-import { moveToIndex } from '../utils/photoReorder';
-import { createPortal } from 'react-dom';
-import { RichTextField } from './RichTextField';
+import { buildBatchPages, getManualTextGroups, mergeManualTexts, type ManualTexts, type BatchGenerateResult } from '../utils/batchProduction';
+import { CreateScreen } from './CreateScreen';
 import { createSequenceMediaItem } from '../utils/mediaUtils';
 import { ProductionLoadingMotion } from './ProductionLoadingMotion';
 import { ShareTemplateDialog, ImportTemplateDialog } from './TemplateShareDialogs';
@@ -170,16 +166,13 @@ export function ProductionNavigation({ screen, disabled, onChange }: { screen: W
   );
 }
 
-const AI_PREFERENCE_KEY = 'batch_ai_enabled';
-function readAiPreference(): boolean {
-  try { return storage.getItem(AI_PREFERENCE_KEY) !== '0'; } catch { return true; }
-}
-
 export function BatchWorkspace(p: {
   screen: WorkspaceScreen; templates: DesignTemplate[]; current: DesignTemplate; projects: Record<string, any[]>;
   busy: boolean; progress: string; error: string | null;
   mediaLibrary: string[];
   onGenerate: (template: DesignTemplate, media: SequenceMediaItem[], brief: string, manualTexts?: ManualTexts) => Promise<BatchGenerateResult>;
+  /** Fills the text fields with AI once, using the brief and the first photo. */
+  onAiFill?: (template: DesignTemplate, media: SequenceMediaItem[], brief: string) => Promise<ManualTexts>;
   onOpen: (id: string, page?: number) => void; onSelectTemplate: (id: string) => void;
   onNewTemplate: () => void; onEditTemplate: (id: string) => void; onDeleteTemplate: (id: string) => void;
   onDeleteWorks: (ids: string[]) => void; onDownloadWorks: (ids: string[]) => Promise<void>;
@@ -195,43 +188,42 @@ export function BatchWorkspace(p: {
   const [brief, setBrief] = useState('');
   const [loading, setLoading] = useState(false);
   const [fileError, setFileError] = useState('');
-  const [dragging, setDragging] = useState(false);
-  const [isDesktopDragging, setIsDesktopDragging] = useState(false);
-  const desktopDragCounter = useRef(0);
   const [shareTargetTemplate, setShareTargetTemplate] = useState<DesignTemplate | null>(null);
   const [importModalOpen, setImportModalOpen] = useState(Boolean(p.initialShareCode));
   useEffect(() => {
     if (p.initialShareCode) setImportModalOpen(true);
   }, [p.initialShareCode]);
-  const [libraryOpen, setLibraryOpen] = useState(false);
   const [selectedWorks, setSelectedWorks] = useState<Set<string>>(new Set());
   const [workQuery, setWorkQuery] = useState('');
-  const fileInput = useRef<HTMLInputElement>(null);
   const loadingRef = useRef(false);
   const cancelGenerationButton = useRef<HTMLButtonElement>(null);
   const sourceTemplates = p.templates.filter(t => !t.sourceTemplateId);
   const source = sourceTemplates.find(t => t.id === p.current.sourceTemplateId) || sourceTemplates.find(t => t.id === p.current.id) || sourceTemplates[0];
   const disabled = p.busy || loading;
-  const [aiEnabled, setAiEnabled] = useState(readAiPreference);
-  // Only a click on the switch is remembered; the automatic fallback is not.
-  const setAiPreference = (enabled: boolean) => {
-    setAiEnabled(enabled);
-    try { storage.setItem(AI_PREFERENCE_KEY, enabled ? '1' : '0'); } catch { /* preference is a convenience */ }
-  };
   const manualGroups = useMemo(() => source ? getManualTextGroups(source) : [], [source]);
-  const [manualTexts, setManualTexts] = useState<ManualTexts>(() => defaultManualTexts(manualGroups));
-  useEffect(() => { setManualTexts(defaultManualTexts(manualGroups)); }, [source?.id]);
+  // Fields start empty (the template's example text is shown as a placeholder instead).
+  const blankGroups = manualGroups.map(group => ({ ...group, fields: group.fields.map(field => ({ ...field, defaultText: '' })) }));
+  const [manualTexts, setManualTexts] = useState<ManualTexts>({});
+  useEffect(() => { setManualTexts({}); setAiError(''); }, [source?.id]);
   // The template can be edited while this screen stays mounted: always read fields from it.
-  const effectiveManualTexts = mergeManualTexts(manualGroups, manualTexts);
+  const effectiveManualTexts = mergeManualTexts(blankGroups, manualTexts);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const aiFill = async () => {
+    if (!source || !p.onAiFill || aiBusy) return;
+    setAiBusy(true); setAiError('');
+    try {
+      const texts = await p.onAiFill(source, photos, brief);
+      setManualTexts(old => mergeManualTexts(blankGroups, { ...mergeManualTexts(blankGroups, old), ...texts }));
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : 'AI metinleri dolduramadı. Metinleri elle yazabilirsin.');
+    } finally { setAiBusy(false); }
+  };
   const setManualText = (pageId: string, fieldId: string, value: string) =>
     setManualTexts(old => ({ ...old, [pageId]: { ...old[pageId], [fieldId]: value } }));
   const generate = async () => {
     if (!source) return;
-    const result = await p.onGenerate(source, photos, brief, aiEnabled ? undefined : effectiveManualTexts);
-    if (result?.aiFailed) {
-      setManualTexts(mergeManualTexts(manualGroups, result.texts));
-      setAiEnabled(false);
-    }
+    await p.onGenerate(source, photos, brief, effectiveManualTexts);
   };
   useEffect(() => {
     if (p.busy && p.screen === 'create') cancelGenerationButton.current?.focus();
@@ -244,51 +236,6 @@ export function BatchWorkspace(p: {
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
-
-  // --- Photo grid: drag-to-reorder (siblings live-shift out of the way) + mouse marquee multi-select ---
-  const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
-  const [photoMarquee, setPhotoMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
-  const photoMarqueeStart = useRef<{ x: number; y: number } | null>(null);
-  const photosGridRef = useRef<HTMLDivElement>(null);
-
-  const startPhotoMarquee = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (e.target !== e.currentTarget || (e.pointerType === 'mouse' && e.button !== 0)) return;
-    const rect = photosGridRef.current!.getBoundingClientRect();
-    photoMarqueeStart.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    setPhotoMarquee({ x: photoMarqueeStart.current.x, y: photoMarqueeStart.current.y, w: 0, h: 0 });
-    if (!e.shiftKey && !e.metaKey && !e.ctrlKey) setSelectedPhotos(new Set());
-  };
-  useEffect(() => {
-    if (!photoMarquee) return;
-    const onMove = (e: PointerEvent) => {
-      const container = photosGridRef.current;
-      const start = photoMarqueeStart.current;
-      if (!container || !start) return;
-      const rect = container.getBoundingClientRect();
-      const curX = e.clientX - rect.left, curY = e.clientY - rect.top;
-      const box = { x: Math.min(start.x, curX), y: Math.min(start.y, curY), w: Math.abs(curX - start.x), h: Math.abs(curY - start.y) };
-      setPhotoMarquee(box);
-      setSelectedPhotos(new Set(marqueeHitIds(container, box, 'data-photo-id')));
-    };
-    const onUp = () => { setPhotoMarquee(null); photoMarqueeStart.current = null; };
-    window.addEventListener('pointermove', onMove);
-    window.addEventListener('pointerup', onUp);
-    return () => { window.removeEventListener('pointermove', onMove); window.removeEventListener('pointerup', onUp); };
-  }, [Boolean(photoMarquee)]);
-  const togglePhotoSelected = (id: string) => setSelectedPhotos(previous => {
-    const next = new Set(previous);
-    if (next.has(id)) next.delete(id); else next.add(id);
-    return next;
-  });
-  const photoDrag = usePhotoDrag({
-    gridRef: photosGridRef,
-    disabled,
-    selected: selectedPhotos,
-    onToggleSelect: togglePhotoSelected,
-    onDrop: (ids, insertIndex) => setPhotos(old => moveToIndex(old, photo => photo.id, ids, insertIndex)),
-  });
-  const draggedPhotoIds = photoDrag.drag?.ids;
-  const dragPreviewPhoto = draggedPhotoIds ? photos.find(photo => draggedPhotoIds.has(photo.id)) : undefined;
 
   // --- Works gallery: local display order + drag-to-reorder (live-shift) + marquee multi-select ---
   const [worksOrder, setWorksOrder] = useState<string[]>([]);
@@ -388,126 +335,17 @@ export function BatchWorkspace(p: {
         cancelButtonRef={cancelGenerationButton}
       />
     </div>}
-    {p.screen === 'create' && <div className="production-container production-create-container">
-      <div className="production-heading">
-        <span className="production-eyebrow">YENİ ÜRETİM</span>
-        <h1>Fotoğraflarından tasarımlar oluştur</h1>
-        <p>Fotoğraflarını ekle, şablonunu seç ve komutunu yaz. Geri kalanını Grafik Motoru hazırlasın.</p>
-      </div>
-      <div className="production-builder">
-        <div className="production-grid">
-        <section
-          data-photo-scroll
-          className={`production-card production-photo-card ${isDesktopDragging ? 'is-desktop-dragging' : ''}`}
-          onDragEnter={e => {
-            e.preventDefault();
-            if (e.dataTransfer.types.includes('Files')) {
-              desktopDragCounter.current++;
-              setIsDesktopDragging(true);
-            }
-          }}
-          onDragOver={e => {
-            e.preventDefault();
-            if (e.dataTransfer.types.includes('Files')) {
-              e.dataTransfer.dropEffect = 'copy';
-              if (!isDesktopDragging) setIsDesktopDragging(true);
-            }
-          }}
-          onDragLeave={e => {
-            e.preventDefault();
-            desktopDragCounter.current = Math.max(0, desktopDragCounter.current - 1);
-            if (desktopDragCounter.current === 0) {
-              setIsDesktopDragging(false);
-            }
-          }}
-          onDrop={e => {
-            e.preventDefault();
-            desktopDragCounter.current = 0;
-            setIsDesktopDragging(false);
-            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-              void addFiles(Array.from(e.dataTransfer.files));
-            }
-          }}
-        >
-          {isDesktopDragging && (
-            <div className="photo-desktop-dropzone">
-              <div className="photo-desktop-dropzone-inner">
-                <Upload size={40} className="drop-bounce-icon" />
-                <strong>Fotoğrafları buraya bırak</strong>
-                <span>Masaüstünden sürüklediğin görseller anında üretim listesine eklenir</span>
-              </div>
-            </div>
-          )}
-          <h2><span>1</span> Fotoğraflar <small>{photos.length} / 25</small></h2>
-          <input ref={fileInput} type="file" multiple accept={IMAGE_ACCEPT} aria-label="Toplu fotoğraf seç" hidden onChange={e => { void addFiles(Array.from(e.target.files || [])); e.target.value = ''; }} />
-          <button className={`production-drop ${dragging ? 'dragging' : ''}`} disabled={disabled} onClick={() => fileInput.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={e => { e.preventDefault(); setDragging(false); void addFiles(Array.from(e.dataTransfer.files)); }}>
-            <Upload size={30}/><strong>{loading ? 'Fotoğraflar hazırlanıyor…' : 'Fotoğrafları seç veya buraya bırak'}</strong><span>Masaüstünden sürükleyip bırakabilir veya tıkla · En fazla 25 MB</span>
-          </button>
-          {!!p.mediaLibrary.length && <button className="production-link" disabled={disabled} onClick={() => setLibraryOpen(v => !v)}>Kütüphaneden seç</button>}
-          {libraryOpen && <div className="production-photos" aria-label="Medya kütüphanesi">{p.mediaLibrary.map((url, i) => <button key={url} disabled={disabled || photos.length >= 25} aria-label={`${i + 1}. görseli üretime ekle`} onClick={() => setPhotos(old => [...old, {id: crypto.randomUUID(), type: 'image', url, thumbnailUrl: url, originalName: `Kütüphane ${i + 1}`}])}><img src={url} alt={`Kütüphane ${i + 1}`}/></button>)}</div>}
-          {fileError && <p className="production-error" role="alert">{fileError}</p>}
-          {selectedPhotos.size > 0 && <div className="archive-selection-bar">
-            <label><span>{selectedPhotos.size} fotoğraf seçildi</span></label>
-            <div><button onClick={() => setSelectedPhotos(new Set())}>Seçimi kaldır</button><button className="danger" onClick={() => { setPhotos(old => old.filter(photo => !selectedPhotos.has(photo.id))); setSelectedPhotos(new Set()); }}><Trash2 size={14}/> Sil</button></div>
-          </div>}
-          <div className="production-photos" ref={photosGridRef} onPointerDown={startPhotoMarquee}>
-            {photoMarquee && <div className="marquee-box" style={{ left: photoMarquee.x, top: photoMarquee.y, width: photoMarquee.w, height: photoMarquee.h }} />}
-            {photoDrag.drag?.bar && <div className="photo-drop-bar" style={{ left: photoDrag.drag.bar.left, top: photoDrag.drag.bar.top, height: photoDrag.drag.bar.height }} />}
-            {photos.map((photo, index) => <motion.article
-              key={photo.id}
-              layout
-              transition={{ type: 'spring', stiffness: 500, damping: 38 }}
-              data-photo-id={photo.id}
-              className={[selectedPhotos.has(photo.id) && 'is-selected', draggedPhotoIds?.has(photo.id) && 'is-drag-source'].filter(Boolean).join(' ')}
-              title="Sırayı değiştirmek için sürükle · seçmek için tıkla"
-              {...photoDrag.handlers(photo.id)}
-            >
-              <span className="photo-card-badge">{index + 1}</span>
-              <label className="photo-select" onClick={e => e.stopPropagation()}>
-                <input type="checkbox" checked={selectedPhotos.has(photo.id)} onChange={() => togglePhotoSelected(photo.id)} aria-label={`${index + 1}. fotoğrafı seç`}/>
-              </label>
-              <button className="photo-card-delete" disabled={disabled} aria-label={`${index + 1}. fotoğrafı seçimden çıkar`} onClick={() => setPhotos(old => old.filter((_, i) => i !== index))}><X size={13}/></button>
-              <div className="photo-card-img-wrap">
-                <img src={photo.thumbnailUrl} alt={photo.originalName || `Fotoğraf ${index + 1}`} draggable={false}/>
-              </div>
-              <div className="photo-card-footer">
-                <span title={photo.originalName}>{photo.originalName || `Fotoğraf ${index + 1}`}</span>
-              </div>
-            </motion.article>)}
-          </div>
-          {!!photos.length && <p className="production-hint">Sırayı değiştirmek için fotoğrafı sürükleyip bırak (telefonda basılı tutup sürükle). Fotoğrafa tıklayarak seçebilir, seçtiklerini birlikte taşıyabilir veya silebilirsin.</p>}
-          {photoDrag.drag && dragPreviewPhoto && createPortal(<div className="photo-drag-ghost" style={{ left: photoDrag.drag.x, top: photoDrag.drag.y }}><img src={dragPreviewPhoto.thumbnailUrl} alt=""/>{photoDrag.drag.ids.size > 1 && <span>{photoDrag.drag.ids.size}</span>}</div>, document.body)}
-        </section>
-        <div className="production-settings">
-          <section className="production-card production-template-card"><h2><span>2</span> Şablon</h2>
-            {source ? <><label htmlFor="production-template">Kullanılacak şablon</label><select id="production-template" disabled={disabled} value={source.id} onChange={e => p.onSelectTemplate(e.target.value)}>{sourceTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-            <div className="production-template-preview"><TemplateThumbnail template={source}/><div><strong>{source.name}</strong><p>{source.width} × {source.height} px</p><small>Fotoğraflar, şablonun sayfa ve görsel alanı sırasına göre yerleştirilir.</small></div></div></> : <button onClick={p.onNewTemplate}>Şablon oluştur</button>}
-          </section>
-          <section className="production-card production-brief-card"><h2><span>3</span> {aiEnabled ? 'İçerik komutu' : 'Metinler'}{!aiEnabled && manualGroups.length > 0 && <button type="button" className="production-bold-btn" disabled={disabled}
-              onMouseDown={event => event.preventDefault()} onPointerDown={event => event.preventDefault()}
-              onClick={() => { document.execCommand('bold'); (document.activeElement as HTMLElement | null)?.dispatchEvent(new Event('input', { bubbles: true })); }}
-              title="Seçili metni kalın yap (Ctrl+B)"><Bold size={15}/>Kalın</button>}<button type="button" role="switch" aria-checked={aiEnabled} className={`production-ai-toggle ${aiEnabled ? 'on' : ''}`} disabled={disabled} onClick={() => setAiPreference(!aiEnabled)} title={aiEnabled ? 'AI metinleri otomatik doldurur — kapatmak için tıkla' : "Metinleri elle giriyorsun — AI'yi açmak için tıkla"}><Sparkles size={13}/>AI</button></h2>
-            {aiEnabled ? <><label htmlFor="production-brief">Bu fotoğraflarla ne anlatalım?</label><textarea id="production-brief" disabled={disabled} value={brief} maxLength={3000} onChange={e => setBrief(e.target.value)} placeholder="Örnek: Okulumuzun yıl sonu etkinliği için samimi bir başlık ve kısa açıklama oluştur." rows={5}/>
-            <p className="production-hint">{source?.aiSystemPrompt ? 'Şablonun marka dili kullanılacak.' : 'Komutun, şablonun metin alanlarına uygulanacak.'} Fotoğraflarının yerine yeni görsel üretilmez.</p></>
-            : <>{manualGroups.length ? <div className="production-manual-fields">{manualGroups.map(group => <div key={group.pageId} className="production-manual-group"><strong>{group.pageName}</strong>{group.fields.map(field => (
-                <RichTextField key={field.id} id={`manual-${group.pageId}-${field.id}`} label={field.name}
-                  value={effectiveManualTexts[group.pageId]?.[field.id] ?? ''} disabled={disabled}
-                  onChange={value => setManualText(group.pageId, field.id, value)}/>
-              ))}</div>)}</div> : <p className="production-hint">Bu şablonda metin alanı yok.</p>}
-            <p className="production-hint">Metinler, aynı sayfa düzeninden üretilen tüm sayfalara uygulanır. Sonradan her sayfayı ayrı düzenleyebilirsin.</p></>}
-          </section>
-        </div>
-        </div>
-        <div className="production-submit" aria-live="polite">
-          <div className="production-submit-copy">
-            <p className="production-summary">{planned ? <><Check size={15}/><span><strong>{photos.length} fotoğraf</strong> ile yaklaşık <strong>{planned} sayfa</strong> hazırlanacak</span></> : <span><strong>Başlamak için fotoğraflarını ekle</strong><small>Seçimin ve komutun bu ekranda korunur.</small></span>}</p>
-            {(p.error || layoutError) && <p className="production-error" role="alert">{p.error || layoutError}</p>}
-            {p.busy ? <button className="production-link" onClick={p.onCancel}>Üretimi iptal et</button> : planned > 0 && aiEnabled && !brief.trim() ? <small>Devam etmek için içerik komutunu yaz.</small> : planned > 0 ? <small>Yeni üretim önceki çalışmalarını değiştirmez.</small> : null}
-          </div>
-          <button className="production-primary" disabled={disabled || !planned || (aiEnabled && !brief.trim())} onClick={() => void generate()}><Sparkles size={18}/>{p.busy ? p.progress : 'Tasarımları oluştur'}{!p.busy && <ArrowRight size={18}/>}</button>
-        </div>
-      </div>
-    </div>}
+    {p.screen === 'create' && <CreateScreen
+      templates={sourceTemplates} source={source}
+      onSelectTemplate={p.onSelectTemplate} onAllTemplates={() => p.onScreen('templates')} onNewTemplate={p.onNewTemplate}
+      photos={photos} setPhotos={setPhotos} addFiles={addFiles} mediaLibrary={p.mediaLibrary}
+      loadingFiles={loading} fileError={fileError}
+      groups={manualGroups} texts={effectiveManualTexts} setText={setManualText}
+      brief={brief} setBrief={setBrief}
+      onAiFill={p.onAiFill && aiFill} aiBusy={aiBusy} aiError={aiError}
+      planned={planned} error={p.error || layoutError} busy={p.busy} progress={p.progress}
+      disabled={disabled} onGenerate={() => void generate()} onCancel={p.onCancel}
+    />}
     {p.screen === 'results' && <div className="production-container"><div className="production-heading production-heading-row"><div><h1>{pages.length ? `${pages.length} sayfan hazır` : 'Henüz bir sonuç yok'}</h1><p>{pages.length ? 'Toplu indir veya bir sayfaya tıklayıp son dokunuşları yap.' : 'Fotoğraflarını ekleyerek ilk tasarımlarını oluştur.'}</p></div>{pages.length > 0 && <button className="production-primary" disabled={p.busy} onClick={p.onExport}><Download size={18}/>Tümünü indir</button>}</div>
       {failedPages.length > 0 && <div className="production-error production-ai-error" role="alert">
         <strong>{failedPages.length} sayfada metin üretimi tamamlanamadı.</strong>

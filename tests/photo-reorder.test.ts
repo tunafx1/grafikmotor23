@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computeInsertIndex, moveToIndex, type CardRect } from '../src/utils/photoReorder';
+import { computeInsertIndex, moveToIndex, slotFromPoint, type CardRect } from '../src/utils/photoReorder';
 
 // Two rows of three 100x100 cards with 10px gaps: a b c / d e f
 const rects: CardRect[] = ['a', 'b', 'c', 'd', 'e', 'f'].map((id, i) => ({ id, left: (i % 3) * 110, top: Math.floor(i / 3) * 110, width: 100, height: 100 }));
@@ -36,4 +36,24 @@ test('moveToIndex clamps out-of-range indexes and does not mutate the input', ()
   assert.equal(ids(moveToIndex(list, x => x, new Set(['a']), 99)), 'bca');
   assert.equal(ids(moveToIndex(list, x => x, new Set(['c']), -4)), 'cab');
   assert.equal(ids(list), 'abc');
+});
+
+// Grid: 3 columns of 100x140 cells with 12px gaps.
+const grid = { cols: 3, cellWidth: 100, cellHeight: 140, gapX: 12, gapY: 12 };
+
+test('slotFromPoint maps the pointer to the grid cell under it', () => {
+  assert.equal(slotFromPoint({ ...grid, x: 50, y: 70, count: 6 }), 0);
+  assert.equal(slotFromPoint({ ...grid, x: 160, y: 70, count: 6 }), 1);
+  assert.equal(slotFromPoint({ ...grid, x: 260, y: 200, count: 6 }), 5);
+});
+
+test('slotFromPoint clamps to the existing slots and handles points outside the grid', () => {
+  assert.equal(slotFromPoint({ ...grid, x: 260, y: 900, count: 6 }), 5);
+  assert.equal(slotFromPoint({ ...grid, x: -40, y: -40, count: 6 }), 0);
+  assert.equal(slotFromPoint({ ...grid, x: 999, y: 70, count: 6 }), 2);
+  assert.equal(slotFromPoint({ ...grid, x: 50, y: 70, count: 0 }), 0);
+});
+
+test('a point in the gap belongs to the cell before it', () => {
+  assert.equal(slotFromPoint({ ...grid, x: 105, y: 70, count: 6 }), 0);
 });

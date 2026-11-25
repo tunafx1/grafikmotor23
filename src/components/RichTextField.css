@@ -1,20 +1,22 @@
-.rich-text-field + .rich-text-field { margin-top: 12px; }
-.rich-text-label { display: block; font-size: 12px; color: #c6c6ce; margin-bottom: 6px; }
 .rich-text-input {
-  min-height: 72px;
-  padding: 10px 12px;
-  border: 1px solid #ffffff24;
-  border-radius: 10px;
-  background: #18181b;
+  min-height: 150px;
+  padding: 14px 18px;
+  border: 1px solid #ffffff1f;
+  border-radius: 12px;
+  background: #141417;
   color: #f5f5f7;
-  font-size: 15px;
-  line-height: 1.55;
+  font-size: 16px;
+  line-height: 1.6;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   outline: none;
   cursor: text;
+  transition: border-color .15s, box-shadow .15s;
 }
-.rich-text-input:focus { border-color: #ff782d; box-shadow: 0 0 0 1px #ff782d; }
+.rich-text-input.is-single { min-height: 0; padding-top: 13px; padding-bottom: 13px; white-space: nowrap; overflow-x: auto; }
+.rich-text-input:empty::before { content: attr(data-placeholder); color: #6f707b; pointer-events: none; }
+.rich-text-input:hover { border-color: #ffffff33; }
+.rich-text-input:focus { border-color: #ff7a1a; box-shadow: 0 0 0 1px #ff7a1a; }
+.rich-text-input.is-invalid { border-color: #ff6b5e; }
 .rich-text-input[aria-disabled="true"] { opacity: .55; cursor: not-allowed; }
 .rich-text-input strong, .rich-text-input b { font-weight: 800; color: #fff; }
-@media (max-width: 820px) { .rich-text-input { font-size: 16px; } /* 16px avoids iOS zoom on focus */ }

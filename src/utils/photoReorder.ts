@@ -30,3 +30,15 @@ export function moveToIndex<T>(list: T[], getId: (item: T) => string, movingIds:
   const at = Math.max(0, Math.min(rest.length, insertIndex));
   return [...rest.slice(0, at), ...moving, ...rest.slice(at)];
 }
+
+/**
+ * Grid slot under the pointer (x/y relative to the grid's top-left), clamped to
+ * 0..count-1. Uses the grid's own geometry rather than card positions, so cards
+ * sliding aside to open a gap can never change the answer mid-animation.
+ */
+export function slotFromPoint(g: { x: number; y: number; cols: number; cellWidth: number; cellHeight: number; gapX: number; gapY: number; count: number }): number {
+  if (g.count <= 0) return 0;
+  const col = Math.min(g.cols - 1, Math.max(0, Math.floor(g.x / (g.cellWidth + g.gapX))));
+  const row = Math.max(0, Math.floor(g.y / (g.cellHeight + g.gapY)));
+  return Math.min(g.count - 1, row * g.cols + col);
+}

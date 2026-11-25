@@ -59,7 +59,7 @@ test('each page keeps its own PNG layer, including after cloud sync',()=>{
 test('manual text groups list text fields per photo layout with placeholders', () => {
   const groups = getManualTextGroups(template);
   assert.deepEqual(groups.map(g => g.pageId), ['cover', 'two', 'one']);
-  assert.deepEqual(groups[0].fields, [{ id: 'title', name: 'Başlık', defaultText: 'Önceki başlık' }]);
+  assert.deepEqual(groups[0].fields, [{ id: 'title', name: 'Başlık', defaultText: 'Önceki başlık', role: 'normal' }]);
   assert.deepEqual(defaultManualTexts(groups).cover, { title: 'Önceki başlık' });
   const noText = { ...template, pages: [{ ...layout('x', 1, 'cover'), regions: [{ id: 'image-0', type: 'image', isDynamic: true }] }] } as any;
   assert.deepEqual(getManualTextGroups(noText), []);

@@ -120,7 +120,7 @@ export function ProductionLoadingMotion({ template, photos, brief, progress, onC
   const labels: Record<Phase, string> = {
     drop: 'Fotoğrafların alınıyor',
     place: 'Görsel alanlarına yerleşiyor',
-    write: 'Yapay zekâ metinleri yazıyor',
+    write: 'Metinler yerleştiriliyor',
     pages: scene.pageCount > 1 ? `${scene.pageCount} sayfa hazırlanıyor` : 'Tasarımın hazırlanıyor',
   };
   const sidePreviews = scene.previews.slice(1, 3);
