@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBatchPages, generateBatchTexts } from '../src/utils/batchProduction';
+import { buildBatchPages, generateBatchTexts, getManualTextGroups, applyManualTexts, summarizeBatchFailure, defaultManualTexts } from '../src/utils/batchProduction';
 import type { DesignTemplate, SequenceMediaItem, TemplatePage } from '../src/types';
 function layout(id: string, count: number, role: any): TemplatePage { return {id, name:id, pageRole:role, fixedElements:[], regions:[{id:'title', name:'Başlık', type:'text', placeholderText:'Önceki başlık', isDynamic:true}, ...Array.from({length:count}, (_,i) => ({id:`image-${i}`, type:'image', isDynamic:true}))] as any}; }
 const template = {id:'source',name:'Şablon',regions:[],fixedElements:[],pages:[layout('cover',1,'cover'),layout('two',2,'2-image'),layout('one',1,'1-image')]} as unknown as DesignTemplate;
@@ -54,4 +54,35 @@ test('each page keeps its own PNG layer, including after cloud sync',()=>{
  const pages=buildBatchPages({...template,pages:[cover,two]},photos(3));
  assert.equal(pages[0].dynamicImages.frame,undefined); assert.equal(pages[1].dynamicImages.frame,undefined);
  assert.equal(pages[1].regions.find((r:any)=>r.id==='frame').placeholderImage,'data:image/png;base64,page-2');
+});
+
+test('manual text groups list text fields per photo layout with placeholders', () => {
+  const groups = getManualTextGroups(template);
+  assert.deepEqual(groups.map(g => g.pageId), ['cover', 'two', 'one']);
+  assert.deepEqual(groups[0].fields, [{ id: 'title', name: 'Başlık', defaultText: 'Önceki başlık' }]);
+  assert.deepEqual(defaultManualTexts(groups).cover, { title: 'Önceki başlık' });
+  const noText = { ...template, pages: [{ ...layout('x', 1, 'cover'), regions: [{ id: 'image-0', type: 'image', isDynamic: true }] }] } as any;
+  assert.deepEqual(getManualTextGroups(noText), []);
+});
+test('manual texts apply per layout, keep empty strings and do not mutate input', () => {
+  const pages = buildBatchPages(template, photos(12));
+  const before = JSON.stringify(pages);
+  const out = applyManualTexts(pages, { cover: { title: 'Kapak başlığı' }, two: { title: '' } });
+  assert.equal(out[0].dynamicTexts.title, 'Kapak başlığı');
+  assert.ok(out.filter(p => p.templatePageId === 'two').every(p => p.dynamicTexts.title === ''));
+  assert.ok(out.filter(p => p.templatePageId === 'one').every(p => p.dynamicTexts.title === 'Önceki başlık'));
+  assert.equal(JSON.stringify(pages), before);
+});
+test('batch failure summary keeps successful AI texts per layout', () => {
+  const pages = buildBatchPages(template, photos(12));
+  assert.equal(pages[1].templatePageId, 'two');
+  assert.equal(pages[2].templatePageId, 'two');
+  pages[0].dynamicTexts.title = 'AI kapak';
+  pages[1].productionError = 'Kota doldu.';
+  pages[2].dynamicTexts.title = 'AI iki';
+  const summary = summarizeBatchFailure(pages)!;
+  assert.equal(summary.reason, 'Kota doldu.');
+  assert.equal(summary.texts.cover.title, 'AI kapak');
+  assert.equal(summary.texts.two.title, 'AI iki');
+  assert.equal(summarizeBatchFailure(applyManualTexts(pages, {})), null);
 });

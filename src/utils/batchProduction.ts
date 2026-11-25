@@ -16,10 +16,53 @@ const frames = (page: TemplatePage) => page.regions.filter(r => r.type === 'imag
 const isSequentialSingleImageTemplate = (layouts: TemplatePage[]) =>
   layouts.length > 1 && layouts.every(layout => frames(layout).length === 1);
 
+/** Template pages that batch production can use: only those with a photo frame. */
+const batchLayouts = (template: DesignTemplate): TemplatePage[] =>
+  (template.pages?.length ? template.pages : [{ id: '1', name: 'Kapak', regions: template.regions, fixedElements: template.fixedElements, pageRole: 'cover' as const }]).filter(p => frames(p).length);
+
+/** templatePageId -> regionId -> text, typed by the user when AI is off. */
+export type ManualTexts = Record<string, Record<string, string>>;
+export type ManualTextGroup = { pageId: string; pageName: string; fields: { id: string; name: string; defaultText: string }[] };
+export type BatchGenerateResult = void | { aiFailed: true; templateId: string; texts: ManualTexts };
+
+/** Same field rule as getAiTextFields, grouped by the layouts batch production uses. */
+export function getManualTextGroups(template: DesignTemplate): ManualTextGroup[] {
+  return batchLayouts(template).map(layout => ({
+    pageId: layout.id,
+    pageName: layout.name || 'Sayfa',
+    fields: layout.regions.filter(r => r.type === 'text' && r.isDynamic !== false && !r.hidden)
+      .map(r => ({ id: r.id, name: r.name || r.id, defaultText: r.placeholderText ?? '' })),
+  })).filter(group => group.fields.length);
+}
+
+export function defaultManualTexts(groups: ManualTextGroup[]): ManualTexts {
+  return Object.fromEntries(groups.map(g => [g.pageId, Object.fromEntries(g.fields.map(f => [f.id, f.defaultText]))]));
+}
+
+/** Every page built from a layout receives that layout's typed texts. */
+export function applyManualTexts(pages: any[], texts: ManualTexts): any[] {
+  return pages.map(page => {
+    const { productionError: _ignored, ...rest } = page;
+    return { ...rest, dynamicTexts: { ...page.dynamicTexts, ...(texts[page.templatePageId] || {}) } };
+  });
+}
+
+/** When any page failed, keep the AI texts that did succeed (first success per layout). */
+export function summarizeBatchFailure(pages: any[]): { reason: string; texts: ManualTexts } | null {
+  const failed = pages.find(page => page.productionError);
+  if (!failed) return null;
+  const texts: ManualTexts = {};
+  for (const page of pages) {
+    if (page.productionError || texts[page.templatePageId]) continue;
+    texts[page.templatePageId] = { ...page.dynamicTexts };
+  }
+  return { reason: String(failed.productionError), texts };
+}
+
 /** Consume every selected photo exactly once, respecting actual frame capacity. */
 export function buildBatchPages(template: DesignTemplate, media: SequenceMediaItem[]) {
   if (!media.length) throw new Error('Önce fotoğraflarınızı ekleyin.');
-  const layouts = (template.pages?.length ? template.pages : [{ id: '1', name: 'Kapak', regions: template.regions, fixedElements: template.fixedElements, pageRole: 'cover' as const }]).filter(p => frames(p).length);
+  const layouts = batchLayouts(template);
   if (!layouts.length) throw new Error('Bu şablonda fotoğraf yerleştirilecek alan yok. Başka bir şablon seçin.');
   const pages: any[] = [];
   let cursor = 0;
