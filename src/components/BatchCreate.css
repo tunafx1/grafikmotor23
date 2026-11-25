@@ -95,6 +95,19 @@
 }
 
 .production-builder .production-hint { margin-top: 8px; font-size: 10px; line-height: 1.45; }
+.production-ai-toggle {
+  margin-left: auto; display: inline-flex; align-items: center; gap: 5px;
+  padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; letter-spacing: .3px;
+  color: #a8a8b3; background: #ffffff08; border: 1px solid #ffffff24; transition: all .15s;
+}
+.production-ai-toggle.on { color: #171719; background: #ff782d; border-color: #ff782d; }
+.production-ai-toggle:not(:disabled):hover { border-color: #ff9861; }
+.production-builder .production-manual-fields { display: flex; flex-direction: column; gap: 10px; }
+.production-manual-group { border: 1px solid #ffffff14; border-radius: 10px; padding: 8px 10px 10px; min-width: 0; }
+.production-manual-group legend { padding: 0 6px; font-size: 11px; font-weight: 700; color: #ff9861; }
+.production-manual-group > div + div { margin-top: 8px; }
+.production-builder .production-manual-group label { margin-bottom: 4px; }
+.production-builder .production-manual-group textarea { min-height: 44px; resize: vertical; line-height: 1.45; padding: 8px 10px; }
 .production-builder .production-photos { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
 
 .production-builder .production-submit {

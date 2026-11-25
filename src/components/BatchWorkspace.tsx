@@ -1,10 +1,11 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Upload, Sparkles, ArrowRight, X, ArrowLeft, Plus, Images, Download, FolderOpen, LayoutTemplate, Check, Trash2, Pencil, GripVertical, Share2 } from 'lucide-react';
 import type { DesignTemplate, SequenceMediaItem } from '../types';
 import { TemplateThumbnail } from './TemplateThumbnail';
 import { resolveExportTemplate } from '../utils/exportAssets';
-import { buildBatchPages, type ManualTexts, type BatchGenerateResult } from '../utils/batchProduction';
+import { buildBatchPages, getManualTextGroups, defaultManualTexts, type ManualTexts, type BatchGenerateResult } from '../utils/batchProduction';
+import { storage } from '../lib/storage';
 import { createSequenceMediaItem } from '../utils/mediaUtils';
 import { ProductionLoadingMotion } from './ProductionLoadingMotion';
 import { ShareTemplateDialog, ImportTemplateDialog } from './TemplateShareDialogs';
@@ -165,6 +166,11 @@ export function ProductionNavigation({ screen, disabled, onChange }: { screen: W
   );
 }
 
+const AI_PREFERENCE_KEY = 'batch_ai_enabled';
+function readAiPreference(): boolean {
+  try { return storage.getItem(AI_PREFERENCE_KEY) !== '0'; } catch { return true; }
+}
+
 export function BatchWorkspace(p: {
   screen: WorkspaceScreen; templates: DesignTemplate[]; current: DesignTemplate; projects: Record<string, any[]>;
   busy: boolean; progress: string; error: string | null;
@@ -202,6 +208,33 @@ export function BatchWorkspace(p: {
   const sourceTemplates = p.templates.filter(t => !t.sourceTemplateId);
   const source = sourceTemplates.find(t => t.id === p.current.sourceTemplateId) || sourceTemplates.find(t => t.id === p.current.id) || sourceTemplates[0];
   const disabled = p.busy || loading;
+  const [aiEnabled, setAiEnabled] = useState(readAiPreference);
+  // Only a click on the switch is remembered; the automatic fallback is not.
+  const setAiPreference = (enabled: boolean) => {
+    setAiEnabled(enabled);
+    try { storage.setItem(AI_PREFERENCE_KEY, enabled ? '1' : '0'); } catch { /* preference is a convenience */ }
+  };
+  const manualGroups = useMemo(() => source ? getManualTextGroups(source) : [], [source]);
+  const [manualTexts, setManualTexts] = useState<ManualTexts>(() => defaultManualTexts(manualGroups));
+  useEffect(() => { setManualTexts(defaultManualTexts(manualGroups)); }, [source?.id]);
+  const setManualText = (pageId: string, fieldId: string, value: string) =>
+    setManualTexts(old => ({ ...old, [pageId]: { ...old[pageId], [fieldId]: value } }));
+  const generate = async () => {
+    if (!source) return;
+    const result = await p.onGenerate(source, photos, brief, aiEnabled ? undefined : manualTexts);
+    if (result?.aiFailed && result.templateId === source.id) {
+      const defaults = defaultManualTexts(manualGroups);
+      // Keep only AI texts for fields the form shows; everything else stays at its default.
+      for (const [pageId, fields] of Object.entries(defaults)) {
+        for (const fieldId of Object.keys(fields)) {
+          const aiText = result.texts[pageId]?.[fieldId];
+          if (typeof aiText === 'string') fields[fieldId] = aiText;
+        }
+      }
+      setManualTexts(defaults);
+      setAiEnabled(false);
+    }
+  };
   useEffect(() => {
     if (p.busy && p.screen === 'create') cancelGenerationButton.current?.focus();
   }, [p.busy, p.screen]);
@@ -475,8 +508,14 @@ export function BatchWorkspace(p: {
             {source ? <><label htmlFor="production-template">Kullanılacak şablon</label><select id="production-template" disabled={disabled} value={source.id} onChange={e => p.onSelectTemplate(e.target.value)}>{sourceTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
             <div className="production-template-preview"><TemplateThumbnail template={source}/><div><strong>{source.name}</strong><p>{source.width} × {source.height} px</p><small>Fotoğraflar, şablonun sayfa ve görsel alanı sırasına göre yerleştirilir.</small></div></div></> : <button onClick={p.onNewTemplate}>Şablon oluştur</button>}
           </section>
-          <section className="production-card production-brief-card"><h2><span>3</span> İçerik komutu</h2><label htmlFor="production-brief">Bu fotoğraflarla ne anlatalım?</label><textarea id="production-brief" disabled={disabled} value={brief} maxLength={3000} onChange={e => setBrief(e.target.value)} placeholder="Örnek: Okulumuzun yıl sonu etkinliği için samimi bir başlık ve kısa açıklama oluştur." rows={5}/>
-            <p className="production-hint">{source?.aiSystemPrompt ? 'Şablonun marka dili kullanılacak.' : 'Komutun, şablonun metin alanlarına uygulanacak.'} Fotoğraflarının yerine yeni görsel üretilmez.</p>
+          <section className="production-card production-brief-card"><h2><span>3</span> {aiEnabled ? 'İçerik komutu' : 'Metinler'}<button type="button" role="switch" aria-checked={aiEnabled} className={`production-ai-toggle ${aiEnabled ? 'on' : ''}`} disabled={disabled} onClick={() => setAiPreference(!aiEnabled)} title={aiEnabled ? 'AI metinleri otomatik doldurur — kapatmak için tıkla' : "Metinleri elle giriyorsun — AI'yi açmak için tıkla"}><Sparkles size={13}/>AI</button></h2>
+            {aiEnabled ? <><label htmlFor="production-brief">Bu fotoğraflarla ne anlatalım?</label><textarea id="production-brief" disabled={disabled} value={brief} maxLength={3000} onChange={e => setBrief(e.target.value)} placeholder="Örnek: Okulumuzun yıl sonu etkinliği için samimi bir başlık ve kısa açıklama oluştur." rows={5}/>
+            <p className="production-hint">{source?.aiSystemPrompt ? 'Şablonun marka dili kullanılacak.' : 'Komutun, şablonun metin alanlarına uygulanacak.'} Fotoğraflarının yerine yeni görsel üretilmez.</p></>
+            : <>{manualGroups.length ? <div className="production-manual-fields">{manualGroups.map(group => <fieldset key={group.pageId} className="production-manual-group"><legend>{group.pageName}</legend>{group.fields.map(field => {
+                const id = `manual-${group.pageId}-${field.id}`;
+                return <div key={field.id}><label htmlFor={id}>{field.name}</label><textarea id={id} disabled={disabled} rows={2} maxLength={1000} value={manualTexts[group.pageId]?.[field.id] ?? ''} onChange={e => setManualText(group.pageId, field.id, e.target.value)}/></div>;
+              })}</fieldset>)}</div> : <p className="production-hint">Bu şablonda metin alanı yok.</p>}
+            <p className="production-hint">Metinler, aynı sayfa düzeninden üretilen tüm sayfalara uygulanır. Sonradan her sayfayı ayrı düzenleyebilirsin.</p></>}
           </section>
         </div>
         </div>
@@ -484,9 +523,9 @@ export function BatchWorkspace(p: {
           <div className="production-submit-copy">
             <p className="production-summary">{planned ? <><Check size={15}/><span><strong>{photos.length} fotoğraf</strong> ile yaklaşık <strong>{planned} sayfa</strong> hazırlanacak</span></> : <span><strong>Başlamak için fotoğraflarını ekle</strong><small>Seçimin ve komutun bu ekranda korunur.</small></span>}</p>
             {(p.error || layoutError) && <p className="production-error" role="alert">{p.error || layoutError}</p>}
-            {p.busy ? <button className="production-link" onClick={p.onCancel}>Üretimi iptal et</button> : planned > 0 && !brief.trim() ? <small>Devam etmek için içerik komutunu yaz.</small> : planned > 0 ? <small>Yeni üretim önceki çalışmalarını değiştirmez.</small> : null}
+            {p.busy ? <button className="production-link" onClick={p.onCancel}>Üretimi iptal et</button> : planned > 0 && aiEnabled && !brief.trim() ? <small>Devam etmek için içerik komutunu yaz.</small> : planned > 0 ? <small>Yeni üretim önceki çalışmalarını değiştirmez.</small> : null}
           </div>
-          <button className="production-primary" disabled={disabled || !planned || !brief.trim()} onClick={() => source && void p.onGenerate(source, photos, brief)}><Sparkles size={18}/>{p.busy ? p.progress : 'Tasarımları oluştur'}{!p.busy && <ArrowRight size={18}/>}</button>
+          <button className="production-primary" disabled={disabled || !planned || (aiEnabled && !brief.trim())} onClick={() => void generate()}><Sparkles size={18}/>{p.busy ? p.progress : 'Tasarımları oluştur'}{!p.busy && <ArrowRight size={18}/>}</button>
         </div>
       </div>
     </div>}

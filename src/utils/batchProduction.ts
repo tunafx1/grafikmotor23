@@ -23,7 +23,7 @@ const batchLayouts = (template: DesignTemplate): TemplatePage[] =>
 /** templatePageId -> regionId -> text, typed by the user when AI is off. */
 export type ManualTexts = Record<string, Record<string, string>>;
 export type ManualTextGroup = { pageId: string; pageName: string; fields: { id: string; name: string; defaultText: string }[] };
-export type BatchGenerateResult = void | { aiFailed: true; templateId: string; texts: ManualTexts };
+export type BatchGenerateResult = undefined | { aiFailed: true; templateId: string; texts: ManualTexts };
 
 /** Same field rule as getAiTextFields, grouped by the layouts batch production uses. */
 export function getManualTextGroups(template: DesignTemplate): ManualTextGroup[] {
