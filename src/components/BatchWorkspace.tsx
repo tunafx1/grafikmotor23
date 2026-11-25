@@ -1,11 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Sparkles, ArrowRight, X, ArrowLeft, Plus, Images, Download, FolderOpen, LayoutTemplate, Check, Trash2, Pencil, GripVertical, Share2 } from 'lucide-react';
+import { Upload, Sparkles, ArrowRight, X, ArrowLeft, Plus, Images, Download, FolderOpen, LayoutTemplate, Check, Trash2, Pencil, GripVertical, Share2, Maximize2 } from 'lucide-react';
 import type { DesignTemplate, SequenceMediaItem } from '../types';
 import { TemplateThumbnail } from './TemplateThumbnail';
 import { resolveExportTemplate } from '../utils/exportAssets';
 import { buildBatchPages, getManualTextGroups, defaultManualTexts, mergeManualTexts, type ManualTexts, type BatchGenerateResult } from '../utils/batchProduction';
 import { storage } from '../lib/storage';
+import { ManualTextsEditor } from './ManualTextsEditor';
 import { createSequenceMediaItem } from '../utils/mediaUtils';
 import { ProductionLoadingMotion } from './ProductionLoadingMotion';
 import { ShareTemplateDialog, ImportTemplateDialog } from './TemplateShareDialogs';
@@ -219,6 +220,8 @@ export function BatchWorkspace(p: {
   useEffect(() => { setManualTexts(defaultManualTexts(manualGroups)); }, [source?.id]);
   // The template can be edited while this screen stays mounted: always read fields from it.
   const effectiveManualTexts = mergeManualTexts(manualGroups, manualTexts);
+  const [manualEditorOpen, setManualEditorOpen] = useState(false);
+  const closeManualEditor = useCallback(() => setManualEditorOpen(false), []);
   const setManualText = (pageId: string, fieldId: string, value: string) =>
     setManualTexts(old => ({ ...old, [pageId]: { ...old[pageId], [fieldId]: value } }));
   const generate = async () => {
@@ -505,10 +508,12 @@ export function BatchWorkspace(p: {
           <section className="production-card production-brief-card"><h2><span>3</span> {aiEnabled ? 'İçerik komutu' : 'Metinler'}<button type="button" role="switch" aria-checked={aiEnabled} className={`production-ai-toggle ${aiEnabled ? 'on' : ''}`} disabled={disabled} onClick={() => setAiPreference(!aiEnabled)} title={aiEnabled ? 'AI metinleri otomatik doldurur — kapatmak için tıkla' : "Metinleri elle giriyorsun — AI'yi açmak için tıkla"}><Sparkles size={13}/>AI</button></h2>
             {aiEnabled ? <><label htmlFor="production-brief">Bu fotoğraflarla ne anlatalım?</label><textarea id="production-brief" disabled={disabled} value={brief} maxLength={3000} onChange={e => setBrief(e.target.value)} placeholder="Örnek: Okulumuzun yıl sonu etkinliği için samimi bir başlık ve kısa açıklama oluştur." rows={5}/>
             <p className="production-hint">{source?.aiSystemPrompt ? 'Şablonun marka dili kullanılacak.' : 'Komutun, şablonun metin alanlarına uygulanacak.'} Fotoğraflarının yerine yeni görsel üretilmez.</p></>
-            : <>{manualGroups.length ? <div className="production-manual-fields">{manualGroups.map(group => <fieldset key={group.pageId} className="production-manual-group"><legend>{group.pageName}</legend>{group.fields.map(field => {
-                const id = `manual-${group.pageId}-${field.id}`;
-                return <div key={field.id}><label htmlFor={id}>{field.name}</label><textarea id={id} disabled={disabled} rows={2} maxLength={1000} value={effectiveManualTexts[group.pageId]?.[field.id] ?? ''} onChange={e => setManualText(group.pageId, field.id, e.target.value)}/></div>;
-              })}</fieldset>)}</div> : <p className="production-hint">Bu şablonda metin alanı yok.</p>}
+            : <>{manualGroups.length ? <div className="production-manual-summary">{manualGroups.map(group => <div key={group.pageId} className="production-manual-group"><strong>{group.pageName}</strong>{group.fields.map(field => {
+                const preview = (effectiveManualTexts[group.pageId]?.[field.id] ?? '').replace(/\*+/g, '').replace(/\s+/g, ' ').trim();
+                return <p key={field.id}><span>{field.name}</span>{preview || <em>Boş</em>}</p>;
+              })}</div>)}</div> : <p className="production-hint">Bu şablonda metin alanı yok.</p>}
+            {manualGroups.length > 0 && <button type="button" className="production-manual-open" disabled={disabled} onClick={() => setManualEditorOpen(true)}><Maximize2 size={15}/>Metinleri düzenle</button>}
+            <ManualTextsEditor open={manualEditorOpen} groups={manualGroups} texts={effectiveManualTexts} onChange={setManualText} onClose={closeManualEditor}/>
             <p className="production-hint">Metinler, aynı sayfa düzeninden üretilen tüm sayfalara uygulanır. Sonradan her sayfayı ayrı düzenleyebilirsin.</p></>}
           </section>
         </div>
