@@ -1,12 +1,15 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Sparkles, ArrowRight, X, ArrowLeft, Plus, Images, Download, FolderOpen, LayoutTemplate, Check, Trash2, Pencil, GripVertical, Share2, Maximize2 } from 'lucide-react';
+import { Upload, Sparkles, ArrowRight, X, Plus, Images, Download, FolderOpen, LayoutTemplate, Check, Trash2, Pencil, Share2, Bold } from 'lucide-react';
 import type { DesignTemplate, SequenceMediaItem } from '../types';
 import { TemplateThumbnail } from './TemplateThumbnail';
 import { resolveExportTemplate } from '../utils/exportAssets';
 import { buildBatchPages, getManualTextGroups, defaultManualTexts, mergeManualTexts, type ManualTexts, type BatchGenerateResult } from '../utils/batchProduction';
 import { storage } from '../lib/storage';
-import { ManualTextsEditor } from './ManualTextsEditor';
+import { usePhotoDrag } from './usePhotoDrag';
+import { moveToIndex } from '../utils/photoReorder';
+import { createPortal } from 'react-dom';
+import { RichTextField } from './RichTextField';
 import { createSequenceMediaItem } from '../utils/mediaUtils';
 import { ProductionLoadingMotion } from './ProductionLoadingMotion';
 import { ShareTemplateDialog, ImportTemplateDialog } from './TemplateShareDialogs';
@@ -220,8 +223,6 @@ export function BatchWorkspace(p: {
   useEffect(() => { setManualTexts(defaultManualTexts(manualGroups)); }, [source?.id]);
   // The template can be edited while this screen stays mounted: always read fields from it.
   const effectiveManualTexts = mergeManualTexts(manualGroups, manualTexts);
-  const [manualEditorOpen, setManualEditorOpen] = useState(false);
-  const closeManualEditor = useCallback(() => setManualEditorOpen(false), []);
   const setManualText = (pageId: string, fieldId: string, value: string) =>
     setManualTexts(old => ({ ...old, [pageId]: { ...old[pageId], [fieldId]: value } }));
   const generate = async () => {
@@ -246,8 +247,6 @@ export function BatchWorkspace(p: {
 
   // --- Photo grid: drag-to-reorder (siblings live-shift out of the way) + mouse marquee multi-select ---
   const [selectedPhotos, setSelectedPhotos] = useState<Set<string>>(new Set());
-  const [draggedPhotoId, setDraggedPhotoId] = useState<string | null>(null);
-  const lastPhotoOverId = useRef<string | null>(null);
   const [photoMarquee, setPhotoMarquee] = useState<{ x: number; y: number; w: number; h: number } | null>(null);
   const photoMarqueeStart = useRef<{ x: number; y: number } | null>(null);
   const photosGridRef = useRef<HTMLDivElement>(null);
@@ -281,19 +280,15 @@ export function BatchWorkspace(p: {
     if (next.has(id)) next.delete(id); else next.add(id);
     return next;
   });
-  const handlePhotoDragOver = (overId: string) => {
-    if (!draggedPhotoId || draggedPhotoId === overId || lastPhotoOverId.current === overId) return;
-    lastPhotoOverId.current = overId;
-    setPhotos(old => reorderById(old, photo => photo.id, selectedPhotos, draggedPhotoId, overId));
-  };
-  const endPhotoDrag = () => { setDraggedPhotoId(null); lastPhotoOverId.current = null; };
-  const photoDrag = usePointerCardReorder({
-    attr: 'data-photo-id',
+  const photoDrag = usePhotoDrag({
+    gridRef: photosGridRef,
     disabled,
-    onDragOver: handlePhotoDragOver,
-    onDragEnd: endPhotoDrag,
-    setDraggedId: setDraggedPhotoId
+    selected: selectedPhotos,
+    onToggleSelect: togglePhotoSelected,
+    onDrop: (ids, insertIndex) => setPhotos(old => moveToIndex(old, photo => photo.id, ids, insertIndex)),
   });
+  const draggedPhotoIds = photoDrag.drag?.ids;
+  const dragPreviewPhoto = draggedPhotoIds ? photos.find(photo => draggedPhotoIds.has(photo.id)) : undefined;
 
   // --- Works gallery: local display order + drag-to-reorder (live-shift) + marquee multi-select ---
   const [worksOrder, setWorksOrder] = useState<string[]>([]);
@@ -378,7 +373,6 @@ export function BatchWorkspace(p: {
     }
     setPhotos(old => [...old, ...next]); setFileError(errors.join(' ')); setLoading(false); loadingRef.current = false;
   };
-  const move = (index: number, direction: number) => setPhotos(old => { const next = [...old]; [next[index], next[index + direction]] = [next[index + direction], next[index]]; return next; });
   const pages = p.projects[p.current.id] || [];
   return <section className="batch-workspace" data-screen={p.screen} hidden={p.screen === 'editor'}>
     {p.screen === 'create' && p.busy && <div className="production-loading-screen" role="dialog" aria-modal="true" aria-labelledby="production-loading-title" aria-describedby="production-loading-progress" onKeyDown={event => {
@@ -403,6 +397,7 @@ export function BatchWorkspace(p: {
       <div className="production-builder">
         <div className="production-grid">
         <section
+          data-photo-scroll
           className={`production-card production-photo-card ${isDesktopDragging ? 'is-desktop-dragging' : ''}`}
           onDragEnter={e => {
             e.preventDefault();
@@ -457,63 +452,48 @@ export function BatchWorkspace(p: {
           </div>}
           <div className="production-photos" ref={photosGridRef} onPointerDown={startPhotoMarquee}>
             {photoMarquee && <div className="marquee-box" style={{ left: photoMarquee.x, top: photoMarquee.y, width: photoMarquee.w, height: photoMarquee.h }} />}
+            {photoDrag.drag?.bar && <div className="photo-drop-bar" style={{ left: photoDrag.drag.bar.left, top: photoDrag.drag.bar.top, height: photoDrag.drag.bar.height }} />}
             {photos.map((photo, index) => <motion.article
               key={photo.id}
               layout
               transition={{ type: 'spring', stiffness: 500, damping: 38 }}
               data-photo-id={photo.id}
-              className={[selectedPhotos.has(photo.id) && 'is-selected', draggedPhotoId === photo.id && 'is-dragging'].filter(Boolean).join(' ')}
+              className={[selectedPhotos.has(photo.id) && 'is-selected', draggedPhotoIds?.has(photo.id) && 'is-drag-source'].filter(Boolean).join(' ')}
+              title="Sırayı değiştirmek için sürükle · seçmek için tıkla"
+              {...photoDrag.handlers(photo.id)}
             >
               <span className="photo-card-badge">{index + 1}</span>
-              <div
-                className="photo-card-grip"
-                title="Sıralamayı değiştirmek için tut ve sürükle"
-                onPointerDown={photoDrag.onPointerDown(photo.id)}
-                onPointerMove={photoDrag.onPointerMove(photo.id)}
-                onPointerUp={photoDrag.onPointerUp(photo.id)}
-                onPointerCancel={photoDrag.onPointerCancel(photo.id)}
-              >
-                <GripVertical size={13}/>
-                <span>Taşı</span>
-              </div>
               <label className="photo-select" onClick={e => e.stopPropagation()}>
                 <input type="checkbox" checked={selectedPhotos.has(photo.id)} onChange={() => togglePhotoSelected(photo.id)} aria-label={`${index + 1}. fotoğrafı seç`}/>
               </label>
               <button className="photo-card-delete" disabled={disabled} aria-label={`${index + 1}. fotoğrafı seçimden çıkar`} onClick={() => setPhotos(old => old.filter((_, i) => i !== index))}><X size={13}/></button>
-              <div
-                className="photo-card-img-wrap"
-                onPointerDown={photoDrag.onPointerDown(photo.id)}
-                onPointerMove={photoDrag.onPointerMove(photo.id)}
-                onPointerUp={photoDrag.onPointerUp(photo.id)}
-                onPointerCancel={photoDrag.onPointerCancel(photo.id)}
-              >
+              <div className="photo-card-img-wrap">
                 <img src={photo.thumbnailUrl} alt={photo.originalName || `Fotoğraf ${index + 1}`} draggable={false}/>
               </div>
               <div className="photo-card-footer">
                 <span title={photo.originalName}>{photo.originalName || `Fotoğraf ${index + 1}`}</span>
-                <div className="photo-card-nav">
-                  <button disabled={disabled || index === 0} aria-label={`${index + 1}. fotoğrafı sola taşı`} title="Sola taşı" onClick={() => move(index, -1)}><ArrowLeft size={13}/></button>
-                  <button disabled={disabled || index === photos.length - 1} aria-label={`${index + 1}. fotoğrafı sağa taşı`} title="Sağa taşı" onClick={() => move(index, 1)}><ArrowRight size={13}/></button>
-                </div>
               </div>
             </motion.article>)}
           </div>
-          {!!photos.length && <p className="production-hint">Fotoğrafları tutamaçtan veya görselden sürükleyerek sırasını değiştirebilir, ok butonlarıyla tek tek taşıyabilir, boş alana tıklayıp birden fazla fotoğraf seçebilirsin.</p>}
+          {!!photos.length && <p className="production-hint">Sırayı değiştirmek için fotoğrafı sürükleyip bırak (telefonda basılı tutup sürükle). Fotoğrafa tıklayarak seçebilir, seçtiklerini birlikte taşıyabilir veya silebilirsin.</p>}
+          {photoDrag.drag && dragPreviewPhoto && createPortal(<div className="photo-drag-ghost" style={{ left: photoDrag.drag.x, top: photoDrag.drag.y }}><img src={dragPreviewPhoto.thumbnailUrl} alt=""/>{photoDrag.drag.ids.size > 1 && <span>{photoDrag.drag.ids.size}</span>}</div>, document.body)}
         </section>
         <div className="production-settings">
           <section className="production-card production-template-card"><h2><span>2</span> Şablon</h2>
             {source ? <><label htmlFor="production-template">Kullanılacak şablon</label><select id="production-template" disabled={disabled} value={source.id} onChange={e => p.onSelectTemplate(e.target.value)}>{sourceTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
             <div className="production-template-preview"><TemplateThumbnail template={source}/><div><strong>{source.name}</strong><p>{source.width} × {source.height} px</p><small>Fotoğraflar, şablonun sayfa ve görsel alanı sırasına göre yerleştirilir.</small></div></div></> : <button onClick={p.onNewTemplate}>Şablon oluştur</button>}
           </section>
-          <section className="production-card production-brief-card"><h2><span>3</span> {aiEnabled ? 'İçerik komutu' : 'Metinler'}<button type="button" role="switch" aria-checked={aiEnabled} className={`production-ai-toggle ${aiEnabled ? 'on' : ''}`} disabled={disabled} onClick={() => setAiPreference(!aiEnabled)} title={aiEnabled ? 'AI metinleri otomatik doldurur — kapatmak için tıkla' : "Metinleri elle giriyorsun — AI'yi açmak için tıkla"}><Sparkles size={13}/>AI</button></h2>
+          <section className="production-card production-brief-card"><h2><span>3</span> {aiEnabled ? 'İçerik komutu' : 'Metinler'}{!aiEnabled && manualGroups.length > 0 && <button type="button" className="production-bold-btn" disabled={disabled}
+              onMouseDown={event => event.preventDefault()} onPointerDown={event => event.preventDefault()}
+              onClick={() => { document.execCommand('bold'); (document.activeElement as HTMLElement | null)?.dispatchEvent(new Event('input', { bubbles: true })); }}
+              title="Seçili metni kalın yap (Ctrl+B)"><Bold size={15}/>Kalın</button>}<button type="button" role="switch" aria-checked={aiEnabled} className={`production-ai-toggle ${aiEnabled ? 'on' : ''}`} disabled={disabled} onClick={() => setAiPreference(!aiEnabled)} title={aiEnabled ? 'AI metinleri otomatik doldurur — kapatmak için tıkla' : "Metinleri elle giriyorsun — AI'yi açmak için tıkla"}><Sparkles size={13}/>AI</button></h2>
             {aiEnabled ? <><label htmlFor="production-brief">Bu fotoğraflarla ne anlatalım?</label><textarea id="production-brief" disabled={disabled} value={brief} maxLength={3000} onChange={e => setBrief(e.target.value)} placeholder="Örnek: Okulumuzun yıl sonu etkinliği için samimi bir başlık ve kısa açıklama oluştur." rows={5}/>
             <p className="production-hint">{source?.aiSystemPrompt ? 'Şablonun marka dili kullanılacak.' : 'Komutun, şablonun metin alanlarına uygulanacak.'} Fotoğraflarının yerine yeni görsel üretilmez.</p></>
-            : <>{manualGroups.length ? <div className="production-manual-summary">{manualGroups.map(group => <div key={group.pageId} className="production-manual-group"><strong>{group.pageName}</strong>{group.fields.map(field => {
-                const preview = (effectiveManualTexts[group.pageId]?.[field.id] ?? '').replace(/\*+/g, '').replace(/\s+/g, ' ').trim();
-                return <p key={field.id}><span>{field.name}</span>{preview || <em>Boş</em>}</p>;
-              })}</div>)}</div> : <p className="production-hint">Bu şablonda metin alanı yok.</p>}
-            {manualGroups.length > 0 && <button type="button" className="production-manual-open" disabled={disabled} onClick={() => setManualEditorOpen(true)}><Maximize2 size={15}/>Metinleri düzenle</button>}
-            <ManualTextsEditor open={manualEditorOpen} groups={manualGroups} texts={effectiveManualTexts} onChange={setManualText} onClose={closeManualEditor} disabled={disabled}/>
+            : <>{manualGroups.length ? <div className="production-manual-fields">{manualGroups.map(group => <div key={group.pageId} className="production-manual-group"><strong>{group.pageName}</strong>{group.fields.map(field => (
+                <RichTextField key={field.id} id={`manual-${group.pageId}-${field.id}`} label={field.name}
+                  value={effectiveManualTexts[group.pageId]?.[field.id] ?? ''} disabled={disabled}
+                  onChange={value => setManualText(group.pageId, field.id, value)}/>
+              ))}</div>)}</div> : <p className="production-hint">Bu şablonda metin alanı yok.</p>}
             <p className="production-hint">Metinler, aynı sayfa düzeninden üretilen tüm sayfalara uygulanır. Sonradan her sayfayı ayrı düzenleyebilirsin.</p></>}
           </section>
         </div>

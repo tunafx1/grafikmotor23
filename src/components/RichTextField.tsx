@@ -1,5 +1,6 @@
 import React, { useLayoutEffect, useRef } from 'react';
 import { htmlToMarkdown, markdownToHtml, stripMarkerChars } from '../utils/richText';
+import './RichTextField.css';
 
 /**
  * A multi-line text box that shows **bold** and *italic* as real formatting
