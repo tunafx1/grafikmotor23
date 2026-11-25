@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildBatchPages, generateBatchTexts, getManualTextGroups, applyManualTexts, summarizeBatchFailure, defaultManualTexts } from '../src/utils/batchProduction';
+import { buildBatchPages, generateBatchTexts, getManualTextGroups, applyManualTexts, summarizeBatchFailure, defaultManualTexts, mergeManualTexts } from '../src/utils/batchProduction';
 import type { DesignTemplate, SequenceMediaItem, TemplatePage } from '../src/types';
 function layout(id: string, count: number, role: any): TemplatePage { return {id, name:id, pageRole:role, fixedElements:[], regions:[{id:'title', name:'Başlık', type:'text', placeholderText:'Önceki başlık', isDynamic:true}, ...Array.from({length:count}, (_,i) => ({id:`image-${i}`, type:'image', isDynamic:true}))] as any}; }
 const template = {id:'source',name:'Şablon',regions:[],fixedElements:[],pages:[layout('cover',1,'cover'),layout('two',2,'2-image'),layout('one',1,'1-image')]} as unknown as DesignTemplate;
@@ -85,4 +85,12 @@ test('batch failure summary keeps successful AI texts per layout', () => {
   assert.equal(summary.texts.cover.title, 'AI kapak');
   assert.equal(summary.texts.two.title, 'AI iki');
   assert.equal(summarizeBatchFailure(applyManualTexts(pages, {})), null);
+});
+test('merged manual texts follow the current template fields and keep typed values', () => {
+  const groups = getManualTextGroups(template);
+  const merged = mergeManualTexts(groups, { cover: { title: '', removed: 'x' }, gone: { title: 'y' } });
+  assert.equal(merged.cover.title, '');
+  assert.equal(merged.two.title, 'Önceki başlık');
+  assert.equal('removed' in merged.cover, false);
+  assert.equal('gone' in merged, false);
 });

@@ -39,6 +39,14 @@ export function defaultManualTexts(groups: ManualTextGroup[]): ManualTexts {
   return Object.fromEntries(groups.map(g => [g.pageId, Object.fromEntries(g.fields.map(f => [f.id, f.defaultText]))]));
 }
 
+/** Current template fields with their defaults, overridden by typed values (even empty ones). */
+export function mergeManualTexts(groups: ManualTextGroup[], typed: ManualTexts): ManualTexts {
+  return Object.fromEntries(groups.map(g => [g.pageId, Object.fromEntries(g.fields.map(f => {
+    const value = typed[g.pageId]?.[f.id];
+    return [f.id, typeof value === 'string' ? value : f.defaultText];
+  }))]));
+}
+
 /** Every page built from a layout receives that layout's typed texts. */
 export function applyManualTexts(pages: any[], texts: ManualTexts): any[] {
   return pages.map(page => {

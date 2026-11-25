@@ -4,7 +4,7 @@ import { Upload, Sparkles, ArrowRight, X, ArrowLeft, Plus, Images, Download, Fol
 import type { DesignTemplate, SequenceMediaItem } from '../types';
 import { TemplateThumbnail } from './TemplateThumbnail';
 import { resolveExportTemplate } from '../utils/exportAssets';
-import { buildBatchPages, getManualTextGroups, defaultManualTexts, type ManualTexts, type BatchGenerateResult } from '../utils/batchProduction';
+import { buildBatchPages, getManualTextGroups, defaultManualTexts, mergeManualTexts, type ManualTexts, type BatchGenerateResult } from '../utils/batchProduction';
 import { storage } from '../lib/storage';
 import { createSequenceMediaItem } from '../utils/mediaUtils';
 import { ProductionLoadingMotion } from './ProductionLoadingMotion';
@@ -217,21 +217,15 @@ export function BatchWorkspace(p: {
   const manualGroups = useMemo(() => source ? getManualTextGroups(source) : [], [source]);
   const [manualTexts, setManualTexts] = useState<ManualTexts>(() => defaultManualTexts(manualGroups));
   useEffect(() => { setManualTexts(defaultManualTexts(manualGroups)); }, [source?.id]);
+  // The template can be edited while this screen stays mounted: always read fields from it.
+  const effectiveManualTexts = mergeManualTexts(manualGroups, manualTexts);
   const setManualText = (pageId: string, fieldId: string, value: string) =>
     setManualTexts(old => ({ ...old, [pageId]: { ...old[pageId], [fieldId]: value } }));
   const generate = async () => {
     if (!source) return;
-    const result = await p.onGenerate(source, photos, brief, aiEnabled ? undefined : manualTexts);
-    if (result?.aiFailed && result.templateId === source.id) {
-      const defaults = defaultManualTexts(manualGroups);
-      // Keep only AI texts for fields the form shows; everything else stays at its default.
-      for (const [pageId, fields] of Object.entries(defaults)) {
-        for (const fieldId of Object.keys(fields)) {
-          const aiText = result.texts[pageId]?.[fieldId];
-          if (typeof aiText === 'string') fields[fieldId] = aiText;
-        }
-      }
-      setManualTexts(defaults);
+    const result = await p.onGenerate(source, photos, brief, aiEnabled ? undefined : effectiveManualTexts);
+    if (result?.aiFailed) {
+      setManualTexts(mergeManualTexts(manualGroups, result.texts));
       setAiEnabled(false);
     }
   };
@@ -513,7 +507,7 @@ export function BatchWorkspace(p: {
             <p className="production-hint">{source?.aiSystemPrompt ? 'Şablonun marka dili kullanılacak.' : 'Komutun, şablonun metin alanlarına uygulanacak.'} Fotoğraflarının yerine yeni görsel üretilmez.</p></>
             : <>{manualGroups.length ? <div className="production-manual-fields">{manualGroups.map(group => <fieldset key={group.pageId} className="production-manual-group"><legend>{group.pageName}</legend>{group.fields.map(field => {
                 const id = `manual-${group.pageId}-${field.id}`;
-                return <div key={field.id}><label htmlFor={id}>{field.name}</label><textarea id={id} disabled={disabled} rows={2} maxLength={1000} value={manualTexts[group.pageId]?.[field.id] ?? ''} onChange={e => setManualText(group.pageId, field.id, e.target.value)}/></div>;
+                return <div key={field.id}><label htmlFor={id}>{field.name}</label><textarea id={id} disabled={disabled} rows={2} maxLength={1000} value={effectiveManualTexts[group.pageId]?.[field.id] ?? ''} onChange={e => setManualText(group.pageId, field.id, e.target.value)}/></div>;
               })}</fieldset>)}</div> : <p className="production-hint">Bu şablonda metin alanı yok.</p>}
             <p className="production-hint">Metinler, aynı sayfa düzeninden üretilen tüm sayfalara uygulanır. Sonradan her sayfayı ayrı düzenleyebilirsin.</p></>}
           </section>
