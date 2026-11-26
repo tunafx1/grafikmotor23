@@ -171,8 +171,8 @@ export function BatchWorkspace(p: {
   busy: boolean; progress: string; error: string | null;
   mediaLibrary: string[];
   onGenerate: (template: DesignTemplate, media: SequenceMediaItem[], brief: string, manualTexts?: ManualTexts) => Promise<BatchGenerateResult>;
-  /** Fills the text fields with AI once, using the brief and the first photo. */
-  onAiFill?: (template: DesignTemplate, media: SequenceMediaItem[], brief: string) => Promise<ManualTexts>;
+  /** Clears the production error shown on the create screen. */
+  onClearError?: () => void;
   onOpen: (id: string, page?: number) => void; onSelectTemplate: (id: string) => void;
   onNewTemplate: () => void; onEditTemplate: (id: string) => void; onDeleteTemplate: (id: string) => void;
   onDeleteWorks: (ids: string[]) => void; onDownloadWorks: (ids: string[]) => Promise<void>;
@@ -202,28 +202,28 @@ export function BatchWorkspace(p: {
   const disabled = p.busy || loading;
   const manualGroups = useMemo(() => source ? getManualTextGroups(source) : [], [source]);
   // Fields start empty (the template's example text is shown as a placeholder instead).
-  const blankGroups = manualGroups.map(group => ({ ...group, fields: group.fields.map(field => ({ ...field, defaultText: '' })) }));
+  const blankGroups = useMemo(() => manualGroups.map(group => ({ ...group, fields: group.fields.map(field => ({ ...field, defaultText: '' })) })), [manualGroups]);
   const [manualTexts, setManualTexts] = useState<ManualTexts>({});
-  useEffect(() => { setManualTexts({}); setAiError(''); }, [source?.id]);
+  useEffect(() => { setManualTexts({}); }, [source?.id]);
   // The template can be edited while this screen stays mounted: always read fields from it.
-  const effectiveManualTexts = mergeManualTexts(blankGroups, manualTexts);
-  const [aiBusy, setAiBusy] = useState(false);
-  const [aiError, setAiError] = useState('');
-  const aiFill = async () => {
-    if (!source || !p.onAiFill || aiBusy) return;
-    setAiBusy(true); setAiError('');
-    try {
-      const texts = await p.onAiFill(source, photos, brief);
-      setManualTexts(old => mergeManualTexts(blankGroups, { ...mergeManualTexts(blankGroups, old), ...texts }));
-    } catch (error) {
-      setAiError(error instanceof Error ? error.message : 'AI metinleri dolduramadı. Metinleri elle yazabilirsin.');
-    } finally { setAiBusy(false); }
-  };
+  const effectiveManualTexts = useMemo(() => mergeManualTexts(blankGroups, manualTexts), [blankGroups, manualTexts]);
+  // AI mode: the texts panel is replaced by a prompt; AI writes every page during production,
+  // following the selected template's text instructions.
+  const [aiMode, setAiMode] = useState(false);
   const setManualText = (pageId: string, fieldId: string, value: string) =>
     setManualTexts(old => ({ ...old, [pageId]: { ...old[pageId], [fieldId]: value } }));
   const generate = async () => {
     if (!source) return;
-    await p.onGenerate(source, photos, brief, effectiveManualTexts);
+    const result = await p.onGenerate(source, photos, brief, aiMode ? undefined : effectiveManualTexts);
+    // AI could not write every page: nothing was saved; continue by hand with what AI did write.
+    if (result?.aiFailed) {
+      setManualTexts(mergeManualTexts(blankGroups, result.texts));
+      setAiMode(false);
+    }
+  };
+  const clearPage = () => {
+    setPhotos([]); setManualTexts({}); setBrief(''); setFileError(''); setAiMode(false);
+    p.onClearError?.();
   };
   useEffect(() => {
     if (p.busy && p.screen === 'create') cancelGenerationButton.current?.focus();
@@ -342,7 +342,7 @@ export function BatchWorkspace(p: {
       loadingFiles={loading} fileError={fileError}
       groups={manualGroups} texts={effectiveManualTexts} setText={setManualText}
       brief={brief} setBrief={setBrief}
-      onAiFill={p.onAiFill && aiFill} aiBusy={aiBusy} aiError={aiError}
+      aiMode={aiMode} onAiModeChange={setAiMode} onClear={clearPage}
       planned={planned} error={p.error || layoutError} busy={p.busy} progress={p.progress}
       disabled={disabled} onGenerate={() => void generate()} onCancel={p.onCancel}
     />}

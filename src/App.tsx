@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, Suspense, lazy } from 'react';
 import { BatchWorkspace, ProductionNavigation, type WorkspaceScreen } from './components/BatchWorkspace';
-import { buildBatchPages, generateBatchTexts, isStaticImageLayer, applyManualTexts, summarizeBatchFailure, getBatchLayouts, type ManualTexts, type BatchGenerateResult } from './utils/batchProduction';
+import { buildBatchPages, generateBatchTexts, isStaticImageLayer, applyManualTexts, summarizeBatchFailure, type ManualTexts, type BatchGenerateResult } from './utils/batchProduction';
 import { describeGoogleLoginError } from './lib/authErrors';
 import { getAiTextFields, requestAiText } from './utils/aiText';
 import { resizePageLayout, resizeTemplate } from './utils/templateResize';
@@ -1357,6 +1357,12 @@ export default function App() {
     const unique = Array.from(new Set(urls));
     return unique.filter(url => isRealUserUploadedImage(url, currentTemplate));
   };
+
+  // Stable inputs for the batch screen: rebuilding them on every App render made the
+  // previews and template thumbnails redraw constantly, so the screen kept flickering.
+  const batchTemplates = useMemo(() => templates.map(ensureMultiPageSupport), [templates]);
+  const batchMediaLibraryKey = getUniqueUploadedImages().join('\n');
+  const batchMediaLibrary = useMemo(() => batchMediaLibraryKey ? batchMediaLibraryKey.split('\n') : [], [batchMediaLibraryKey]);
 
   // --- MOBILE RESPONSIVE PANEL STATE ---
   const [exportPanelOpen, setExportPanelOpen] = useState(false);
@@ -5216,24 +5222,6 @@ export default function App() {
       setBatchError(controller.signal.aborted ? 'Üretim iptal edildi. Fotoğrafların ve komutun korundu.' : error instanceof Error ? error.message : 'Üretim tamamlanamadı.');
     } finally { batchController.current = null; setBatchBusy(false); }
   };
-  // "AI ile doldur": one AI request per page layout fills the text form; the user can edit before generating.
-  const aiFillBatchTexts = async (source: DesignTemplate, media: SequenceMediaItem[], brief: string): Promise<ManualTexts> => {
-    const template = ensureMultiPageSupport(source);
-    let image: string | undefined;
-    const firstPhoto = media[0]?.thumbnailUrl || media[0]?.url;
-    if (firstPhoto) { try { image = await compressDataUrl(firstPhoto, 360, 360, 0.6); } catch { /* text can be written without the photo */ } }
-    const result: ManualTexts = {};
-    for (const layout of getBatchLayouts(template)) {
-      const fields = getAiTextFields(layout.regions, {});
-      if (!fields.length) continue;
-      result[layout.id] = await requestAiText({
-        systemPrompt: template.aiSystemPrompt || '', templateName: template.name,
-        brief: brief.trim() || 'Bu fotoğraflar için kısa, etkileyici ve şablona uygun metinler yaz.',
-        fields, context: fields, ...(image ? { image } : {}),
-      }, AbortSignal.timeout(60000));
-    }
-    return result;
-  };
   const retryBatch = async () => {
     if (batchController.current) return;
     const controller = new AbortController(); batchController.current = controller;
@@ -5458,9 +5446,9 @@ export default function App() {
           onChange={screen => { setTemplateEditing(false); setWorkspaceScreen(screen); }}
         />
       )}
-      <BatchWorkspace screen={workspaceScreen} templates={templates.map(ensureMultiPageSupport)} current={currentTemplate}
-        projects={pagesByTemplate} mediaLibrary={getUniqueUploadedImages()} busy={batchBusy || isExportingZip} progress={batchProgress} error={batchError}
-        onGenerate={runBatch} onAiFill={aiFillBatchTexts} onRetry={retryBatch} onCancel={() => batchController.current?.abort()}
+      <BatchWorkspace screen={workspaceScreen} templates={batchTemplates} current={currentTemplate}
+        projects={pagesByTemplate} mediaLibrary={batchMediaLibrary} busy={batchBusy || isExportingZip} progress={batchProgress} error={batchError}
+        onGenerate={runBatch} onClearError={() => setBatchError(null)} onRetry={retryBatch} onCancel={() => batchController.current?.abort()}
         onSelectTemplate={id => { setTemplateEditing(false); setCurrentTemplateId(id); setActiveGeneratedPageIndex(0); setSelectedNodeId(null); }}
         onOpen={(id, index = 0) => { setTemplateEditing(false); setCurrentTemplateId(id); setActiveGeneratedPageIndex(index); setSelectedNodeId(null); setWorkspaceScreen('editor'); setActiveTab('phase2'); }}
         onNewTemplate={() => { setTemplateEditing(true); createNewTemplate(); setWorkspaceScreen('editor'); setLeftDrawerTab('add'); }}

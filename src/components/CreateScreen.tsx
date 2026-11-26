@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Upload, Image as ImageIcon, Images, X, Plus, Check, Sparkles, ArrowRight, Bold, Loader2 } from 'lucide-react';
+import { Upload, Image as ImageIcon, Images, X, Plus, Check, Sparkles, ArrowRight, Bold, Loader2, Trash2, PenLine } from 'lucide-react';
 import type { DesignTemplate, SequenceMediaItem } from '../types';
 import { TemplateThumbnail } from './TemplateThumbnail';
 import { RichTextField } from './RichTextField';
@@ -25,13 +25,10 @@ function TemplateMeta({ template }: { template: DesignTemplate }) {
   return <>{template.width} × {template.height} · {count ? `${count} metin alanı` : 'metin yok'}</>;
 }
 
-function TemplateSwatch({ template, selected }: { template: DesignTemplate; selected: boolean }) {
-  const ratio = template.width / template.height;
-  const size = 30;
-  const width = ratio >= 1 ? size : Math.round(size * ratio);
-  const height = ratio >= 1 ? Math.round(size / ratio) : size;
-  return <span className="cs-swatch"><span style={{ width, height }} className={selected ? 'is-selected' : ''}/></span>;
-}
+/** Small live thumbnail of a template for the picker. */
+const TemplateSwatch = React.memo(function TemplateSwatch({ template }: { template: DesignTemplate }) {
+  return <span className="cs-swatch"><TemplateThumbnail template={template}/></span>;
+});
 
 /** Floating "Kalın" button shown above a text selection inside the texts card. */
 function BoldBubble({ scopeRef }: { scopeRef: React.RefObject<HTMLElement | null> }) {
@@ -90,9 +87,9 @@ export function CreateScreen(p: {
   setText: (pageId: string, fieldId: string, value: string) => void;
   brief: string;
   setBrief: (value: string) => void;
-  onAiFill?: () => Promise<void>;
-  aiBusy: boolean;
-  aiError: string;
+  aiMode: boolean;
+  onAiModeChange: (on: boolean) => void;
+  onClear: () => void;
   planned: number;
   error: string;
   busy: boolean;
@@ -108,6 +105,14 @@ export function CreateScreen(p: {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [fileDragOver, setFileDragOver] = useState(false);
   const fileDragDepth = useRef(0);
+  // "Sayfayı temizle" asks once more before wiping the page.
+  const [confirmClear, setConfirmClear] = useState(false);
+  useEffect(() => {
+    if (!confirmClear) return;
+    const timer = window.setTimeout(() => setConfirmClear(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [confirmClear]);
+  const hasContent = p.photos.length > 0 || !!p.brief.trim() || Object.values(p.texts).some(group => Object.values(group).some(Boolean));
   const { photos, source } = p;
 
   const drag = usePhotoDrag({
@@ -136,14 +141,14 @@ export function CreateScreen(p: {
   const preview = useMemo(() => {
     if (!source) return null;
     if (!photos.length) {
-      const firstTexts = p.groups[0] ? Object.fromEntries(Object.entries(p.texts[p.groups[0].pageId] || {}).filter(([, v]) => v)) : {};
+      const firstTexts = p.groups[0] && !p.aiMode ? Object.fromEntries(Object.entries(p.texts[p.groups[0].pageId] || {}).filter(([, v]) => v)) : {};
       return { template: source, data: { templateId: source.id, dynamicTexts: firstTexts, dynamicImages: {} }, label: `${source.width} × ${source.height} px` };
     }
     try {
-      const [page] = applyManualTexts(buildBatchPages(source, photos.slice(0, 4)), p.texts);
+      const [page] = applyManualTexts(buildBatchPages(source, photos.slice(0, 4)), p.aiMode ? {} : p.texts);
       return { template: resolveExportTemplate(source, page), data: page, label: `Sayfa 1 / ${Math.max(1, p.planned)}` };
     } catch { return null; }
-  }, [source, photos, p.texts, p.groups, p.planned]);
+  }, [source, photos, p.texts, p.groups, p.planned, p.aiMode]);
 
   const onFileDrag = (event: React.DragEvent, kind: 'enter' | 'over' | 'leave' | 'drop') => {
     if (!event.dataTransfer.types.includes('Files')) return;
@@ -155,14 +160,22 @@ export function CreateScreen(p: {
   };
 
   const generateLabel = p.busy ? (p.progress || 'Hazırlanıyor…') : p.planned ? `${p.planned} tasarım oluştur` : 'Tasarımları oluştur';
-  const canGenerate = !p.disabled && p.planned > 0 && !!source;
+  const needsBrief = p.aiMode && fields.length > 0 && !p.brief.trim();
+  const canGenerate = !p.disabled && p.planned > 0 && !!source && !needsBrief;
 
   return (
     <div className="cs-page">
       <header className="cs-heading">
-        <span className="cs-eyebrow">YENİ ÜRETİM</span>
-        <h1>Fotoğraflarından tasarımlar oluştur</h1>
-        <p>Fotoğraflarını ekle, şablonunu seç ve metinlerini yaz. Gerisini Grafik Motoru hazırlasın.</p>
+        <div>
+          <span className="cs-eyebrow">YENİ ÜRETİM</span>
+          <h1>Fotoğraflarından tasarımlar oluştur</h1>
+          <p>Fotoğraflarını ekle, şablonunu seç ve metinlerini yaz. Gerisini Grafik Motoru hazırlasın.</p>
+        </div>
+        <button type="button" className={`cs-clear${confirmClear ? ' is-confirm' : ''}`} disabled={p.disabled || !hasContent}
+          title="Fotoğrafları, metinleri ve komutu temizler; seçili şablon kalır"
+          onClick={() => { if (confirmClear) { p.onClear(); setConfirmClear(false); } else setConfirmClear(true); }}>
+          <Trash2 size={17}/> {confirmClear ? 'Emin misin? Temizle' : 'Sayfayı temizle'}
+        </button>
       </header>
 
       <div className="cs-grid">
@@ -247,7 +260,7 @@ export function CreateScreen(p: {
                 return <li key={t.id}>
                   <button type="button" className={`cs-template${selected ? ' is-selected' : ''}`} aria-pressed={selected} disabled={p.disabled}
                     onClick={() => { p.onSelectTemplate(t.id); if (photosDone) setPickerOpen(false); }}>
-                    <TemplateSwatch template={t} selected={selected}/>
+                    <TemplateSwatch template={t}/>
                     <span className="cs-template-text"><strong>{t.name}</strong><small><TemplateMeta template={t}/></small></span>
                     {selected && showPicker && <Check size={18} className="cs-template-check"/>}
                   </button>
@@ -261,17 +274,31 @@ export function CreateScreen(p: {
           <div className="cs-texts-head">
             <StepMark n={3} active/>
             <div>
-              <h2 id="cs-texts-title">Metinler</h2>
-              <p>{source ? `${source.name} şablonunun metin alanları` : 'Önce bir şablon seç'}</p>
+              <h2 id="cs-texts-title">{p.aiMode ? 'AI ile metin' : 'Metinler'}</h2>
+              <p>{!source ? 'Önce bir şablon seç' : p.aiMode ? `AI, ${source.name} şablonunun metin talimatlarına göre her sayfayı yazar` : `${source.name} şablonunun metin alanları`}</p>
             </div>
-            {fields.length > 0 && p.onAiFill && <button type="button" className="cs-btn cs-btn-ai" disabled={p.disabled || p.aiBusy} onClick={() => void p.onAiFill?.()}>
-              {p.aiBusy ? <Loader2 size={16} className="cs-spin"/> : <Sparkles size={16}/>} {p.aiBusy ? 'Yazılıyor…' : 'AI ile doldur'}
-            </button>}
+            {fields.length > 0 && (p.aiMode
+              ? <button type="button" className="cs-btn cs-btn-outline cs-btn-mode" disabled={p.disabled} onClick={() => p.onAiModeChange(false)}><PenLine size={16}/> Metinleri elle yaz</button>
+              : <button type="button" className="cs-btn cs-btn-ai" disabled={p.disabled} onClick={() => p.onAiModeChange(true)}><Sparkles size={16}/> AI ile doldur</button>)}
           </div>
-          {p.aiError && <p className="cs-error" role="alert">{p.aiError}</p>}
 
           {!fields.length && source && <p className="cs-hint">Bu şablonda metin alanı yok. Tasarımlar yalnızca fotoğraflarla oluşturulur.</p>}
-          {p.groups.map(group => <div key={group.pageId} className="cs-field-group">
+
+          {p.aiMode && fields.length > 0 && <div className="cs-ai-panel">
+            <div className="cs-field">
+              <div className="cs-field-label"><label htmlFor="cs-brief">Bu fotoğraflarla ne anlatalım?</label><small>{p.brief.length} / 3000</small></div>
+              <textarea id="cs-brief" className="cs-textarea cs-ai-prompt" value={p.brief} maxLength={3000} disabled={p.disabled} autoFocus
+                onChange={e => p.setBrief(e.target.value)}
+                placeholder="Örn. Okulumuzun yıl sonu gösterisinden kareler. Öğrencilerimizin emeğini öne çıkaran samimi bir başlık ve kısa bir açıklama yaz."/>
+            </div>
+            <div className="cs-ai-fields">
+              <span>AI'nin dolduracağı alanlar</span>
+              <div>{fields.map(({ group, field }) => <em key={group.pageId + field.id}>{p.groups.length > 1 ? `${group.pageName} · ` : ''}{field.name}</em>)}</div>
+            </div>
+            <p className="cs-hint">{source?.aiSystemPrompt ? 'Şablonun marka dili ve alanlara yazılmış metin talimatları kullanılır.' : 'Komutun, şablonun metin alanlarına ve alanlardaki talimatlara göre uygulanır.'} Her sayfa için fotoğrafına uygun ayrı metin yazılır. AI yazamazsa, metinleri elle girebilmen için bu ekrana dönersin.</p>
+          </div>}
+
+          {!p.aiMode && p.groups.map(group => <div key={group.pageId} className="cs-field-group">
             {p.groups.length > 1 && <h3 className="cs-group-title">{group.pageName}</h3>}
             {group.fields.map(field => {
               const id = `cs-field-${group.pageId}-${field.id}`;
@@ -290,12 +317,7 @@ export function CreateScreen(p: {
             })}
           </div>)}
 
-          <div className="cs-field">
-            <div className="cs-field-label"><label htmlFor="cs-brief">Komut</label><small>İsteğe bağlı</small></div>
-            <textarea id="cs-brief" className="cs-textarea" value={p.brief} maxLength={3000} disabled={p.disabled}
-              onChange={e => p.setBrief(e.target.value)} placeholder="Örn. Yüzleri ortala, fotoğrafları sıcak tonlarla eşitle, en net kareyi kapakta kullan."/>
-          </div>
-          <p className="cs-hint">Metinler aynı düzenden üretilen tüm sayfalara uygulanır. Sonra her sayfayı ayrı düzenleyebilirsin. Bir kısmı kalın yapmak için seçip <strong>Kalın</strong>'a bas.</p>
+          {!p.aiMode && fields.length > 0 && <p className="cs-hint">Metinler aynı düzenden üretilen tüm sayfalara uygulanır. Sonra her sayfayı ayrı düzenleyebilirsin. Bir kısmı kalın yapmak için seçip <strong>Kalın</strong>'a bas.</p>}
           <BoldBubble scopeRef={textsRef}/>
         </section>
 
@@ -314,7 +336,7 @@ export function CreateScreen(p: {
             <dl>
               <div><dt>Fotoğraf</dt><dd>{photos.length} / {MAX_PHOTOS}</dd></div>
               <div><dt>Şablon</dt><dd>{source?.name || '—'}</dd></div>
-              {photosDone && fields.length > 0 && <div><dt>Metinler</dt><dd>{filled} / {fields.length} dolu</dd></div>}
+              {photosDone && fields.length > 0 && <div><dt>Metinler</dt><dd>{p.aiMode ? 'AI yazacak' : `${filled} / ${fields.length} dolu`}</dd></div>}
             </dl>
             <div className="cs-total"><span>Oluşturulacak tasarım</span><strong>{p.planned}</strong></div>
             {p.error && <p className="cs-error" role="alert">{p.error}</p>}
@@ -323,7 +345,7 @@ export function CreateScreen(p: {
             </button>
             {p.busy
               ? <button type="button" className="cs-link cs-center" onClick={p.onCancel}>Üretimi iptal et</button>
-              : <p className="cs-muted cs-center">{photosDone ? 'Seçimin ve metinlerin bu ekranda korunur.' : 'Başlamak için en az 1 fotoğraf ekle.'}</p>}
+              : <p className="cs-muted cs-center">{!photosDone ? 'Başlamak için en az 1 fotoğraf ekle.' : needsBrief ? 'AI için ne anlatmak istediğini yaz.' : 'Seçimin ve metinlerin bu ekranda korunur.'}</p>}
           </section>
         </div>
       </div>
